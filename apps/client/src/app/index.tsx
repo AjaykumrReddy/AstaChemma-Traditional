@@ -1,6 +1,6 @@
 import { HOME_INDEX, type BotLevel, type GameConfig, type GameMode, type Seat } from '@asta/engine';
-import { Link, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Segmented } from '../components/Segmented';
@@ -48,6 +48,23 @@ export default function SetupScreen() {
   const language = useGameStore((s) => s.language);
   const setLanguage = useGameStore((s) => s.setLanguage);
   const startGame = useGameStore((s) => s.startGame);
+  const startTutorial = useGameStore((s) => s.startTutorial);
+  const tutorialDone = useGameStore((s) => s.tutorialDone);
+  const hydrated = useGameStore((s) => s.hydrated);
+
+  // Coming back here (e.g. with the header's back arrow) ends a guided game and
+  // restores the player's own game.
+  useFocusEffect(
+    useCallback(() => {
+      const { tutorial, endTutorial } = useGameStore.getState();
+      if (tutorial) endTutorial(false);
+    }, []),
+  );
+
+  const playTutorial = () => {
+    startTutorial();
+    router.push('/game');
+  };
   const savedGame = useGameStore((s) => (s.hydrated && s.game && s.game.phase !== 'finished' ? s.game : null));
   // Default player names in the saved game follow the current language.
   const saved = savedGame ? withDisplayNames(t, savedGame) : null;
@@ -92,6 +109,20 @@ export default function SetupScreen() {
               <Segmented compact options={LANGUAGE_OPTIONS} value={language} onChange={setLanguage} />
             </View>
           </View>
+
+          {hydrated && !tutorialDone && !saved && (
+            <View style={[styles.card, styles.learnCard]}>
+              <Text style={styles.cardTitle}>{t.learnTitle}</Text>
+              <Text style={styles.hint}>{t.learnHint}</Text>
+              <Pressable
+                style={({ pressed }) => [styles.learnButton, pressed && styles.pressed]}
+                onPress={playTutorial}
+                accessibilityRole="button"
+              >
+                <Text style={styles.primaryText}>{t.learnButton}</Text>
+              </Pressable>
+            </View>
+          )}
 
           {saved && (
             <View style={[styles.card, styles.resumeCard]}>
@@ -186,11 +217,16 @@ export default function SetupScreen() {
           <Pressable style={({ pressed }) => [styles.primary, pressed && styles.pressed]} onPress={start} accessibilityRole="button">
             <Text style={styles.primaryText}>{saved ? t.startNew : t.start}</Text>
           </Pressable>
-          <Link href="/rules" asChild>
-            <Pressable style={styles.secondary} accessibilityRole="link">
-              <Text style={styles.secondaryText}>{t.howToPlay}</Text>
+          <View style={styles.links}>
+            <Pressable style={styles.secondary} onPress={playTutorial} accessibilityRole="button">
+              <Text style={styles.secondaryText}>{t.learnButton}</Text>
             </Pressable>
-          </Link>
+            <Link href="/rules" asChild>
+              <Pressable style={styles.secondary} accessibilityRole="link">
+                <Text style={styles.secondaryText}>{t.howToPlay}</Text>
+              </Pressable>
+            </Link>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -211,6 +247,9 @@ const styles = StyleSheet.create({
   hint: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   centerText: { textAlign: 'center' },
   resumeCard: { borderWidth: 2, borderColor: colors.accent },
+  learnCard: { borderWidth: 2, borderColor: colors.highlight, backgroundColor: '#2C2A1A' },
+  learnButton: { backgroundColor: colors.highlight, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center' },
+  links: { alignItems: 'center' },
   resumePlayers: { gap: space.sm },
   resumePlayer: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   resumeName: { color: colors.text, fontSize: 15, fontWeight: '600', flex: 1 },

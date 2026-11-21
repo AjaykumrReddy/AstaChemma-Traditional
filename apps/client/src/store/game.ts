@@ -1,6 +1,8 @@
 import {
   applyMove,
+  applyThrow,
   createGame,
+  makeThrow,
   randomSeed,
   throwShells as engineThrow,
   type GameConfig,
@@ -13,6 +15,7 @@ import { feedbackForMove, feedbackForThrow, type BoardEffect, type Feedback } fr
 import { haptic } from '../feedback/haptics';
 import { playSound, playSoundAfter, setSoundEnabled } from '../feedback/sounds';
 import type { Lang } from '../i18n/strings';
+import { TUTORIAL_CONFIG, TUTORIAL_THROWS } from '../tutorial/steps';
 
 export type Speed = 'slow' | 'normal' | 'fast';
 
@@ -70,8 +73,18 @@ interface GameStore {
   shakeKey: number;
   /** True once the saved game (if any) has been loaded from the device. */
   hydrated: boolean;
+  /** The guided first game in progress: which step, and how many scripted throws are used. */
+  tutorial: { step: number; throwIndex: number } | null;
+  /** The player's own game, set aside while the guided game runs (and saved in its place). */
+  stash: { config: GameConfig | null; game: GameState | null } | null;
+  /** The player has finished or skipped the guided game once. */
+  tutorialDone: boolean;
 
   startGame(config: GameConfig): void;
+  startTutorial(): void;
+  nextTutorialStep(): void;
+  /** Leave the guided game: keep playing it as a normal game, or restore the player's own game. */
+  endTutorial(keepPlaying: boolean): void;
   removeEffect(id: number): void;
   restart(): void;
   quit(): void;
@@ -89,7 +102,7 @@ interface GameStore {
 let generation = 0;
 
 /** What is saved on the device: enough to resume exactly where the game stopped. */
-type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language'>;
+type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language' | 'tutorialDone'>;
 
 /** Bump when the saved shape changes in a way old saves can't be read. */
 const SAVE_VERSION = 1;
@@ -139,6 +152,9 @@ export const useGameStore = create<GameStore>()(
         effects: [],
         shakeKey: 0,
         hydrated: false,
+        tutorial: null,
+        stash: null,
+        tutorialDone: false,
 
         startGame(config) {
           generation++;
@@ -150,6 +166,51 @@ export const useGameStore = create<GameStore>()(
             selected: null,
             note: 'start',
             effects: [],
+            tutorial: null,
+            stash: null,
+          });
+        },
+
+        startTutorial() {
+          generation++;
+          const { config, game, stash } = get();
+          set({
+            // Keep the player's own game safe (unless one is already set aside).
+            stash: stash ?? { config, game },
+            config: TUTORIAL_CONFIG,
+            game: createGame(TUTORIAL_CONFIG, randomSeed()),
+            rolling: false,
+            animation: null,
+            selected: null,
+            note: null,
+            effects: [],
+            tutorial: { step: 0, throwIndex: 0 },
+          });
+        },
+
+        nextTutorialStep() {
+          set((s) => (s.tutorial ? { tutorial: { ...s.tutorial, step: s.tutorial.step + 1 } } : s));
+        },
+
+        endTutorial(keepPlaying) {
+          const { stash } = get();
+          if (keepPlaying) {
+            // The guided game becomes the player's game.
+            set({ tutorial: null, stash: null, tutorialDone: true });
+            return;
+          }
+          generation++;
+          set({
+            tutorial: null,
+            stash: null,
+            tutorialDone: true,
+            config: stash?.config ?? null,
+            game: stash?.game ?? null,
+            rolling: false,
+            animation: null,
+            selected: null,
+            effects: [],
+            note: stash?.game ? 'welcome' : null,
           });
         },
 
@@ -178,10 +239,20 @@ export const useGameStore = create<GameStore>()(
           playSound('shake');
           setTimeout(() => {
             if (gen !== generation) return;
-            const current = get().game;
+            const { game: current, tutorial } = get();
             if (!current) return;
-            const next = engineThrow(current);
-            set({ game: next, rolling: false, note: null });
+            // The guided game uses scripted results until its script runs out.
+            const scripted = tutorial ? TUTORIAL_THROWS[tutorial.throwIndex] : undefined;
+            const next =
+              scripted === undefined
+                ? engineThrow(current)
+                : applyThrow(current, makeThrow(Array.from({ length: 5 }, (_, i) => i < scripted)));
+            set({
+              game: next,
+              rolling: false,
+              note: null,
+              tutorial: tutorial && scripted !== undefined ? { ...tutorial, throwIndex: tutorial.throwIndex + 1 } : tutorial,
+            });
             play(feedbackForThrow(next));
           }, timings().roll);
         },
@@ -265,16 +336,26 @@ export const useGameStore = create<GameStore>()(
       version: SAVE_VERSION,
       storage: createJSONStorage(() => AsyncStorage),
       // Only the game and settings are saved, never animations, effects or rolls in progress.
+      // During the guided game the player's own game is saved, not the guided one.
       partialize: (s): SavedGame => ({
-        config: s.config,
-        game: s.game,
+        config: s.stash ? s.stash.config : s.config,
+        game: s.stash ? s.stash.game : s.game,
+        tutorialDone: s.tutorialDone,
         autoMove: s.autoMove,
         speed: s.speed,
         sound: s.sound,
         language: s.language,
       }),
       // A save from an incompatible version is dropped rather than risking a crash.
-      migrate: (): SavedGame => ({ config: null, game: null, autoMove: true, speed: 'normal', sound: true, language: 'en' }),
+      migrate: (): SavedGame => ({
+        config: null,
+        game: null,
+        autoMove: true,
+        speed: 'normal',
+        sound: true,
+        language: 'en',
+        tutorialDone: false,
+      }),
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<SavedGame>;
         const game = isGameState(saved.game) ? saved.game : null;
@@ -288,6 +369,7 @@ export const useGameStore = create<GameStore>()(
           speed: isSpeed(saved.speed) ? saved.speed : current.speed,
           sound,
           language: saved.language === 'te' || saved.language === 'en' ? saved.language : current.language,
+          tutorialDone: saved.tutorialDone === true,
           note: game ? 'welcome' : current.note,
         };
       },

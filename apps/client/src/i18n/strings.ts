@@ -1,4 +1,5 @@
 import type { BotLevel, PieceKind, Seat } from '@asta/engine';
+import type { TutorialKey } from '../tutorial/steps';
 
 export type Lang = 'en' | 'te';
 
@@ -115,6 +116,18 @@ export interface Strings {
   shellsA11y: string;
   throwsToUseA11y: string;
 
+  // Guided first game
+  tutorial: Record<TutorialKey, string>;
+  tutorialTitle: string;
+  tutorialStepOf: (n: number, total: number) => string;
+  tutorialNext: string;
+  tutorialSkip: string;
+  keepPlaying: string;
+  backToStart: string;
+  learnTitle: string;
+  learnHint: string;
+  learnButton: string;
+
   // How to play
   rulesTitle: string;
   tableHead: [string, string, string, string];
@@ -213,6 +226,35 @@ const en: Strings = {
   shellsOpenA11y: (n) => `${n} shells open`,
   shellsA11y: 'Cowrie shells',
   throwsToUseA11y: 'Throws to use',
+
+  tutorial: {
+    welcome: 'Welcome! This short guided game shows how Asta Chemma works as you play. You are yellow, at the bottom.',
+    pieces: 'Your three pieces wait in your yellow starting area: one Mother (the marble with the white ring) and two Children.',
+    route:
+      'Pieces come in on the X in the middle of your side, go round the outer ring following the arrows, then round the inner ring, and finish on the lotus in the centre.',
+    throwFirst: 'Tap “Throw shells”. You count how many of the five cowries land open.',
+    enterChild: '4 open! On a 4, a Child can come onto the board. Tap a glowing Child, then tap it again to bring it in.',
+    throwAgain: 'A 4 always earns another throw. Throw again.',
+    keep: 'Another 4. You don’t have to use it now – tap “Keep 4 · Throw again”.',
+    join: '4 + 4! Two kept 4s can join into an 8, but only to release the Mother. Tap “Join 4 + 4”.',
+    throwThree: 'Your Mother is out! The 4 still earns you another throw. Throw.',
+    moveChild: '3 open: your Child moves 3. The Mother can’t move on a 1 or a 3. Tap the glowing Child twice.',
+    computer: 'A 1, 2 or 3 ends your turn. Watch the computer play…',
+    throwEight: 'The computer’s Child has stopped near yours. Throw!',
+    capture: 'All five open counts as 8! Your Child can move 8 and land on their Child – that captures it. Tap your glowing Child twice.',
+    safe: 'Captured! Their Child goes back to start. Only a Child captures a Child, and only a Mother a Mother. Nobody can be captured on an X, and two pieces never share a plain square.',
+    finish:
+      'That’s the game: bring all three pieces to the lotus, with the exact count, before anyone else. Keep playing this game, or go back and start your own.',
+  },
+  tutorialTitle: 'Guided game',
+  tutorialStepOf: (n, total) => `${n} / ${total}`,
+  tutorialNext: 'Next',
+  tutorialSkip: 'Skip',
+  keepPlaying: 'Keep playing',
+  backToStart: 'Back to start',
+  learnTitle: 'New to Asta Chemma?',
+  learnHint: 'Play a short guided game that teaches the rules as you go.',
+  learnButton: 'Play the guided game',
 
   rulesTitle: 'How to play',
   tableHead: ['Open', 'Score', 'Child', 'Mother'],
@@ -378,6 +420,35 @@ const te: Strings = {
   shellsOpenA11y: (n) => `${n} గవ్వలు తెరుచుకున్నాయి`,
   shellsA11y: 'గవ్వలు',
   throwsToUseA11y: 'వాడాల్సిన వేట్లు',
+
+  tutorial: {
+    welcome: 'స్వాగతం! ఈ చిన్న గైడెడ్ ఆట, ఆడుతూనే అష్ట చెమ్మ ఎలా ఆడాలో చూపిస్తుంది. మీరు పసుపు రంగు, కింద వైపు.',
+    pieces: 'మీ మూడు కాయలు పసుపు రంగు ప్రారంభ స్థానంలో ఉన్నాయి: ఒక తల్లి (తెల్లని ఉంగరం ఉన్న గోళీ), రెండు పిల్లలు.',
+    route:
+      'కాయలు మీ వైపు మధ్యలో ఉన్న X గడిలో దిగి, బాణాల దిశలో బయటి వరుస చుట్టూ, తర్వాత లోపలి వరుస చుట్టూ తిరిగి, మధ్యలోని పద్మం దగ్గర ఇంటికి చేరతాయి.',
+    throwFirst: '“గవ్వలు వేయండి” నొక్కండి. ఐదు గవ్వల్లో ఎన్ని తెరుచుకుని పడ్డాయో లెక్కిస్తారు.',
+    enterChild: '4 తెరుచుకున్నాయి! 4 పడితే పిల్ల బోర్డు మీదకు దిగవచ్చు. మెరుస్తున్న పిల్లను నొక్కి, మళ్ళీ నొక్కండి.',
+    throwAgain: '4 పడితే ఎప్పుడూ మరో వేటు వస్తుంది. మళ్ళీ వేయండి.',
+    keep: 'మళ్ళీ 4. దాన్ని ఇప్పుడే వాడనవసరం లేదు – “4 ఉంచండి · మళ్ళీ వేయండి” నొక్కండి.',
+    join: '4 + 4! ఉంచుకున్న రెండు 4లను కలిపి 8 చేయవచ్చు – తల్లిని దించడానికి మాత్రమే. “4 + 4 కలపండి” నొక్కండి.',
+    throwThree: 'తల్లి దిగింది! ఆ 4 వల్ల మీకు ఇంకో వేటు ఉంది. వేయండి.',
+    moveChild: '3 తెరుచుకున్నాయి: మీ పిల్ల 3 అడుగులు కదులుతుంది. 1 లేదా 3 పడితే తల్లి కదలదు. మెరుస్తున్న పిల్లను రెండుసార్లు నొక్కండి.',
+    computer: '1, 2 లేదా 3 పడితే మీ వంతు ముగుస్తుంది. కంప్యూటర్ ఆడటం చూడండి…',
+    throwEight: 'కంప్యూటర్ పిల్ల మీ పిల్లకు దగ్గరలో ఆగింది. వేయండి!',
+    capture: 'ఐదూ తెరుచుకుంటే 8! మీ పిల్ల 8 అడుగులు కదిలి వారి పిల్ల మీద దిగుతుంది – దాన్ని కొడుతుంది. మెరుస్తున్న పిల్లను రెండుసార్లు నొక్కండి.',
+    safe: 'కొట్టారు! వారి పిల్ల మొదటికి వెళ్ళింది. పిల్ల పిల్లను, తల్లి తల్లిని మాత్రమే కొట్టగలవు. X గడిలో ఎవరినీ కొట్టలేరు, సాధారణ గడిలో రెండు కాయలు ఎప్పుడూ కలిసి ఉండవు.',
+    finish:
+      'ఇదే ఆట: మీ మూడు కాయలనూ సరిగ్గా సరిపడే సంఖ్యతో అందరికంటే ముందు పద్మం దగ్గరకు చేర్చండి. ఈ ఆటను కొనసాగించండి, లేదా వెనక్కి వెళ్ళి మీ సొంత ఆట మొదలుపెట్టండి.',
+  },
+  tutorialTitle: 'గైడెడ్ ఆట',
+  tutorialStepOf: (n, total) => `${n} / ${total}`,
+  tutorialNext: 'తర్వాత',
+  tutorialSkip: 'వదిలేయండి',
+  keepPlaying: 'ఆట కొనసాగించండి',
+  backToStart: 'మొదటి పేజీకి',
+  learnTitle: 'అష్ట చెమ్మ కొత్తా?',
+  learnHint: 'ఆడుతూనే నియమాలు నేర్పే చిన్న గైడెడ్ ఆట ఆడండి.',
+  learnButton: 'గైడెడ్ ఆట ఆడండి',
 
   rulesTitle: 'ఎలా ఆడాలి',
   tableHead: ['తెరిచినవి', 'విలువ', 'పిల్ల', 'తల్లి'],

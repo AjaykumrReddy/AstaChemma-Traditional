@@ -5,10 +5,12 @@ import { Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, Vie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Board } from '../components/Board';
 import { Confetti } from '../components/Effects';
+import { CoachCard } from '../components/CoachCard';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Shells } from '../components/Shells';
 import { useStrings, withDisplayNames, type Strings } from '../i18n';
 import { displayState, useGameStore, useTimings } from '../store/game';
+import { TUTORIAL_STEPS } from '../tutorial/steps';
 import { describeEvents, describeOpen, describeScore, throwValue } from '../store/messages';
 import { colors, radius, seatColors, space } from '../theme';
 
@@ -123,35 +125,56 @@ export default function GameScreen() {
   const shakeKey = useGameStore((s) => s.shakeKey);
   const removeEffect = useGameStore((s) => s.removeEffect);
   const hydrated = useGameStore((s) => s.hydrated);
+  const tutorial = useGameStore((s) => s.tutorial);
+  const nextTutorialStep = useGameStore((s) => s.nextTutorialStep);
+  const endTutorial = useGameStore((s) => s.endTutorial);
   const timings = useTimings();
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  /** The guided game's current step, if one is running. */
+  const step = tutorial ? (TUTORIAL_STEPS[tutorial.step] ?? null) : null;
 
   const current = game?.players[game.current];
   const busy = rolling || animation !== null;
   const humanTurn = !!game && !current?.bot && game.phase !== 'finished';
-  const movable = useMemo(
-    () => (game && humanTurn && !busy && game.phase === 'awaitingMove' ? game.legalMoves : []),
-    [game, humanTurn, busy],
-  );
+  const movable = useMemo(() => {
+    if (!game || !humanTurn || busy || game.phase !== 'awaitingMove') return [];
+    // In the guided game only the move the step asks for glows.
+    if (step) return step.allowMove ? game.legalMoves.filter((m) => step.allowMove!(m, game)) : [];
+    return game.legalMoves;
+  }, [game, humanTurn, busy, step]);
+
+  // Guided game: move on to the next step once its goal is reached.
+  useEffect(() => {
+    if (!game || !step?.done || busy) return;
+    if (step.done(game)) nextTutorialStep();
+  }, [game, step, busy, nextTutorialStep]);
 
   // Computer players, and auto-move for humans with a single real choice.
   // Paused while the settings are open, so nothing happens behind them.
   useEffect(() => {
     if (!game || game.phase === 'finished' || busy || !current || settingsOpen) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    if (current.bot) {
+    if (current.bot && tutorial) {
+      // Guided game: the computer throws its scripted shells and makes the first legal move.
+      const first = game.legalMoves[0];
+      timer =
+        game.phase === 'awaitingThrow' || !first
+          ? setTimeout(throwShells, timings.botThrow)
+          : setTimeout(() => move(first.id), timings.botMove);
+    } else if (current.bot) {
       const action = chooseBotAction(game, current.bot);
       timer =
         action.type === 'throw'
           ? setTimeout(throwShells, timings.botThrow)
           : setTimeout(() => move(action.move.id), timings.botMove);
-    } else if (autoMove && game.phase === 'awaitingMove' && !game.canHold) {
+    } else if (autoMove && !tutorial && game.phase === 'awaitingMove' && !game.canHold) {
       // Never auto-use a 4 the player might want to keep for joining.
       const options = distinctMoves(game, game.legalMoves);
       if (options.length === 1) timer = setTimeout(() => move(options[0]!.id), timings.autoMove);
     }
     return () => clearTimeout(timer);
-  }, [game, busy, current, autoMove, throwShells, move, timings, settingsOpen]);
+  }, [game, busy, current, autoMove, throwShells, move, timings, settingsOpen, tutorial]);
 
   // First tap selects a piece and shows where it can go; a second tap moves it
   // when it has a single option, otherwise the player taps the square.
@@ -208,7 +231,7 @@ export default function GameScreen() {
   else if (selected) {
     const options = movable.filter((m) => m.pieceId === selected).length;
     status = options > 1 ? t.tapSquare : t.tapAgain;
-  } else if (game.canHold) status = t.useOrKeep(keptLabel, game.pending.length > 1);
+  } else if (game.canHold && (!step || step.allowHold)) status = t.useOrKeep(keptLabel, game.pending.length > 1);
   else status = t.tapGlowing;
 
   // Built at display time from the game's events, so it follows the language.
@@ -216,8 +239,29 @@ export default function GameScreen() {
 
   const winners = game.winners.map((i) => named.players[i]!.name);
   const joinMove = humanTurn && !busy ? movable.find((m) => m.join) : undefined;
-  const showHold = humanTurn && !busy && game.phase === 'awaitingMove' && game.canHold;
-  const showThrow = humanTurn && game.phase === 'awaitingThrow';
+  // In the guided game only the action the step asks for is offered.
+  const showHold = humanTurn && !busy && game.phase === 'awaitingMove' && game.canHold && (!step || !!step.allowHold);
+  const showThrow = humanTurn && game.phase === 'awaitingThrow' && (!step || !!step.allowThrow);
+
+  const coach =
+    step && tutorial ? (
+      <CoachCard
+        t={t}
+        step={step}
+        index={tutorial.step}
+        total={TUTORIAL_STEPS.length}
+        onNext={nextTutorialStep}
+        onSkip={() => {
+          endTutorial(false);
+          router.back();
+        }}
+        onKeepPlaying={() => endTutorial(true)}
+        onBackToStart={() => {
+          endTutorial(false);
+          router.back();
+        }}
+      />
+    ) : null;
 
   const players = (
     <View style={[styles.players, wide && styles.playersWide]}>
@@ -312,7 +356,8 @@ export default function GameScreen() {
           { paddingBottom: insets.bottom + space.lg },
         ]}
       >
-        {!wide && players}
+        {/* On phones the coach takes the player chips' place, so the board and buttons stay in view. */}
+        {!wide && (coach ?? players)}
         <View style={{ width: boardSize, height: boardSize }}>
           <Board
             state={shown}
@@ -330,6 +375,7 @@ export default function GameScreen() {
         </View>
         {wide ? (
           <View style={styles.side}>
+            {coach}
             {players}
             {panel}
           </View>
