@@ -18,7 +18,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" options={{ title: t.appTitle, headerShown: false }} />
-        <Stack.Screen name="game" options={{ title: t.appTitle }} />
+        <Stack.Screen name="game" options={{ headerShown: false }} />
         <Stack.Screen name="rules" options={{ title: t.rulesTitle }} />
         {/* Menu screens draw their own background and top bar. */}
         <Stack.Screen name="setup" options={{ headerShown: false }} />

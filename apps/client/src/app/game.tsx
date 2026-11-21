@@ -1,10 +1,9 @@
 import { HOME_INDEX, cellAt, cellKey, chooseBotAction, type Cell, type GameState, type Move } from '@asta/engine';
-import { Link, Redirect, Stack, useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -14,7 +13,9 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Backdrop } from '../components/Backdrop';
 import { Board } from '../components/Board';
+import { IconButton, Popup, TopBar } from '../components/Chrome';
 import { Confetti } from '../components/Effects';
 import { CoachCard } from '../components/CoachCard';
 import { SeatMark } from '../components/SeatMark';
@@ -32,6 +33,9 @@ import { colors, radius, seatColors, space } from '../theme';
 const WIDE_BREAKPOINT = 820;
 const SIDE_WIDTH = 340;
 const HEADER_ALLOWANCE = 72;
+/** Cards float over the background as dark glass with a faint gold rim. */
+const GLASS = 'rgba(10, 30, 25, 0.72)';
+const GOLD_RIM = '#F6D77B';
 
 function destinationOf(state: GameState, move: Move): Cell | null {
   const piece = state.pieces.find((p) => p.id === move.pieceId);
@@ -51,17 +55,37 @@ function distinctMoves(state: GameState, moves: Move[]): Move[] {
   });
 }
 
-function PlayerChip({ state, index, t, presence }: { state: GameState; index: number; t: Strings; presence?: string | null }) {
+function PlayerChip({
+  state,
+  index,
+  t,
+  presence,
+  compact,
+}: {
+  state: GameState;
+  index: number;
+  t: Strings;
+  presence?: string | null;
+  /** Phones: all players in one row, so only the name and pieces. */
+  compact?: boolean;
+}) {
   const player = state.players[index]!;
   const pieces = state.pieces.filter((p) => p.owner === index);
   const isCurrent = state.current === index && state.phase !== 'finished';
   const isWinner = state.winners.includes(index);
   const seat = seatColors[player.seat];
   return (
-    <View style={[styles.chip, isCurrent && { borderColor: seat.fill, backgroundColor: colors.surfaceRaised }]}>
-      <SeatMark seat={player.seat} size={16} />
-      <View style={{ flexShrink: 1 }}>
-        <Text style={styles.chipName} numberOfLines={1}>
+    <View
+      style={[
+        styles.chip,
+        compact && styles.chipCompact,
+        // Whose turn it is: lit up in their colour.
+        isCurrent && { borderColor: seat.fill, backgroundColor: `${seat.dark}CC`, shadowColor: seat.fill, shadowOpacity: 0.7, shadowRadius: 10, shadowOffset: { width: 0, height: 0 } },
+      ]}
+    >
+      {!compact && <SeatMark seat={player.seat} size={16} />}
+      <View style={{ flexShrink: 1, minWidth: 0 }}>
+        <Text style={[styles.chipName, compact && styles.chipNameCompact]} numberOfLines={1}>
           {isWinner ? '🏆 ' : ''}
           {player.name}
         </Text>
@@ -76,10 +100,18 @@ function PlayerChip({ state, index, t, presence }: { state: GameState; index: nu
               ]}
             />
           ))}
-          <Text style={styles.chipTag} numberOfLines={1}>
-            {player.bot ? t.cpuTag(player.bot) : t.humanTag}
-            {player.team !== undefined ? ` · ${t.team(player.team === 0 ? 'A' : 'B')}` : ''}
-          </Text>
+          {compact ? (
+            player.team !== undefined && (
+              <Text style={styles.chipTag} numberOfLines={1}>
+                {t.team(player.team === 0 ? 'A' : 'B')}
+              </Text>
+            )
+          ) : (
+            <Text style={styles.chipTag} numberOfLines={1}>
+              {player.bot ? t.cpuTag(player.bot) : t.humanTag}
+              {player.team !== undefined ? ` · ${t.team(player.team === 0 ? 'A' : 'B')}` : ''}
+            </Text>
+          )}
         </View>
         {/* Online: a friend who dropped out, or whose turns the computer is playing. */}
         {presence ? (
@@ -247,11 +279,17 @@ export default function GameScreen() {
   );
 
   // Wait for a saved game to load before deciding there is no game to show.
-  if (!hydrated) return <View style={styles.screen} />;
+  if (!hydrated)
+    return (
+      <View style={styles.screen}>
+        <Backdrop />
+      </View>
+    );
   // Online, the first update from the server may still be on its way.
   if (online && (!game || !current)) {
     return (
       <View style={[styles.screen, styles.centered]}>
+        <Backdrop />
         <ActivityIndicator color={colors.chalk} />
         <Text style={styles.message}>{onlineStatus === 'reconnecting' ? t.reconnecting : t.connecting}</Text>
       </View>
@@ -273,6 +311,7 @@ export default function GameScreen() {
     leaveOnline();
     router.replace('/');
   };
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
   // Player names for display: default names ("You", "Computer 2") follow the language.
   const named = withDisplayNames(t, game);
@@ -283,7 +322,8 @@ export default function GameScreen() {
   const boardSize = Math.floor(
     wide
       ? Math.min(available - space.lg, width - SIDE_WIDTH - space.xl * 3, 820)
-      : Math.max(280, Math.min(width - space.md * 2, available - 300, 620)),
+      : // Phones: the board takes what the chip row (~60) and the panel (~250) leave.
+        Math.max(230, Math.min(width - space.md * 2, available - 330, 620)),
   );
 
   const shown = displayState(game, animation);
@@ -338,15 +378,19 @@ export default function GameScreen() {
     ) : null;
 
   const players = (
-    <View style={[styles.players, wide && styles.playersWide]}>
+    <View style={[styles.players, wide ? styles.playersWide : styles.playersRow]}>
       {game.players.map((p) => (
-        <PlayerChip key={p.index} state={named} index={p.index} t={t} presence={presenceOf(p.seat)} />
+        <PlayerChip key={p.index} state={named} index={p.index} t={t} presence={presenceOf(p.seat)} compact={!wide} />
       ))}
     </View>
   );
 
+  // Chunky buttons in the current player's colour; dark text on yellow, white on the others.
+  const seatButton = { backgroundColor: seat.fill, borderBottomColor: seat.dark };
+  const seatButtonText = current.seat === 0 ? styles.darkText : styles.lightText;
+
   const panel = (
-    <View style={[styles.panel, { borderColor: game.phase === 'finished' ? colors.accent : seat.fill }]}>
+    <View style={[styles.panel, height < 700 && !wide && styles.panelTight, { borderColor: game.phase === 'finished' ? colors.accent : seat.fill }]}>
       <View style={styles.statusRow}>
         <SeatMark seat={current.seat} size={16} />
         <Text style={styles.status} numberOfLines={2}>
@@ -364,7 +408,7 @@ export default function GameScreen() {
           </Pressable>
         )}
       </View>
-      <Shells shells={game.lastThrow?.shells ?? null} rolling={rolling} size={wide ? 40 : 34} />
+      <Shells shells={game.lastThrow?.shells ?? null} rolling={rolling} size={wide ? 40 : height < 700 ? 28 : 34} />
       <Text style={styles.score}>
         {rolling
           ? ' '
@@ -388,10 +432,10 @@ export default function GameScreen() {
       {joinMove && (
         <Pressable
           onPress={() => move(joinMove.id)}
-          style={({ pressed }) => [styles.throwButton, { backgroundColor: seat.fill }, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.bigButton, seatButton, pressed && styles.pressed]}
           accessibilityRole="button"
         >
-          <Text style={styles.throwText}>{t.joinFours}</Text>
+          <Text style={[styles.bigButtonText, seatButtonText]}>{t.joinFours}</Text>
         </Pressable>
       )}
       {showHold && (
@@ -407,10 +451,11 @@ export default function GameScreen() {
         <Pressable
           onPress={throwShells}
           disabled={busy}
-          style={({ pressed }) => [styles.throwButton, { backgroundColor: seat.fill }, (pressed || busy) && styles.pressed]}
+          style={({ pressed }) => [styles.bigButton, seatButton, (pressed || busy) && styles.pressed]}
           accessibilityRole="button"
         >
-          <Text style={styles.throwText}>{rolling ? t.throwing : t.throwShells}</Text>
+          <View style={styles.gloss} />
+          <Text style={[styles.bigButtonText, seatButtonText]}>{rolling ? t.throwing : t.throwShells}</Text>
         </Pressable>
       )}
     </View>
@@ -418,24 +463,25 @@ export default function GameScreen() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen
-        options={{
+      <Backdrop />
+      <View style={{ paddingTop: insets.top }}>
+        <TopBar
           // Online, the room code stays in view so it can be told to a friend who dropped out.
-          title: online && roomCode ? `${t.appTitle} · ${roomCode}` : t.appTitle,
-          headerRight: () => (
-            <View style={styles.headerActions}>
-              <Link href="/rules" asChild>
-                <Pressable hitSlop={10} accessibilityRole="link">
-                  <Text style={styles.headerLink}>{t.rules}</Text>
-                </Pressable>
-              </Link>
-              <Pressable hitSlop={10} onPress={() => setSettingsOpen(true)} accessibilityRole="button" accessibilityLabel={t.settings}>
-                <Text style={styles.headerIcon}>⚙</Text>
-              </Pressable>
-            </View>
-          ),
-        }}
-      />
+          title={online && roomCode ? `${t.appTitle} · ${roomCode}` : t.appTitle}
+          onBack={goBack}
+          backLabel={t.back}
+          right={
+            <>
+              <IconButton label={t.rules} onPress={() => router.push('/rules')} size={40}>
+                <Text style={styles.iconGlyph}>?</Text>
+              </IconButton>
+              <IconButton label={t.settings} onPress={() => setSettingsOpen(true)} size={40}>
+                <Text style={styles.gearGlyph}>⚙</Text>
+              </IconButton>
+            </>
+          }
+        />
+      </View>
       <ScrollView
         contentContainerStyle={[
           wide ? styles.contentWide : styles.content,
@@ -470,36 +516,34 @@ export default function GameScreen() {
             {panel}
           </View>
         ) : (
-          panel
+          <>
+            {/* The panel sits at the bottom, near the thumb; spare height goes above it. */}
+            <View style={styles.spacer} />
+            {panel}
+          </>
         )}
       </ScrollView>
 
-      <Modal visible={settingsOpen} transparent animationType="fade" onRequestClose={() => setSettingsOpen(false)}>
-        <Pressable style={styles.overlay} onPress={() => setSettingsOpen(false)} accessibilityLabel={t.closeSettings}>
-          {/* Taps inside the sheet must not close it. */}
-          <Pressable style={styles.dialog} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>{t.settings}</Text>
-            <View style={styles.sheetBody}>
-              <SettingsPanel />
-            </View>
-            {online && (
-              <View style={styles.leaveBox}>
-                <Text style={styles.dialogText}>{t.leaveGameHint}</Text>
-                <Pressable style={styles.dialogSecondary} onPress={leaveOnlineGame} accessibilityRole="button">
-                  <Text style={[styles.dialogSecondaryText, { color: colors.danger }]}>{t.leaveGame}</Text>
-                </Pressable>
-              </View>
-            )}
-            <Pressable
-              style={[styles.throwButton, { backgroundColor: colors.accent }]}
-              onPress={() => setSettingsOpen(false)}
-              accessibilityRole="button"
-            >
-              <Text style={styles.throwText}>{t.done}</Text>
+      <Popup visible={settingsOpen} onClose={() => setSettingsOpen(false)} closeLabel={t.close} title={t.settings}>
+        <ScrollView style={{ maxHeight: height * 0.6 }} bounces={false}>
+          <SettingsPanel />
+        </ScrollView>
+        {online && (
+          <View style={styles.leaveBox}>
+            <Text style={styles.dialogText}>{t.leaveGameHint}</Text>
+            <Pressable style={styles.dialogSecondary} onPress={leaveOnlineGame} accessibilityRole="button">
+              <Text style={[styles.dialogSecondaryText, { color: colors.danger }]}>{t.leaveGame}</Text>
             </Pressable>
-          </Pressable>
+          </View>
+        )}
+        <Pressable
+          style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]}
+          onPress={() => setSettingsOpen(false)}
+          accessibilityRole="button"
+        >
+          <Text style={styles.bigButtonText}>{t.done}</Text>
         </Pressable>
-      </Modal>
+      </Popup>
 
       {game.phase === 'finished' && !animation && (
         <View style={styles.overlay}>
@@ -509,13 +553,13 @@ export default function GameScreen() {
             <Text style={styles.dialogTitle}>{t.won(winners.join(' & '))}</Text>
             <Text style={styles.dialogText}>{game.config.mode === 'team' ? t.winTeam : t.winSolo}</Text>
             {online ? (
-              <Pressable style={[styles.throwButton, { backgroundColor: colors.accent }]} onPress={leaveOnlineGame}>
-                <Text style={styles.throwText}>{t.backToStart}</Text>
+              <Pressable style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]} onPress={leaveOnlineGame}>
+                <Text style={styles.bigButtonText}>{t.backToStart}</Text>
               </Pressable>
             ) : (
               <>
-                <Pressable style={[styles.throwButton, { backgroundColor: colors.accent }]} onPress={restart}>
-                  <Text style={styles.throwText}>{t.playAgain}</Text>
+                <Pressable style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]} onPress={restart}>
+                  <Text style={styles.bigButtonText}>{t.playAgain}</Text>
                 </Pressable>
                 <Pressable style={styles.dialogSecondary} onPress={() => router.back()}>
                   <Text style={styles.dialogSecondaryText}>{t.newSetup}</Text>
@@ -544,7 +588,8 @@ const styles = StyleSheet.create({
   bannerWide: { position: 'absolute', top: space.sm, left: space.xl, right: space.xl, zIndex: 10 },
   presence: { color: colors.highlight, fontSize: 11.5, fontWeight: '700', marginTop: 2 },
   leaveBox: { alignSelf: 'stretch', alignItems: 'center', marginBottom: space.md },
-  content: { paddingHorizontal: space.md, paddingTop: space.sm, gap: space.md, alignItems: 'center' },
+  content: { flexGrow: 1, paddingHorizontal: space.md, paddingTop: space.sm, gap: space.md, alignItems: 'center' },
+  spacer: { flexGrow: 1, marginTop: -space.md },
   contentWide: {
     flexGrow: 1,
     flexDirection: 'row',
@@ -555,23 +600,21 @@ const styles = StyleSheet.create({
     paddingTop: space.sm,
   },
   side: { width: SIDE_WIDTH, gap: space.md },
-  headerLink: { color: colors.chalk, fontSize: 16, fontWeight: '600', paddingHorizontal: space.sm },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  headerIcon: { color: colors.chalk, fontSize: 22, paddingHorizontal: space.sm },
-  sheetTitle: { color: colors.text, fontSize: 20, fontWeight: '800', alignSelf: 'flex-start' },
-  sheetBody: { alignSelf: 'stretch', marginVertical: space.md },
   players: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, width: '100%', maxWidth: 620, justifyContent: 'center' },
   playersWide: { maxWidth: undefined },
+  playersRow: { flexWrap: 'nowrap' },
+  chipCompact: { minWidth: 0, flexBasis: 0, flexGrow: 1, paddingHorizontal: space.sm, paddingVertical: 6 },
+  chipNameCompact: { fontSize: 13 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
-    borderRadius: radius.md,
+    borderRadius: radius.md + 2,
     borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: colors.surface,
+    borderColor: 'rgba(246, 215, 123, 0.22)',
+    backgroundColor: GLASS,
     minWidth: 150,
     flexGrow: 1,
     flexBasis: 150,
@@ -584,13 +627,14 @@ const styles = StyleSheet.create({
   panel: {
     width: '100%',
     maxWidth: 620,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    backgroundColor: GLASS,
+    borderRadius: radius.lg + 2,
     borderWidth: 2,
     padding: space.lg,
     gap: space.sm,
     alignItems: 'center',
   },
+  panelTight: { padding: space.md, gap: 6 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'stretch' },
   undo: {
     borderWidth: 1.5,
@@ -603,8 +647,6 @@ const styles = StyleSheet.create({
   status: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1 },
   score: { color: colors.chalk, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   message: { color: colors.textMuted, fontSize: 13, textAlign: 'center', minHeight: 18 },
-  throwButton: { alignSelf: 'stretch', borderRadius: radius.md, paddingVertical: 14, alignItems: 'center', marginTop: space.xs },
-  throwText: { color: '#1C1C1C', fontSize: 16, fontWeight: '800' },
   secondaryButton: {
     alignSelf: 'stretch',
     borderRadius: radius.md,
@@ -638,11 +680,38 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 380,
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.lg + 4,
+    borderWidth: 2,
+    borderColor: GOLD_RIM,
     padding: space.xl,
     alignItems: 'center',
     gap: space.sm,
   },
+  /** Chunky raised button: a darker bottom edge and a glossy top half. */
+  bigButton: {
+    alignSelf: 'stretch',
+    borderRadius: radius.md + 2,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: space.xs,
+    borderBottomWidth: 5,
+    overflow: 'hidden',
+  },
+  goldButton: { backgroundColor: colors.accent, borderBottomColor: '#B8913A' },
+  gloss: {
+    position: 'absolute',
+    left: 6,
+    right: 6,
+    top: 3,
+    height: '42%',
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  bigButtonText: { color: '#2A2208', fontSize: 17, fontWeight: '900', letterSpacing: 0.3 },
+  darkText: { color: '#2A2208' },
+  lightText: { color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1.5 }, textShadowRadius: 2 },
+  iconGlyph: { color: colors.chalk, fontSize: 19, fontWeight: '900' },
+  gearGlyph: { color: colors.chalk, fontSize: 20, marginTop: -2 },
   dialogEmoji: { fontSize: 44 },
   dialogTitle: { color: colors.text, fontSize: 24, fontWeight: '800', textAlign: 'center' },
   dialogText: { color: colors.textMuted, fontSize: 14, textAlign: 'center', marginBottom: space.sm },
