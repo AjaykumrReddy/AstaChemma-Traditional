@@ -459,6 +459,9 @@ describe('determinism and full games', () => {
     }
   });
 
+  /** The bot-strength tests play hundreds of games with the look-ahead bot: seconds of work, more on a busy machine. */
+  const SLOW_MS = 30_000;
+
   it('hard bots beat easy bots more often than not', () => {
     let hardWins = 0;
     const games = 300;
@@ -469,7 +472,7 @@ describe('determinism and full games', () => {
       if (levels[g.winners[0]!] === 'hard') hardWins++;
     }
     expect(hardWins / games).toBeGreaterThan(0.6);
-  });
+  }, SLOW_MS);
 
   it('hard (look-ahead) beats the greedy player with hard settings', () => {
     // Measured at 59% ± 3.4 over 800 games; this fixed sample guards against regressions.
@@ -486,7 +489,7 @@ describe('determinism and full games', () => {
       if ((g.winners[0] === 0) === searchFirst) wins++;
     }
     expect(wins / games).toBeGreaterThan(0.53);
-  });
+  }, SLOW_MS);
 
   it('hard clears the way before using a kept throw', () => {
     // Mother on a plain square; her own Child sits where the Mother's 4 would land.
