@@ -28,7 +28,7 @@ function ToggleRow({ title, hint, value, onChange }: { title: string; hint: stri
   );
 }
 
-/** Game settings: language, speed, sound and auto-move. Saved on the device. */
+/** Game settings: language, speed, sound, auto-move and shape markers. Saved on the device. */
 export function SettingsPanel() {
   const t = useStrings();
   const language = useGameStore((s) => s.language);
@@ -39,6 +39,8 @@ export function SettingsPanel() {
   const setSound = useGameStore((s) => s.setSound);
   const autoMove = useGameStore((s) => s.autoMove);
   const setAutoMove = useGameStore((s) => s.setAutoMove);
+  const markers = useGameStore((s) => s.markers);
+  const setMarkers = useGameStore((s) => s.setMarkers);
 
   const speedOptions: { value: Speed; label: string }[] = [
     { value: 'slow', label: t.speed.slow },
@@ -59,6 +61,7 @@ export function SettingsPanel() {
       </View>
       <ToggleRow title={t.sound} hint={t.soundHint} value={sound} onChange={setSound} />
       <ToggleRow title={t.autoMove} hint={t.autoMoveHint} value={autoMove} onChange={setAutoMove} />
+      <ToggleRow title={t.markers} hint={t.markersHint} value={markers} onChange={setMarkers} />
     </View>
   );
 }

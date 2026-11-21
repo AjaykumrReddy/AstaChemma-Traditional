@@ -61,6 +61,8 @@ export interface Strings {
   soundHint: string;
   autoMove: string;
   autoMoveHint: string;
+  markers: string;
+  markersHint: string;
   done: string;
   closeSettings: string;
 
@@ -178,6 +180,8 @@ const en: Strings = {
   soundHint: 'Shells, steps, captures and celebrations.',
   autoMove: 'Auto-move',
   autoMoveHint: 'Move for you when a throw allows only one choice.',
+  markers: 'Shape markers',
+  markersHint: 'Adds a shape to each player’s pieces (▲ ■ ✚ ◆), so players can be told apart without relying on colour.',
   done: 'Done',
   closeSettings: 'Close settings',
 
@@ -374,6 +378,8 @@ const te: Strings = {
   soundHint: 'గవ్వలు, అడుగులు, కొట్టడాలు, సంబరాలు.',
   autoMove: 'ఆటో కదలిక',
   autoMoveHint: 'ఒకే దారి ఉన్నప్పుడు కాయను మీ బదులు కదుపుతుంది.',
+  markers: 'ఆకార గుర్తులు',
+  markersHint: 'ప్రతి ఆటగాడి కాయలపై ఒక ఆకారం (▲ ■ ✚ ◆) చూపిస్తుంది – రంగులు గుర్తించడం కష్టమైనవారికి సహాయం.',
   done: 'సరే',
   closeSettings: 'సెట్టింగ్‌లు మూసివేయండి',
 

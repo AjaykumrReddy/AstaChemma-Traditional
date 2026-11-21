@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Board } from '../components/Board';
 import { Confetti } from '../components/Effects';
 import { CoachCard } from '../components/CoachCard';
+import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Shells } from '../components/Shells';
 import { useStrings, withDisplayNames, type Strings } from '../i18n';
@@ -45,7 +46,7 @@ function PlayerChip({ state, index, t }: { state: GameState; index: number; t: S
   const seat = seatColors[player.seat];
   return (
     <View style={[styles.chip, isCurrent && { borderColor: seat.fill, backgroundColor: colors.surfaceRaised }]}>
-      <View style={[styles.chipDot, { backgroundColor: seat.fill }]} />
+      <SeatMark seat={player.seat} size={16} />
       <View style={{ flexShrink: 1 }}>
         <Text style={styles.chipName} numberOfLines={1}>
           {isWinner ? '🏆 ' : ''}
@@ -280,7 +281,7 @@ export default function GameScreen() {
   const panel = (
     <View style={[styles.panel, { borderColor: game.phase === 'finished' ? colors.accent : seat.fill }]}>
       <View style={styles.statusRow}>
-        <View style={[styles.chipDot, { backgroundColor: seat.fill }]} />
+        <SeatMark seat={current.seat} size={16} />
         <Text style={styles.status} numberOfLines={2}>
           {status}
         </Text>
@@ -474,7 +475,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: 150,
   },
-  chipDot: { width: 14, height: 14, borderRadius: 7 },
   chipName: { color: colors.text, fontSize: 14, fontWeight: '700' },
   chipMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   homeMother: { width: 11, height: 11, borderRadius: 6, borderWidth: 2 },

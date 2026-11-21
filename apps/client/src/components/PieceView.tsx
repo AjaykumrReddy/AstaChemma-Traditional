@@ -1,8 +1,9 @@
 import type { PieceKind, Seat } from '@asta/engine';
 import { memo, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet } from 'react-native';
-import Svg, { Circle, Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
-import { colors, seatColors } from '../theme';
+import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, Stop } from 'react-native-svg';
+import { colors, seatColors, type SeatShape } from '../theme';
+import { shapePath } from './SeatMark';
 
 /** Largest piece radius, in board units; smaller pieces are scaled down from it. */
 const MAX_R = 0.3;
@@ -16,6 +17,8 @@ export interface PieceViewProps {
   seat: Seat;
   /** Screen-reader label, e.g. "Yellow Mother", in the current language. */
   label: string;
+  /** The player's shape, drawn on the marble when "Shape markers" is on. */
+  shape: SeatShape | null;
   /** Centre position and radius, in pixels. */
   x: number;
   y: number;
@@ -36,7 +39,7 @@ export interface PieceViewProps {
  * on the board), squashes as it lands, pulses when it can move, bobs when
  * selected, flies back in a high arc when captured and pops on reaching home.
  */
-function PieceViewImpl({ id, kind, seat, label, x, y, radius, unit, home, movable, selected, raised, stepMs, onPress }: PieceViewProps) {
+function PieceViewImpl({ id, kind, seat, label, shape, x, y, radius, unit, home, movable, selected, raised, stepMs, onPress }: PieceViewProps) {
   const box = MAX_R * unit * 2 * PAD;
   const baseScale = radius / (MAX_R * unit);
   const targetScale = baseScale * (selected ? 1.12 : 1);
@@ -256,6 +259,17 @@ function PieceViewImpl({ id, kind, seat, label, x, y, radius, unit, home, movabl
             {/* Glassy highlight */}
             <Ellipse cx={-0.32} cy={-0.42} rx={0.32} ry={0.2} fill="#FFFFFF" fillOpacity={0.55} />
             {kind === 'mother' && <Circle r={0.45} fill="none" stroke="#FFFFFF" strokeOpacity={0.92} strokeWidth={0.18} />}
+            {/* The player's shape: inside the Mother's ring, or centred on a Child. */}
+            {shape && (
+              <Path
+                d={shapePath(shape, kind === 'mother' ? 0.24 : 0.46)}
+                fill="#FFFFFF"
+                fillOpacity={0.95}
+                stroke={colour.dark}
+                strokeWidth={0.07}
+                strokeLinejoin="round"
+              />
+            )}
           </Svg>
         </Animated.View>
       </Pressable>

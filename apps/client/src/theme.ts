@@ -44,5 +44,13 @@ export const seatColors: Record<Seat, { fill: string; light: string; dark: strin
   3: { fill: '#30A46C', light: '#B2EBCB', dark: '#14583A' },
 };
 
+/**
+ * A shape per seat, shown on marbles and player markers when "Shape markers"
+ * is on, so players can be told apart without relying on colour (red and
+ * green look alike with the most common colour blindness).
+ */
+export type SeatShape = 'triangle' | 'square' | 'plus' | 'diamond';
+export const seatShapes: Record<Seat, SeatShape> = { 0: 'triangle', 1: 'square', 2: 'plus', 3: 'diamond' };
+
 export const radius = { sm: 8, md: 12, lg: 18, pill: 999 };
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };

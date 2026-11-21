@@ -4,10 +4,11 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Segmented } from '../components/Segmented';
+import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { STRINGS, useStrings, withDisplayNames, type Lang, type Strings } from '../i18n';
 import { useGameStore } from '../store/game';
-import { colors, radius, seatColors, space } from '../theme';
+import { colors, radius, space } from '../theme';
 
 type SeatKind = 'human' | BotLevel;
 
@@ -133,7 +134,7 @@ export default function SetupScreen() {
                   const isTurn = p.index === saved.current;
                   return (
                     <View key={p.index} style={styles.resumePlayer}>
-                      <View style={[styles.dot, { backgroundColor: seatColors[p.seat].fill }]} />
+                      <SeatMark seat={p.seat} />
                       <Text style={[styles.resumeName, isTurn && styles.resumeTurn]} numberOfLines={1}>
                         {p.name}
                       </Text>
@@ -188,7 +189,7 @@ export default function SetupScreen() {
             {active.map((seat) => (
               <View key={seat} style={styles.seat}>
                 <View style={styles.seatHeader}>
-                  <View style={[styles.dot, { backgroundColor: seatColors[seat].fill }]} />
+                  <SeatMark seat={seat} />
                   <Text style={styles.seatLabel}>
                     {t.colour[seat]} · {t.seat[seat]}
                     {mode === 'team' ? ` · ${t.team(seat % 2 === 0 ? 'A' : 'B')}` : ''}
@@ -256,7 +257,6 @@ const styles = StyleSheet.create({
   resumeTurn: { fontWeight: '800', color: colors.accent },
   seat: { gap: space.sm, paddingTop: space.xs },
   seatHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  dot: { width: 14, height: 14, borderRadius: 7 },
   seatLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
   input: {
     backgroundColor: colors.background,

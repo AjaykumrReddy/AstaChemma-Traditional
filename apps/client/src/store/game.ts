@@ -67,6 +67,8 @@ interface GameStore {
   speed: Speed;
   sound: boolean;
   language: Lang;
+  /** Show a shape per player on marbles and markers, for colour-blind players. */
+  markers: boolean;
   /** Short-lived effects on the board (bursts, shockwaves). */
   effects: BoardEffect[];
   /** Bumped to shake the board. */
@@ -106,6 +108,7 @@ interface GameStore {
   setSpeed(speed: Speed): void;
   setSound(on: boolean): void;
   setLanguage(language: Lang): void;
+  setMarkers(on: boolean): void;
 }
 
 // Incremented on every new game so stale timers from an old game do nothing.
@@ -115,7 +118,7 @@ let generation = 0;
 const UNDO_LIMIT = 30;
 
 /** What is saved on the device: enough to resume exactly where the game stopped. */
-type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language' | 'tutorialDone'>;
+type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language' | 'markers' | 'tutorialDone'>;
 
 /** Bump when the saved shape changes in a way old saves can't be read. */
 const SAVE_VERSION = 1;
@@ -172,6 +175,7 @@ export const useGameStore = create<GameStore>()(
         speed: 'normal',
         sound: true,
         language: 'en',
+        markers: false,
         effects: [],
         shakeKey: 0,
         hydrated: false,
@@ -376,6 +380,10 @@ export const useGameStore = create<GameStore>()(
         setLanguage(language) {
           set({ language });
         },
+
+        setMarkers(on) {
+          set({ markers: on });
+        },
       };
     },
     {
@@ -392,6 +400,7 @@ export const useGameStore = create<GameStore>()(
         speed: s.speed,
         sound: s.sound,
         language: s.language,
+        markers: s.markers,
       }),
       // A save from an incompatible version is dropped rather than risking a crash.
       migrate: (): SavedGame => ({
@@ -401,6 +410,7 @@ export const useGameStore = create<GameStore>()(
         speed: 'normal',
         sound: true,
         language: 'en',
+        markers: false,
         tutorialDone: false,
       }),
       merge: (persisted, current) => {
@@ -417,6 +427,7 @@ export const useGameStore = create<GameStore>()(
           sound,
           language: saved.language === 'te' || saved.language === 'en' ? saved.language : current.language,
           tutorialDone: saved.tutorialDone === true,
+          markers: saved.markers === true,
           note: game ? 'welcome' : current.note,
         };
       },
