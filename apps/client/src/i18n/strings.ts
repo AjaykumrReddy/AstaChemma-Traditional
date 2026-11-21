@@ -166,6 +166,22 @@ export interface Strings {
   rejoin: string;
   /** Online: the prompt when it becomes this player's turn. */
   yourTurn: string;
+
+  // Start screen tiles and menus
+  modeOnline: string;
+  modeOnlineSub: string;
+  modeComputer: string;
+  modeComputerSub: string;
+  modePassPlay: string;
+  modePassPlaySub: string;
+  modeLearn: string;
+  modeLearnSub: string;
+  newBadge: string;
+  close: string;
+  back: string;
+  difficulty: string;
+  /** Small top-bar button to bring back a saved game after its popup was closed. */
+  continuePill: string;
   onlineError: Record<ErrorCode | 'network', string>;
 
   // How to play
@@ -331,6 +347,19 @@ const en: Strings = {
   rejoinHint: (code) => `Room ${code}`,
   rejoin: 'Rejoin',
   yourTurn: 'Your turn – throw the shells',
+  modeOnline: 'Play Online',
+  modeOnlineSub: 'Friends anywhere',
+  modeComputer: 'vs Computer',
+  modeComputerSub: 'Easy, medium or hard',
+  modePassPlay: 'Pass & Play',
+  modePassPlaySub: 'Friends on this phone',
+  modeLearn: 'Learn',
+  modeLearnSub: 'A guided first game',
+  newBadge: 'NEW',
+  close: 'Close',
+  back: 'Back',
+  difficulty: 'Difficulty',
+  continuePill: 'Continue',
   onlineError: {
     'bad-message': 'Something went wrong. Please try again.',
     version: 'Please update the app to play online.',
@@ -575,6 +604,19 @@ const te: Strings = {
   rejoinHint: (code) => `గది ${code}`,
   rejoin: 'మళ్ళీ చేరండి',
   yourTurn: 'మీ వంతు – గవ్వలు వేయండి',
+  modeOnline: 'ఆన్‌లైన్ ఆట',
+  modeOnlineSub: 'దూరపు స్నేహితులతో',
+  modeComputer: 'కంప్యూటర్‌తో',
+  modeComputerSub: 'సులువు, మధ్యస్థం, కష్టం',
+  modePassPlay: 'ఒకే ఫోన్‌లో',
+  modePassPlaySub: 'స్నేహితులతో కలిసి',
+  modeLearn: 'నేర్చుకోండి',
+  modeLearnSub: 'గైడెడ్ మొదటి ఆట',
+  newBadge: 'కొత్త',
+  close: 'మూసివేయి',
+  back: 'వెనక్కి',
+  difficulty: 'కష్టం స్థాయి',
+  continuePill: 'కొనసాగించు',
   onlineError: {
     'bad-message': 'ఏదో తప్పు జరిగింది. మళ్ళీ ప్రయత్నించండి.',
     version: 'ఆన్‌లైన్‌లో ఆడటానికి యాప్‌ను అప్‌డేట్ చేయండి.',

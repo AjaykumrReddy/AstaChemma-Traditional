@@ -49,6 +49,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/health') return json({ ok: true, protocol: PROTOCOL_VERSION });
+    // Opening the address in a browser: say what this is rather than "not found".
+    if (url.pathname === '/') return json({ service: 'Asta Chemma game server', ok: true, protocol: PROTOCOL_VERSION });
 
     const match = url.pathname.match(/^\/rooms\/([^/]+)$/);
     if (!match) return json({ error: 'not found' }, 404);

@@ -1,8 +1,11 @@
 import type { BotLevel } from '@asta/engine';
 import type { SeatView } from '@asta/protocol';
-import { Redirect, Stack, useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Backdrop } from '../components/Backdrop';
+import { TopBar } from '../components/Chrome';
 import { SeatMark } from '../components/SeatMark';
 import { Segmented } from '../components/Segmented';
 import { useStrings, type Strings } from '../i18n';
@@ -84,6 +87,7 @@ export default function LobbyScreen() {
   if (!room) {
     return (
       <View style={styles.loading}>
+        <Backdrop />
         <ActivityIndicator color={colors.chalk} />
         <Text style={styles.hint}>{status === 'reconnecting' ? t.reconnecting : t.connecting}</Text>
       </View>
@@ -95,8 +99,11 @@ export default function LobbyScreen() {
   const ready = room.seats.every((s) => s.kind !== 'open');
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll}>
-      <Stack.Screen options={{ title: t.playOnline }} />
+    <View style={styles.screen}>
+      <Backdrop />
+      <SafeAreaView style={styles.safe}>
+    <TopBar title={t.modeOnline} onBack={() => router.back()} backLabel={t.back} />
+    <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
       <View style={styles.container}>
         {status === 'reconnecting' && <Text style={styles.banner}>{t.reconnecting}</Text>}
 
@@ -155,12 +162,16 @@ export default function LobbyScreen() {
         </Pressable>
       </View>
     </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: space.lg, paddingBottom: space.xxl },
-  container: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: space.lg },
+  screen: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1 },
+  scroll: { paddingHorizontal: space.lg, paddingBottom: space.lg },
+  container: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: space.md },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, backgroundColor: colors.background },
   banner: {
     color: colors.background,
@@ -170,8 +181,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '700',
   },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.lg, gap: space.md },
-  codeCard: { alignItems: 'center', borderWidth: 2, borderColor: colors.accent },
+  card: {
+    backgroundColor: 'rgba(14, 38, 32, 0.78)',
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: 'rgba(246, 215, 123, 0.35)',
+    padding: space.lg,
+    gap: space.md,
+  },
+  codeCard: { alignItems: 'center', borderWidth: 2, borderColor: colors.accent, paddingVertical: space.md },
   codeLabel: { color: colors.textMuted, fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
   code: { color: colors.chalk, fontSize: 52, fontWeight: '900', letterSpacing: 12, fontVariant: ['tabular-nums'] },
   shareButton: { backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: space.xxl },

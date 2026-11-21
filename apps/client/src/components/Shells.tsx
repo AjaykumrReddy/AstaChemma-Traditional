@@ -7,7 +7,7 @@ import { colors } from '../theme';
 const useNativeDriver = Platform.OS !== 'web';
 
 /** One cowrie shell: the open side shows the toothed slit, the closed side the dome. */
-function Cowrie({ open, size }: { open: boolean; size: number }) {
+export function Cowrie({ open, size }: { open: boolean; size: number }) {
   const teeth = [-0.42, -0.25, -0.08, 0.08, 0.25, 0.42];
   return (
     <Svg width={size} height={size * 1.3} viewBox="-1 -1.3 2 2.6">

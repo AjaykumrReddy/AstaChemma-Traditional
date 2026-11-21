@@ -19,6 +19,14 @@ export const colors = {
   shellLine: '#5B4630',
 };
 
+/** The menu screens' background glow (see Backdrop). */
+export const backdrop = {
+  glow: '#2F8169',
+  mid: '#174A3E',
+  edge: '#0A211C',
+  gold: '#F2D27A',
+};
+
 /** The game board: a wooden frame around inlaid green tiles with gold detailing. */
 export const boardColors = {
   shadow: '#000000',

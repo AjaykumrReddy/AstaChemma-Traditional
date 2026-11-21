@@ -18,6 +18,7 @@ import {
   yardPath,
   type Point,
 } from './boardGeometry';
+import { useSvgId } from './svgId';
 
 const FRAME = 0.2;
 const TILE_GAP = 0.035;
@@ -58,18 +59,18 @@ function petal(c: Point, angle: number, r0: number, r1: number, width: number): 
 }
 
 /** The home square's lotus: two rings of petals around a golden centre. */
-function Lotus({ c }: { c: Point }) {
+function Lotus({ c, u }: { c: Point; u: string }) {
   const outer = Array.from({ length: 8 }, (_, i) => (i * Math.PI) / 4);
   const inner = outer.map((a) => a + Math.PI / 8);
   return (
     <G>
       {outer.map((a) => (
-        <Path key={`o${a}`} d={petal(c, a, 0.08, 0.42, 0.1)} fill="url(#petalOuter)" stroke={b.goldDeep} strokeWidth={0.012} />
+        <Path key={`o${a}`} d={petal(c, a, 0.08, 0.42, 0.1)} fill={`url(#petalOuter${u})`} stroke={b.goldDeep} strokeWidth={0.012} />
       ))}
       {inner.map((a) => (
-        <Path key={`i${a}`} d={petal(c, a, 0.06, 0.3, 0.075)} fill="url(#petalInner)" stroke={b.goldDeep} strokeWidth={0.01} />
+        <Path key={`i${a}`} d={petal(c, a, 0.06, 0.3, 0.075)} fill={`url(#petalInner${u})`} stroke={b.goldDeep} strokeWidth={0.01} />
       ))}
-      <Circle cx={c.x} cy={c.y} r={0.1} fill="url(#goldDisc)" stroke={b.goldDeep} strokeWidth={0.015} />
+      <Circle cx={c.x} cy={c.y} r={0.1} fill={`url(#goldDisc${u})`} stroke={b.goldDeep} strokeWidth={0.015} />
     </G>
   );
 }
@@ -109,6 +110,7 @@ export interface BoardDrawingProps {
 
 /** The static board artwork: frame, tiles, safe squares, home, starting areas and move highlights. */
 function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, view = 0 }: BoardDrawingProps) {
+  const u = useSvgId();
   const tiles: Cell[] = [];
   for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) tiles.push({ row, col });
   const frameX = ORIGIN - FRAME;
@@ -117,36 +119,36 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
   return (
     <Svg width={size} height={size} viewBox={`${-VIEW_PAD} ${-VIEW_PAD} ${VIEW_TOTAL} ${VIEW_TOTAL}`}>
       <Defs>
-        <LinearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+        <LinearGradient id={`frame${u}`} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor={b.frameLight} />
           <Stop offset="0.5" stopColor={b.frameMid} />
           <Stop offset="1" stopColor={b.frameDark} />
         </LinearGradient>
-        <LinearGradient id="frameSheen" x1="0" y1="0" x2="0" y2="1">
+        <LinearGradient id={`frameSheen${u}`} x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.22} />
           <Stop offset="0.5" stopColor="#FFFFFF" stopOpacity={0} />
         </LinearGradient>
-        <LinearGradient id="tileOuter" x1="0" y1="0" x2="1" y2="1">
+        <LinearGradient id={`tileOuter${u}`} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor={b.outerTileLight} />
           <Stop offset="1" stopColor={b.outerTileDark} />
         </LinearGradient>
-        <LinearGradient id="tileInner" x1="0" y1="0" x2="1" y2="1">
+        <LinearGradient id={`tileInner${u}`} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor={b.innerTileLight} />
           <Stop offset="1" stopColor={b.innerTileDark} />
         </LinearGradient>
-        <RadialGradient id="tileHome" cx="50%" cy="50%" r="70%">
+        <RadialGradient id={`tileHome${u}`} cx="50%" cy="50%" r="70%">
           <Stop offset="0" stopColor="#4A2C4F" />
           <Stop offset="1" stopColor="#2A1830" />
         </RadialGradient>
-        <LinearGradient id="petalOuter" x1="0" y1="0" x2="1" y2="1">
+        <LinearGradient id={`petalOuter${u}`} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor={b.goldLight} />
           <Stop offset="1" stopColor={b.gold} />
         </LinearGradient>
-        <LinearGradient id="petalInner" x1="0" y1="0" x2="1" y2="1">
+        <LinearGradient id={`petalInner${u}`} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor="#FFD9E4" />
           <Stop offset="1" stopColor="#E89AB3" />
         </LinearGradient>
-        <RadialGradient id="goldDisc" cx="35%" cy="35%" r="70%">
+        <RadialGradient id={`goldDisc${u}`} cx="35%" cy="35%" r="70%">
           <Stop offset="0" stopColor={b.goldLight} />
           <Stop offset="1" stopColor={b.goldDeep} />
         </RadialGradient>
@@ -155,7 +157,7 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
           return (
             <RadialGradient
               key={seat}
-              id={`yard${seat}`}
+              id={`yard${seat}${u}`}
               cx={inner.x}
               cy={inner.y}
               r={YARD_RADIUS}
@@ -177,7 +179,7 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
             {active && (
               <Path d={yardPath(side, YARD_RADIUS + 0.04)} fill="none" stroke={seatColors[p.seat].fill} strokeWidth={0.1} strokeOpacity={0.7} />
             )}
-            <Path d={yardPath(side)} fill={`url(#yard${p.seat})`} stroke={b.gold} strokeWidth={0.045} />
+            <Path d={yardPath(side)} fill={`url(#yard${p.seat}${u})`} stroke={b.gold} strokeWidth={0.045} />
             <Path d={yardPath(side, YARD_RADIUS - 0.1)} fill="none" stroke={b.gold} strokeOpacity={0.35} strokeWidth={0.015} strokeDasharray="0.05 0.05" />
           </G>
         );
@@ -185,14 +187,14 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
 
       {/* Frame with drop shadow */}
       <Rect x={frameX + 0.05} y={frameX + 0.08} width={frameSize} height={frameSize} rx={0.16} fill={b.shadow} fillOpacity={0.4} />
-      <Rect x={frameX} y={frameX} width={frameSize} height={frameSize} rx={0.16} fill="url(#frame)" stroke={b.frameEdge} strokeWidth={0.03} />
-      <Rect x={frameX} y={frameX} width={frameSize} height={frameSize} rx={0.16} fill="url(#frameSheen)" />
+      <Rect x={frameX} y={frameX} width={frameSize} height={frameSize} rx={0.16} fill={`url(#frame${u})`} stroke={b.frameEdge} strokeWidth={0.03} />
+      <Rect x={frameX} y={frameX} width={frameSize} height={frameSize} rx={0.16} fill={`url(#frameSheen${u})`} />
       <Rect x={ORIGIN - 0.035} y={ORIGIN - 0.035} width={BOARD_SIZE + 0.07} height={BOARD_SIZE + 0.07} rx={0.05} fill={b.grout} stroke={b.gold} strokeWidth={0.025} strokeOpacity={0.8} />
 
       {/* Inlaid tiles: outer ring lighter than inner ring, centre is home */}
       {tiles.map((cell) => {
         const ring = ringOf(cell);
-        const fill = ring === 0 ? 'url(#tileOuter)' : ring === 1 ? 'url(#tileInner)' : 'url(#tileHome)';
+        const fill = ring === 0 ? `url(#tileOuter${u})` : ring === 1 ? `url(#tileInner${u})` : `url(#tileHome${u})`;
         return (
           <G key={`t${cellKey(cell)}`}>
             <Rect
@@ -234,7 +236,7 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
       {SAFE_CELLS.filter((c) => ringOf(c) !== 2).map((cell) => (
         <SafeMark key={`x${cellKey(cell)}`} cell={cell} />
       ))}
-      <Lotus c={{ x: MID, y: MID }} />
+      <Lotus c={{ x: MID, y: MID }} u={u} />
 
       {/* Legal destinations */}
       {destinations.map((real) => {

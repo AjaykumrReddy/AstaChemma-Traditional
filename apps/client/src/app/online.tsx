@@ -1,8 +1,11 @@
 import type { GameMode } from '@asta/engine';
 import { CODE_LENGTH, MAX_NAME_LENGTH } from '@asta/protocol';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Backdrop } from '../components/Backdrop';
+import { TopBar } from '../components/Chrome';
 import { Segmented } from '../components/Segmented';
 import { useStrings } from '../i18n';
 import { useOnlineStore } from '../online/store';
@@ -44,8 +47,11 @@ export default function OnlineScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-      <Stack.Screen options={{ title: t.playOnline }} />
+    <View style={styles.screen}>
+      <Backdrop />
+      <SafeAreaView style={styles.safe}>
+    <TopBar title={t.modeOnline} onBack={() => router.back()} backLabel={t.back} />
+    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" bounces={false}>
       <View style={styles.container}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t.yourName}</Text>
@@ -127,17 +133,28 @@ export default function OnlineScreen() {
         {error && <Text style={[styles.errorText, styles.center]}>{t.onlineError[error]}</Text>}
       </View>
     </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: space.lg, paddingBottom: space.xxl },
-  container: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: space.lg },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.lg, gap: space.md },
+  screen: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1 },
+  scroll: { paddingHorizontal: space.lg, paddingBottom: space.lg },
+  container: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: space.md },
+  card: {
+    backgroundColor: 'rgba(14, 38, 32, 0.78)',
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: 'rgba(246, 215, 123, 0.35)',
+    padding: space.lg,
+    gap: space.md,
+  },
   cardTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
   hint: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   input: {
-    backgroundColor: colors.background,
+    backgroundColor: 'rgba(0,0,0,0.25)',
     color: colors.text,
     borderRadius: radius.sm,
     paddingHorizontal: space.md,
@@ -148,7 +165,7 @@ const styles = StyleSheet.create({
   },
   inputError: { borderColor: colors.danger },
   joinRow: { flexDirection: 'row', gap: space.sm },
-  codeInput: { flex: 1, fontSize: 22, fontWeight: '800', letterSpacing: 6, textAlign: 'center' },
+  codeInput: { flex: 1, minWidth: 0, fontSize: 22, fontWeight: '800', letterSpacing: 6, textAlign: 'center' },
   joinButton: { backgroundColor: colors.accent, borderRadius: radius.md, paddingHorizontal: space.xl, justifyContent: 'center' },
   primary: { backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center' },
   primaryText: { color: '#2A2208', fontSize: 16, fontWeight: '800' },
