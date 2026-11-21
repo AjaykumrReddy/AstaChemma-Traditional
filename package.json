@@ -1,0 +1,16 @@
+{
+  "name": "asta-chemma",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspace @asta/engine",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "client": "npm run start --workspace client",
+    "tunnel": "npm run tunnel --workspace client",
+    "web": "npm run web --workspace client"
+  }
+}

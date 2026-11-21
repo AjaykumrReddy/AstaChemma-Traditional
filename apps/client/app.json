@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Asta Chemma",
+    "slug": "asta-chemma",
+    "scheme": "astachemma",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#1E3A33",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.astachemma.app"
+    },
+    "android": {
+      "package": "com.astachemma.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#1E3A33",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "Asta Chemma",
+      "themeColor": "#1E3A33"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar"
+    ]
+  }
+}
