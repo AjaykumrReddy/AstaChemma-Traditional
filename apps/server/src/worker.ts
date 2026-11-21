@@ -32,6 +32,8 @@ export interface Env {
   ABANDONED_MS?: string;
   /** Messages allowed per socket per 10 seconds (default 60; tests raise it). */
   RATE_MAX_MESSAGES?: string;
+  /** A connection silent this long is treated as gone (default 60 s; apps ping every 25 s). */
+  SILENT_MS?: string;
 }
 
 const json = (body: unknown, status = 200) =>
@@ -77,16 +79,25 @@ interface Attachment {
   /** Allowed to create the room (the socket came in through /rooms/new). */
   create: boolean;
   memberId: string | null;
+  /** When we last heard from this socket (pings answered automatically are tracked separately). */
+  seenAt: number;
 }
 
 /** Per-socket message budget: generous for a person playing (a few taps a second at most), stops floods. */
 const RATE_WINDOW_MS = 10_000;
 const DEFAULT_RATE_MAX_MESSAGES = 60;
+/**
+ * Phones that lose signal or get their app killed never send a "close", so a
+ * player could look connected forever. Apps ping every 25 s; a socket silent
+ * for 60 s (two missed pings) is dropped and the player marked disconnected.
+ */
+const DEFAULT_SILENT_MS = 60_000;
 
 export class GameRoom extends DurableObject<Env> {
   private room: Room | null = null;
   private readonly timings: RoomTimings;
   private readonly rateMax: number;
+  private readonly silentMs: number;
   /** Message counts per socket (in memory only; fine to lose on hibernation). */
   private readonly rates = new Map<WebSocket, { start: number; count: number }>();
 
@@ -100,6 +111,7 @@ export class GameRoom extends DurableObject<Env> {
       abandonedMs: n(env.ABANDONED_MS, DEFAULT_TIMINGS.abandonedMs),
     };
     this.rateMax = n(env.RATE_MAX_MESSAGES, DEFAULT_RATE_MAX_MESSAGES);
+    this.silentMs = n(env.SILENT_MS, DEFAULT_SILENT_MS);
     // Keep-alive pings are answered without waking the room.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('{"t":"ping"}', '{"t":"pong"}'));
   }
@@ -138,9 +150,52 @@ export class GameRoom extends DurableObject<Env> {
       return;
     }
     this.ctx.storage.kv.put('room', room.data);
-    const wakeAt = room.wakeAt();
-    if (wakeAt === null) await this.ctx.storage.deleteAlarm();
-    else await this.ctx.storage.setAlarm(wakeAt);
+    // The one alarm serves both the room's timers and the connection check.
+    const times = [room.wakeAt(), this.nextSilenceCheck()].filter((t): t is number => t !== null);
+    if (times.length === 0) await this.ctx.storage.deleteAlarm();
+    else await this.ctx.storage.setAlarm(Math.min(...times));
+  }
+
+  /** The last time we heard anything from a socket, including automatically answered pings. */
+  private lastSeen(ws: WebSocket, att: Attachment): number {
+    const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0;
+    return Math.max(att.seenAt ?? 0, pinged);
+  }
+
+  /** When the quietest player socket will count as silent, or null if no one is connected. */
+  private nextSilenceCheck(): number | null {
+    let earliest: number | null = null;
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null;
+      if (!att?.memberId) continue;
+      const due = this.lastSeen(ws, att) + this.silentMs;
+      if (earliest === null || due < earliest) earliest = due;
+    }
+    return earliest;
+  }
+
+  /** Drop sockets that have gone silent, marking their players disconnected. */
+  private dropSilentSockets(room: Room): void {
+    const now = Date.now();
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null;
+      if (!att?.memberId || now - this.lastSeen(ws, att) < this.silentMs) continue;
+      // Detach first: a dead peer may never finish the close handshake.
+      ws.serializeAttachment({ ...att, memberId: null } satisfies Attachment);
+      try {
+        ws.close(1001, 'no heartbeat');
+      } catch {
+        // already closing
+      }
+      this.rates.delete(ws);
+      if (!this.memberHasSocket(att.memberId)) room.disconnected(att.memberId);
+    }
+  }
+
+  private memberHasSocket(memberId: string, except?: WebSocket): boolean {
+    return this.ctx
+      .getWebSockets()
+      .some((other) => other !== except && (other.deserializeAttachment() as Attachment | null)?.memberId === memberId);
   }
 
   private sendToMember(memberId: string, message: ServerMessage): void {
@@ -156,13 +211,14 @@ export class GameRoom extends DurableObject<Env> {
     const code = url.searchParams.get('code') ?? '';
     const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
     this.ctx.acceptWebSocket(server);
-    const attachment: Attachment = { code, create: url.searchParams.get('create') === '1', memberId: null };
+    const attachment: Attachment = { code, create: url.searchParams.get('create') === '1', memberId: null, seenAt: Date.now() };
     server.serializeAttachment(attachment);
     return new Response(null, { status: 101, webSocket: client });
   }
 
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
-    const att = ws.deserializeAttachment() as Attachment;
+    const att = { ...(ws.deserializeAttachment() as Attachment), seenAt: Date.now() };
+    ws.serializeAttachment(att);
     const fail = (code: RoomError['code'], message: string) => safeSend(ws, JSON.stringify({ t: 'error', code, message }));
 
     if (typeof raw !== 'string' || raw.length > MAX_MESSAGE_BYTES) return fail('bad-message', 'That message was not understood.');
@@ -244,10 +300,7 @@ export class GameRoom extends DurableObject<Env> {
     const room = this.load();
     if (!room) return;
     // Only "disconnected" if this was the player's last open connection.
-    const stillConnected = this.ctx
-      .getWebSockets()
-      .some((other) => other !== ws && (other.deserializeAttachment() as Attachment | null)?.memberId === att.memberId);
-    if (!stillConnected) {
+    if (!this.memberHasSocket(att.memberId, ws)) {
       room.disconnected(att.memberId);
       await this.persist();
     }
@@ -261,6 +314,7 @@ export class GameRoom extends DurableObject<Env> {
     const room = this.load();
     if (!room) return;
     try {
+      this.dropSilentSockets(room);
       room.wake();
     } catch (error) {
       console.error('alarm error', error);

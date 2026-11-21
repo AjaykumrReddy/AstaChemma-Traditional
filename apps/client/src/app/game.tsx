@@ -1,7 +1,18 @@
 import { HOME_INDEX, cellAt, cellKey, chooseBotAction, type Cell, type GameState, type Move } from '@asta/engine';
 import { Link, Redirect, Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Board } from '../components/Board';
 import { Confetti } from '../components/Effects';
@@ -10,6 +21,7 @@ import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Shells } from '../components/Shells';
 import { useStrings, withDisplayNames, type Strings } from '../i18n';
+import { useOnlineStore } from '../online/store';
 import { displayState, useGameStore, useTimings } from '../store/game';
 import { TUTORIAL_STEPS } from '../tutorial/steps';
 import { describeEvents, describeOpen, describeScore, throwValue } from '../store/messages';
@@ -38,7 +50,7 @@ function distinctMoves(state: GameState, moves: Move[]): Move[] {
   });
 }
 
-function PlayerChip({ state, index, t }: { state: GameState; index: number; t: Strings }) {
+function PlayerChip({ state, index, t, presence }: { state: GameState; index: number; t: Strings; presence?: string | null }) {
   const player = state.players[index]!;
   const pieces = state.pieces.filter((p) => p.owner === index);
   const isCurrent = state.current === index && state.phase !== 'finished';
@@ -68,6 +80,12 @@ function PlayerChip({ state, index, t }: { state: GameState; index: number; t: S
             {player.team !== undefined ? ` · ${t.team(player.team === 0 ? 'A' : 'B')}` : ''}
           </Text>
         </View>
+        {/* Online: a friend who dropped out, or whose turns the computer is playing. */}
+        {presence ? (
+          <Text style={styles.presence} numberOfLines={1}>
+            {presence}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -131,15 +149,25 @@ export default function GameScreen() {
   const undo = useGameStore((s) => s.undo);
   const nextTutorialStep = useGameStore((s) => s.nextTutorialStep);
   const endTutorial = useGameStore((s) => s.endTutorial);
+  const mode = useGameStore((s) => s.mode);
+  const mySeat = useGameStore((s) => s.mySeat);
+  const waiting = useGameStore((s) => s.waiting);
+  const onlineSeats = useOnlineStore((s) => s.room?.seats);
+  const onlineStatus = useOnlineStore((s) => s.status);
+  const leaveOnline = useOnlineStore((s) => s.leave);
   const timings = useTimings();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const online = mode === 'online';
 
   /** The guided game's current step, if one is running. */
   const step = tutorial ? (TUTORIAL_STEPS[tutorial.step] ?? null) : null;
 
   const current = game?.players[game.current];
-  const busy = rolling || animation !== null;
-  const humanTurn = !!game && !current?.bot && game.phase !== 'finished';
+  // Online, an action is waiting for the server's answer: hold further input.
+  const busy = rolling || animation !== null || waiting;
+  // Whose hands are on the controls: online only this device's seat; locally any human.
+  const humanTurn =
+    !!game && !!current && game.phase !== 'finished' && (online ? current.seat === mySeat : !current.bot);
   const movable = useMemo(() => {
     if (!game || !humanTurn || busy || game.phase !== 'awaitingMove') return [];
     // In the guided game only the move the step asks for glows.
@@ -158,7 +186,13 @@ export default function GameScreen() {
   useEffect(() => {
     if (!game || game.phase === 'finished' || busy || !current || settingsOpen) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    if (current.bot && tutorial) {
+    if (online) {
+      // The server plays computers and other players; only auto-move on our own turn.
+      if (humanTurn && autoMove && game.phase === 'awaitingMove' && !game.canHold) {
+        const options = distinctMoves(game, game.legalMoves);
+        if (options.length === 1) timer = setTimeout(() => move(options[0]!.id, true), timings.autoMove);
+      }
+    } else if (current.bot && tutorial) {
       // Guided game: the computer throws its scripted shells and makes the first legal move.
       const first = game.legalMoves[0];
       timer =
@@ -178,7 +212,7 @@ export default function GameScreen() {
       if (options.length === 1) timer = setTimeout(() => move(options[0]!.id, true), timings.autoMove);
     }
     return () => clearTimeout(timer);
-  }, [game, busy, current, autoMove, throwShells, move, timings, settingsOpen, tutorial]);
+  }, [game, busy, current, autoMove, throwShells, move, timings, settingsOpen, tutorial, online, humanTurn]);
 
   // First tap selects a piece and shows where it can go; a second tap moves it
   // when it has a single option, otherwise the player taps the square.
@@ -206,7 +240,31 @@ export default function GameScreen() {
 
   // Wait for a saved game to load before deciding there is no game to show.
   if (!hydrated) return <View style={styles.screen} />;
+  // Online, the first update from the server may still be on its way.
+  if (online && (!game || !current)) {
+    return (
+      <View style={[styles.screen, styles.centered]}>
+        <ActivityIndicator color={colors.chalk} />
+        <Text style={styles.message}>{onlineStatus === 'reconnecting' ? t.reconnecting : t.connecting}</Text>
+      </View>
+    );
+  }
   if (!game || !current) return <Redirect href="/" />;
+
+  /** Online presence for a player: dropped out, or away with the computer playing for them. */
+  const presenceOf = (seatNo: number): string | null => {
+    if (!online) return null;
+    const s = onlineSeats?.find((x) => x.seat === seatNo);
+    if (s?.kind !== 'human') return null;
+    if (s.away) return t.awayTag;
+    if (s.connected === false) return t.offline;
+    return null;
+  };
+  const leaveOnlineGame = () => {
+    setSettingsOpen(false);
+    leaveOnline();
+    router.replace('/');
+  };
 
   // Player names for display: default names ("You", "Computer 2") follow the language.
   const named = withDisplayNames(t, game);
@@ -227,7 +285,7 @@ export default function GameScreen() {
 
   let status: string;
   if (game.phase === 'finished') status = t.gameOver;
-  else if (current.bot) status = t.isPlaying(currentName);
+  else if (!humanTurn) status = t.isPlaying(currentName);
   else if (rolling) status = t.throwing;
   else if (animation) status = t.moving;
   else if (game.phase === 'awaitingThrow' && game.pending.length > 0) status = t.keptThrowAgain(keptLabel);
@@ -244,7 +302,8 @@ export default function GameScreen() {
   const winners = game.winners.map((i) => named.players[i]!.name);
   const joinMove = humanTurn && !busy ? movable.find((m) => m.join) : undefined;
   // Undo: not mid-roll or mid-move, not in the guided game, and not once the game is won.
-  const canUndo = undoCount > 0 && !busy && !tutorial && game.phase !== 'finished';
+  // Never online: the dice are the server's.
+  const canUndo = !online && undoCount > 0 && !busy && !tutorial && game.phase !== 'finished';
 
   // In the guided game only the action the step asks for is offered.
   const showHold = humanTurn && !busy && game.phase === 'awaitingMove' && game.canHold && (!step || !!step.allowHold);
@@ -273,7 +332,7 @@ export default function GameScreen() {
   const players = (
     <View style={[styles.players, wide && styles.playersWide]}>
       {game.players.map((p) => (
-        <PlayerChip key={p.index} state={named} index={p.index} t={t} />
+        <PlayerChip key={p.index} state={named} index={p.index} t={t} presence={presenceOf(p.seat)} />
       ))}
     </View>
   );
@@ -374,6 +433,9 @@ export default function GameScreen() {
           { paddingBottom: insets.bottom + space.lg },
         ]}
       >
+        {online && onlineStatus === 'reconnecting' && (
+          <Text style={[styles.banner, wide && styles.bannerWide]}>{t.reconnecting}</Text>
+        )}
         {/* On phones the coach takes the player chips' place, so the board and buttons stay in view. */}
         {!wide && (coach ?? players)}
         <View style={{ width: boardSize, height: boardSize }}>
@@ -410,6 +472,14 @@ export default function GameScreen() {
             <View style={styles.sheetBody}>
               <SettingsPanel />
             </View>
+            {online && (
+              <View style={styles.leaveBox}>
+                <Text style={styles.dialogText}>{t.leaveGameHint}</Text>
+                <Pressable style={styles.dialogSecondary} onPress={leaveOnlineGame} accessibilityRole="button">
+                  <Text style={[styles.dialogSecondaryText, { color: colors.danger }]}>{t.leaveGame}</Text>
+                </Pressable>
+              </View>
+            )}
             <Pressable
               style={[styles.throwButton, { backgroundColor: colors.accent }]}
               onPress={() => setSettingsOpen(false)}
@@ -428,12 +498,20 @@ export default function GameScreen() {
             <BouncingTrophy />
             <Text style={styles.dialogTitle}>{t.won(winners.join(' & '))}</Text>
             <Text style={styles.dialogText}>{game.config.mode === 'team' ? t.winTeam : t.winSolo}</Text>
-            <Pressable style={[styles.throwButton, { backgroundColor: colors.accent }]} onPress={restart}>
-              <Text style={styles.throwText}>{t.playAgain}</Text>
-            </Pressable>
-            <Pressable style={styles.dialogSecondary} onPress={() => router.back()}>
-              <Text style={styles.dialogSecondaryText}>{t.newSetup}</Text>
-            </Pressable>
+            {online ? (
+              <Pressable style={[styles.throwButton, { backgroundColor: colors.accent }]} onPress={leaveOnlineGame}>
+                <Text style={styles.throwText}>{t.backToStart}</Text>
+              </Pressable>
+            ) : (
+              <>
+                <Pressable style={[styles.throwButton, { backgroundColor: colors.accent }]} onPress={restart}>
+                  <Text style={styles.throwText}>{t.playAgain}</Text>
+                </Pressable>
+                <Pressable style={styles.dialogSecondary} onPress={() => router.back()}>
+                  <Text style={styles.dialogSecondaryText}>{t.newSetup}</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
       )}
@@ -443,6 +521,19 @@ export default function GameScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  centered: { alignItems: 'center', justifyContent: 'center', gap: space.md },
+  banner: {
+    alignSelf: 'stretch',
+    color: colors.background,
+    backgroundColor: colors.highlight,
+    borderRadius: radius.sm,
+    padding: space.sm,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  bannerWide: { position: 'absolute', top: space.sm, left: space.xl, right: space.xl, zIndex: 10 },
+  presence: { color: colors.highlight, fontSize: 11.5, fontWeight: '700', marginTop: 2 },
+  leaveBox: { alignSelf: 'stretch', alignItems: 'center', marginBottom: space.md },
   content: { paddingHorizontal: space.md, paddingTop: space.sm, gap: space.md, alignItems: 'center' },
   contentWide: {
     flexGrow: 1,

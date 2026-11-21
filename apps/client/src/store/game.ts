@@ -7,7 +7,10 @@ import {
   throwShells as engineThrow,
   type GameConfig,
   type GameState,
+  type Move,
+  type Seat,
 } from '@asta/engine';
+import type { RoomView } from '@asta/protocol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -86,8 +89,25 @@ interface GameStore {
    * Undo. Kept in memory only, so it adds nothing to the saved game.
    */
   undoStack: GameState[];
+  /** Local play, or an online game run by the server. */
+  mode: 'local' | 'online';
+  /** Online: the seat this device plays. */
+  mySeat: Seat | null;
+  /** Online: an action was sent and the server hasn't answered yet (blocks double taps). */
+  waiting: boolean;
 
   startGame(config: GameConfig): void;
+  /**
+   * Switch to an online game. The local game is set aside (and kept saved);
+   * `remote` sends this player's actions to the server.
+   */
+  enterOnline(remote: RemoteActions, mySeat: Seat): void;
+  /** Back to local play, restoring the local game. */
+  exitOnline(): void;
+  /** A room update from the server: queued and played in order (rolls and moves animate). */
+  receiveRoom(room: RoomView): void;
+  /** The server refused our last action. */
+  actionRejected(): void;
   startTutorial(): void;
   nextTutorialStep(): void;
   /** Leave the guided game: keep playing it as a normal game, or restore the player's own game. */
@@ -113,6 +133,22 @@ interface GameStore {
 
 // Incremented on every new game so stale timers from an old game do nothing.
 let generation = 0;
+
+/** How an online game sends this player's actions to the server. */
+export interface RemoteActions {
+  throw(): void;
+  move(moveId: string): void;
+}
+
+// Online-only bookkeeping that never needs rendering.
+let remote: RemoteActions | null = null;
+/** Server updates waiting to be shown, oldest first. */
+let roomQueue: RoomView[] = [];
+let showingRoom = false;
+/** The version of the last update shown; -1 forces the next one to be shown without animation. */
+let lastVersion = -1;
+/** When our own throw started rolling, so the reveal waits for a full roll. */
+let rollStartedAt = 0;
 
 /** How many decisions Undo can take back in a row. */
 const UNDO_LIMIT = 30;
@@ -164,6 +200,99 @@ export const useGameStore = create<GameStore>()(
         }));
       };
 
+      /**
+       * Walk a piece square by square from `before` to `after`, then celebrate.
+       * Used for local moves and for moves reported by the server.
+       */
+      const animateMove = (before: GameState, after: GameState, move: Move, onDone?: () => void) => {
+        const stepMs = timings().step;
+        const finish = () => {
+          const gen = generation;
+          set({ game: after, animation: null, selected: null, note: null, waiting: false });
+          // Celebrate as the piece touches down on its last square.
+          setTimeout(() => {
+            if (gen !== generation) return;
+            playSound('hop');
+            play(feedbackForMove(after));
+            onDone?.();
+          }, stepMs * 0.8);
+        };
+        // Entering pieces appear on their entry square, then walk any bonus steps.
+        const start = move.enters ? 0 : move.from;
+        if (start === move.to) {
+          finish();
+          return;
+        }
+        const gen = generation;
+        set({ animation: { before, after, pieceId: move.pieceId, step: start }, selected: null });
+        const tick = () => {
+          if (gen !== generation) return;
+          const anim = get().animation;
+          if (!anim) return;
+          if (anim.step + 1 >= move.to) {
+            finish();
+            return;
+          }
+          set({ animation: { ...anim, step: anim.step + 1 } });
+          playSound('hop');
+          setTimeout(tick, stepMs);
+        };
+        setTimeout(tick, stepMs);
+      };
+
+      /** Show queued server updates one at a time, animating throws and moves. */
+      const showNextRoom = () => {
+        if (showingRoom) return;
+        const room = roomQueue.shift();
+        if (!room) return;
+        showingRoom = true;
+        const gen = generation;
+        const done = () => {
+          if (gen !== generation) return;
+          showingRoom = false;
+          showNextRoom();
+        };
+        const before = get().game;
+        const next = room.game;
+        const action = room.lastAction;
+        const inOrder = before !== null && room.version === lastVersion + 1;
+        lastVersion = room.version;
+
+        if (!next) {
+          set({ game: null, rolling: false, waiting: false });
+          return done();
+        }
+        // Out of order (e.g. after reconnecting), or nothing to animate: just show it.
+        if (!inOrder || !action || action.type === 'start') {
+          set({ game: next, rolling: false, animation: null, waiting: false, note: action?.type === 'start' ? 'start' : null });
+          return done();
+        }
+        if (action.type === 'throw') {
+          // Roll the shells (ours may already be rolling), then reveal the server's result.
+          const rollMs = timings().roll;
+          if (!get().rolling) {
+            rollStartedAt = Date.now();
+            set({ rolling: true, selected: null });
+            playSound('shake');
+          }
+          const wait = Math.max(0, rollStartedAt + rollMs - Date.now());
+          setTimeout(() => {
+            if (gen !== generation) return;
+            set({ game: next, rolling: false, waiting: false, note: null });
+            play(feedbackForThrow(next));
+            done();
+          }, wait);
+          return;
+        }
+        // A move: replay it from the state we're showing.
+        const move = before.legalMoves.find((m) => m.id === action.moveId);
+        if (!move) {
+          set({ game: next, animation: null, waiting: false });
+          return done();
+        }
+        animateMove(before, next, move, done);
+      };
+
       return {
         config: null,
         game: null,
@@ -183,6 +312,66 @@ export const useGameStore = create<GameStore>()(
         stash: null,
         tutorialDone: false,
         undoStack: [],
+        mode: 'local',
+        mySeat: null,
+        waiting: false,
+
+        enterOnline(actions, mySeat) {
+          generation++;
+          remote = actions;
+          roomQueue = [];
+          showingRoom = false;
+          lastVersion = -1;
+          const { config, game, stash, mode } = get();
+          set({
+            // Keep the local game safe; it stays saved while playing online.
+            stash: mode === 'online' ? stash : (stash ?? { config, game }),
+            mode: 'online',
+            mySeat,
+            config: null,
+            game: null,
+            rolling: false,
+            animation: null,
+            selected: null,
+            note: null,
+            effects: [],
+            tutorial: null,
+            undoStack: [],
+            waiting: false,
+          });
+        },
+
+        exitOnline() {
+          if (get().mode !== 'online') return;
+          generation++;
+          remote = null;
+          roomQueue = [];
+          showingRoom = false;
+          const { stash } = get();
+          set({
+            mode: 'local',
+            mySeat: null,
+            stash: null,
+            config: stash?.config ?? null,
+            game: stash?.game ?? null,
+            rolling: false,
+            animation: null,
+            selected: null,
+            effects: [],
+            waiting: false,
+            note: stash?.game ? 'welcome' : null,
+          });
+        },
+
+        receiveRoom(room) {
+          if (get().mode !== 'online') return;
+          roomQueue.push(room);
+          showNextRoom();
+        },
+
+        actionRejected() {
+          set({ waiting: false, rolling: false });
+        },
 
         startGame(config) {
           generation++;
@@ -260,11 +449,20 @@ export const useGameStore = create<GameStore>()(
         },
 
         throwShells() {
-          const { game, rolling, animation } = get();
+          const { game, rolling, animation, mode, mySeat, waiting } = get();
           if (!game || rolling || animation) return;
           // A throw is due, or the player keeps their 4/8 and throws again.
           const canThrow = game.phase === 'awaitingThrow' || (game.phase === 'awaitingMove' && game.canHold);
           if (!canThrow) return;
+          if (mode === 'online') {
+            // The server throws; start rolling now so it feels instant, reveal when it answers.
+            if (!remote || waiting || game.players[game.current]?.seat !== mySeat) return;
+            rollStartedAt = Date.now();
+            set({ rolling: true, selected: null, waiting: true });
+            playSound('shake');
+            remote.throw();
+            return;
+          }
           // Keeping a 4/8 is a decision Undo can take back.
           if (game.phase === 'awaitingMove') snapshot(game);
           const gen = generation;
@@ -299,58 +497,25 @@ export const useGameStore = create<GameStore>()(
         },
 
         move(moveId, forced = false) {
-          const { game, animation } = get();
+          const { game, animation, mode, mySeat, waiting } = get();
           if (!game || game.phase !== 'awaitingMove' || animation) return;
           const move = game.legalMoves.find((m) => m.id === moveId);
           if (!move) return;
-          if (!forced) snapshot(game);
-          const pieceId = move.pieceId;
-          const after = applyMove(game, moveId);
-          const stepMs = timings().step;
-
-          const finish = () => {
-            const gen = generation;
-            set({
-              game: after,
-              animation: null,
-              selected: null,
-              note: null,
-            });
-            // Celebrate as the piece touches down on its last square.
-            setTimeout(() => {
-              if (gen !== generation) return;
-              playSound('hop');
-              play(feedbackForMove(after));
-            }, stepMs * 0.8);
-          };
-
-          // Entering pieces appear on their entry square, then walk any bonus steps.
-          const start = move.enters ? 0 : move.from;
-          if (start === move.to) {
-            finish();
+          if (mode === 'online') {
+            // The server applies it and tells everyone; the move animates when it answers.
+            if (!remote || waiting || game.players[game.current]?.seat !== mySeat) return;
+            set({ waiting: true, selected: null });
+            remote.move(moveId);
             return;
           }
-          const gen = generation;
-          set({ animation: { before: game, after, pieceId, step: start }, selected: null });
-          const tick = () => {
-            if (gen !== generation) return;
-            const anim = get().animation;
-            if (!anim) return;
-            if (anim.step + 1 >= move.to) {
-              finish();
-              return;
-            }
-            set({ animation: { ...anim, step: anim.step + 1 } });
-            playSound('hop');
-            setTimeout(tick, stepMs);
-          };
-          setTimeout(tick, stepMs);
+          if (!forced) snapshot(game);
+          animateMove(game, applyMove(game, moveId), move);
         },
 
         undo() {
-          const { undoStack, rolling, animation, tutorial } = get();
+          const { undoStack, rolling, animation, tutorial, mode } = get();
           const previous = undoStack[undoStack.length - 1];
-          if (!previous || rolling || animation || tutorial) return;
+          if (!previous || rolling || animation || tutorial || mode === 'online') return;
           // Stop anything still in flight from the moves being undone.
           generation++;
           playSound('select');

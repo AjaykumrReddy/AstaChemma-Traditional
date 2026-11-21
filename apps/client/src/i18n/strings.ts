@@ -1,4 +1,5 @@
 import type { BotLevel, PieceKind, Seat } from '@asta/engine';
+import type { ErrorCode } from '@asta/protocol';
 import type { TutorialKey } from '../tutorial/steps';
 
 export type Lang = 'en' | 'te';
@@ -132,6 +133,39 @@ export interface Strings {
   learnHint: string;
   learnButton: string;
 
+  // Online
+  playOnline: string;
+  playOnlineHint: string;
+  yourName: string;
+  nameNeeded: string;
+  createRoom: string;
+  createRoomHint: string;
+  create: string;
+  joinRoom: string;
+  joinRoomHint: string;
+  join: string;
+  connecting: string;
+  reconnecting: string;
+  roomCode: string;
+  shareCode: string;
+  shareMessage: (code: string) => string;
+  openSeat: string;
+  addComputer: string;
+  removeComputer: string;
+  hostBadge: string;
+  youBadge: string;
+  offline: string;
+  awayTag: string;
+  startNeedsSeats: string;
+  waitingForHost: string;
+  leaveRoom: string;
+  leaveGame: string;
+  leaveGameHint: string;
+  rejoinTitle: string;
+  rejoinHint: (code: string) => string;
+  rejoin: string;
+  onlineError: Record<ErrorCode | 'network', string>;
+
   // How to play
   rulesTitle: string;
   tableHead: [string, string, string, string];
@@ -263,6 +297,51 @@ const en: Strings = {
   learnTitle: 'New to Asta Chemma?',
   learnHint: 'Play a short guided game that teaches the rules as you go.',
   learnButton: 'Play the guided game',
+
+  playOnline: 'Play online',
+  playOnlineHint: 'Play with friends on their own phones, using a room code.',
+  yourName: 'Your name',
+  nameNeeded: 'Enter your name first.',
+  createRoom: 'Create a room',
+  createRoomHint: 'You get a code to share with friends.',
+  create: 'Create room',
+  joinRoom: 'Join a room',
+  joinRoomHint: 'Enter the 4-character code a friend shared.',
+  join: 'Join',
+  connecting: 'Connecting…',
+  reconnecting: 'Connection lost – reconnecting…',
+  roomCode: 'Room code',
+  shareCode: 'Share code',
+  shareMessage: (code) => `Join my Asta Chemma game! Open the app, tap “Play online”, and enter the room code ${code}`,
+  openSeat: 'Waiting for a player…',
+  addComputer: 'Add computer',
+  removeComputer: 'Remove',
+  hostBadge: 'Host',
+  youBadge: 'You',
+  offline: 'offline',
+  awayTag: 'away · computer playing',
+  startNeedsSeats: 'Fill every seat with a friend or the computer to start.',
+  waitingForHost: 'Waiting for the host to start…',
+  leaveRoom: 'Leave room',
+  leaveGame: 'Leave game',
+  leaveGameHint: 'The computer will take your seat for the others.',
+  rejoinTitle: 'Your online game',
+  rejoinHint: (code) => `Room ${code}`,
+  rejoin: 'Rejoin',
+  onlineError: {
+    'bad-message': 'Something went wrong. Please try again.',
+    version: 'Please update the app to play online.',
+    'no-room': 'No room with that code. Check it and try again.',
+    'room-full': 'That room is full.',
+    'already-started': 'That game has already started.',
+    'not-in-room': 'You are no longer in that room.',
+    'not-host': 'Only the host can do that.',
+    'not-ready': 'Fill every seat first.',
+    'not-your-turn': 'It’s not your turn.',
+    illegal: 'That isn’t allowed right now.',
+    'bad-token': 'Couldn’t rejoin – that game may have ended.',
+    network: 'Couldn’t reach the game server. Check your internet connection.',
+  },
 
   rulesTitle: 'How to play',
   tableHead: ['Open', 'Score', 'Child', 'Mother'],
@@ -461,6 +540,51 @@ const te: Strings = {
   learnTitle: 'అష్ట చెమ్మ కొత్తా?',
   learnHint: 'ఆడుతూనే నియమాలు నేర్పే చిన్న గైడెడ్ ఆట ఆడండి.',
   learnButton: 'గైడెడ్ ఆట ఆడండి',
+
+  playOnline: 'ఆన్‌లైన్‌లో ఆడండి',
+  playOnlineHint: 'గది కోడ్‌తో స్నేహితులు వారి ఫోన్లలోనే మీతో ఆడవచ్చు.',
+  yourName: 'మీ పేరు',
+  nameNeeded: 'ముందు మీ పేరు ఇవ్వండి.',
+  createRoom: 'గది సృష్టించండి',
+  createRoomHint: 'స్నేహితులకు పంపడానికి ఒక కోడ్ వస్తుంది.',
+  create: 'గది సృష్టించండి',
+  joinRoom: 'గదిలో చేరండి',
+  joinRoomHint: 'స్నేహితుడు పంపిన 4 అక్షరాల కోడ్ ఇవ్వండి.',
+  join: 'చేరండి',
+  connecting: 'కనెక్ట్ అవుతోంది…',
+  reconnecting: 'కనెక్షన్ పోయింది – మళ్ళీ కలుపుతోంది…',
+  roomCode: 'గది కోడ్',
+  shareCode: 'కోడ్ పంపండి',
+  shareMessage: (code) => `నా అష్ట చెమ్మ ఆటలో చేరండి! యాప్ తెరిచి, “ఆన్‌లైన్‌లో ఆడండి” నొక్కి, ఈ గది కోడ్ ఇవ్వండి: ${code}`,
+  openSeat: 'ఆటగాడి కోసం ఎదురుచూస్తోంది…',
+  addComputer: 'కంప్యూటర్ చేర్చండి',
+  removeComputer: 'తీసేయండి',
+  hostBadge: 'హోస్ట్',
+  youBadge: 'మీరు',
+  offline: 'ఆఫ్‌లైన్',
+  awayTag: 'దూరంగా · కంప్యూటర్ ఆడుతోంది',
+  startNeedsSeats: 'ప్రతి స్థానాన్ని స్నేహితుడితో లేదా కంప్యూటర్‌తో నింపితే ఆట మొదలుపెట్టవచ్చు.',
+  waitingForHost: 'హోస్ట్ ఆట మొదలుపెట్టే వరకు ఎదురుచూడండి…',
+  leaveRoom: 'గది నుండి వెళ్ళండి',
+  leaveGame: 'ఆట నుండి వెళ్ళండి',
+  leaveGameHint: 'మిగతావారి కోసం మీ స్థానంలో కంప్యూటర్ ఆడుతుంది.',
+  rejoinTitle: 'మీ ఆన్‌లైన్ ఆట',
+  rejoinHint: (code) => `గది ${code}`,
+  rejoin: 'మళ్ళీ చేరండి',
+  onlineError: {
+    'bad-message': 'ఏదో తప్పు జరిగింది. మళ్ళీ ప్రయత్నించండి.',
+    version: 'ఆన్‌లైన్‌లో ఆడటానికి యాప్‌ను అప్‌డేట్ చేయండి.',
+    'no-room': 'ఆ కోడ్‌తో గది లేదు. కోడ్ చూసి మళ్ళీ ప్రయత్నించండి.',
+    'room-full': 'ఆ గది నిండిపోయింది.',
+    'already-started': 'ఆ ఆట ఇప్పటికే మొదలైంది.',
+    'not-in-room': 'మీరు ఇప్పుడు ఆ గదిలో లేరు.',
+    'not-host': 'హోస్ట్ మాత్రమే అది చేయగలరు.',
+    'not-ready': 'ముందు అన్ని స్థానాలను నింపండి.',
+    'not-your-turn': 'ఇది మీ వంతు కాదు.',
+    illegal: 'ఇప్పుడు అది కుదరదు.',
+    'bad-token': 'మళ్ళీ చేరలేకపోయారు – ఆ ఆట ముగిసి ఉండవచ్చు.',
+    network: 'గేమ్ సర్వర్‌ను చేరలేకపోయింది. ఇంటర్నెట్ కనెక్షన్ చూడండి.',
+  },
 
   rulesTitle: 'ఎలా ఆడాలి',
   tableHead: ['తెరిచినవి', 'విలువ', 'పిల్ల', 'తల్లి'],

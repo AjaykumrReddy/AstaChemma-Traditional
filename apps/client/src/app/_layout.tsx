@@ -20,6 +20,8 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ title: t.appTitle, headerShown: false }} />
         <Stack.Screen name="game" options={{ title: t.appTitle }} />
         <Stack.Screen name="rules" options={{ title: t.rulesTitle }} />
+        <Stack.Screen name="online" options={{ title: t.playOnline }} />
+        <Stack.Screen name="lobby" options={{ title: t.playOnline }} />
       </Stack>
     </>
   );

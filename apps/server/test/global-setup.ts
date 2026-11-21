@@ -28,7 +28,15 @@ let child: ChildProcess | null = null;
 export async function setup(project: TestProject) {
   const port = await freePort();
   // Tiny timings, and a high message limit: the test robots play far faster than people.
-  const vars = ['BOT_THROW_MS:1', 'BOT_MOVE_MS:1', 'AWAY_MS:300', 'ABANDONED_MS:60000', 'RATE_MAX_MESSAGES:100000'].flatMap(
+  // Test clients ping every 0.5 s, so 2 s of silence means a client has gone quiet.
+  const vars = [
+    'BOT_THROW_MS:1',
+    'BOT_MOVE_MS:1',
+    'AWAY_MS:300',
+    'ABANDONED_MS:60000',
+    'RATE_MAX_MESSAGES:100000',
+    'SILENT_MS:2000',
+  ].flatMap(
     (v) => ['--var', v],
   );
   child = spawn('npx', ['wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1', ...vars], {

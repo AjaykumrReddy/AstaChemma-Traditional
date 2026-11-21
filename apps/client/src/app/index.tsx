@@ -7,6 +7,7 @@ import { Segmented } from '../components/Segmented';
 import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { STRINGS, useStrings, withDisplayNames, type Lang, type Strings } from '../i18n';
+import { useOnlineStore } from '../online/store';
 import { useGameStore } from '../store/game';
 import { colors, radius, space } from '../theme';
 
@@ -53,14 +54,27 @@ export default function SetupScreen() {
   const tutorialDone = useGameStore((s) => s.tutorialDone);
   const hydrated = useGameStore((s) => s.hydrated);
 
+  const session = useOnlineStore((s) => s.session);
+  const onlineRoom = useOnlineStore((s) => s.room);
+  const onlineStatus = useOnlineStore((s) => s.status);
+
   // Coming back here (e.g. with the header's back arrow) ends a guided game and
-  // restores the player's own game.
+  // restores the player's own game. An online game is only set aside: the seat
+  // stays connected and can be rejoined from the card below.
   useFocusEffect(
     useCallback(() => {
-      const { tutorial, endTutorial } = useGameStore.getState();
+      const { tutorial, endTutorial, mode, exitOnline } = useGameStore.getState();
       if (tutorial) endTutorial(false);
+      if (mode === 'online') exitOnline();
     }, []),
   );
+
+  const rejoinOnline = () => {
+    const online = useOnlineStore.getState();
+    // Still connected: go straight back; otherwise reconnect first (the lobby waits).
+    if (online.status !== 'open' || !online.room) online.rejoin();
+    router.push('/lobby');
+  };
 
   const playTutorial = () => {
     startTutorial();
@@ -111,6 +125,25 @@ export default function SetupScreen() {
             </View>
           </View>
 
+          {session && (
+            <View style={[styles.card, styles.resumeCard]}>
+              <Text style={styles.cardTitle}>{t.rejoinTitle}</Text>
+              <Text style={styles.hint}>{t.rejoinHint(session.code)}</Text>
+              <Pressable
+                style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+                onPress={rejoinOnline}
+                accessibilityRole="button"
+              >
+                <Text style={styles.primaryText}>
+                  {onlineStatus === 'open' && onlineRoom ? t.continueGame : t.rejoin}
+                </Text>
+              </Pressable>
+              <Pressable style={styles.secondary} onPress={() => useOnlineStore.getState().leave()} accessibilityRole="button">
+                <Text style={styles.secondaryText}>{onlineRoom?.status === 'lobby' ? t.leaveRoom : t.leaveGame}</Text>
+              </Pressable>
+            </View>
+          )}
+
           {hydrated && !tutorialDone && !saved && (
             <View style={[styles.card, styles.learnCard]}>
               <Text style={styles.cardTitle}>{t.learnTitle}</Text>
@@ -156,6 +189,20 @@ export default function SetupScreen() {
                 accessibilityRole="button"
               >
                 <Text style={styles.primaryText}>{t.continueGame}</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {!session && (
+            <View style={[styles.card, styles.onlineCard]}>
+              <Text style={styles.cardTitle}>{t.playOnline}</Text>
+              <Text style={styles.hint}>{t.playOnlineHint}</Text>
+              <Pressable
+                style={({ pressed }) => [styles.onlineButton, pressed && styles.pressed]}
+                onPress={() => router.push('/online')}
+                accessibilityRole="button"
+              >
+                <Text style={styles.onlineButtonText}>{t.playOnline}</Text>
               </Pressable>
             </View>
           )}
@@ -250,6 +297,15 @@ const styles = StyleSheet.create({
   resumeCard: { borderWidth: 2, borderColor: colors.accent },
   learnCard: { borderWidth: 2, borderColor: colors.highlight, backgroundColor: '#2C2A1A' },
   learnButton: { backgroundColor: colors.highlight, borderRadius: radius.md, paddingVertical: 14, alignItems: 'center' },
+  onlineCard: { borderWidth: 2, borderColor: colors.chalkDim },
+  onlineButton: {
+    borderWidth: 2,
+    borderColor: colors.chalk,
+    borderRadius: radius.md,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  onlineButtonText: { color: colors.chalk, fontSize: 16, fontWeight: '800' },
   links: { alignItems: 'center' },
   resumePlayers: { gap: space.sm },
   resumePlayer: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

@@ -34,6 +34,9 @@ async function connect(path: string) {
     socket.once('open', () => resolve());
     socket.once('error', reject);
   });
+  // Keep-alive, like the app (which pings every 25 s against the server's 60 s limit).
+  const pinger = setInterval(() => socket.readyState === WebSocket.OPEN && socket.send('{"t":"ping"}'), 500);
+  socket.on('close', () => clearInterval(pinger));
   const next = <T extends ServerMessage>(match: (m: ServerMessage) => m is T, timeoutMs = 5000): Promise<T> => {
     const i = inbox.findIndex(match);
     if (i >= 0) return Promise.resolve(inbox.splice(i, 1)[0] as T);
@@ -62,6 +65,8 @@ async function connect(path: string) {
     welcome: () => next((m): m is Extract<ServerMessage, { t: 'welcome' }> => m.t === 'welcome'),
     error: () => next((m): m is Extract<ServerMessage, { t: 'error' }> => m.t === 'error'),
     close: () => socket.close(),
+    /** Go quiet without closing, like a phone that lost signal. */
+    goSilent: () => clearInterval(pinger),
   };
 }
 type TestClient = Awaited<ReturnType<typeof connect>>;
@@ -248,6 +253,19 @@ describe('connections', () => {
     expect((await back.welcome()).seat).toBe(2);
     const room = await host.room((r) => r.seats.find((s) => s.seat === 2)?.connected === true);
     expect(room.seats.find((s) => s.seat === 2)).toMatchObject({ connected: true, away: false });
+  });
+
+  it('notices a player whose connection went quiet without closing, and lets them rejoin', async () => {
+    const { host, guest, guestWelcome } = await twoPlayerGame();
+    guest.goSilent();
+    const room = await host.room((r) => r.seats.find((s) => s.seat === 2)?.connected === false, 10_000);
+    expect(room.seats.find((s) => s.seat === 0)?.connected).toBe(true); // the host kept pinging
+    await new Promise<void>((resolve) => (guest.socket.readyState === WebSocket.CLOSED ? resolve() : guest.socket.once('close', () => resolve())));
+
+    const back = await connect(guestWelcome.code);
+    back.send({ t: 'rejoin', protocol: P, code: guestWelcome.code, playerId: guestWelcome.playerId, token: guestWelcome.token });
+    expect((await back.welcome()).seat).toBe(2);
+    await host.room((r) => r.seats.find((s) => s.seat === 2)?.connected === true);
   });
 
   it('lets the computer stand in for a player who stays away, so the game never stalls', async () => {
