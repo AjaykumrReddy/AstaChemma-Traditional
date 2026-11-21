@@ -12,6 +12,7 @@
     "client": "npm run start --workspace client",
     "server": "npm run dev --workspace @asta/server",
     "deploy:server": "npm run deploy --workspace @asta/server",
+    "logs:server": "npm run logs --workspace @asta/server",
     "tunnel": "npm run tunnel --workspace client",
     "web": "npm run web --workspace client"
   }

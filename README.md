@@ -30,22 +30,26 @@ npm test               # engine tests
 
 Inside `apps/client`: `npm run typecheck`, `npm run lint`, `npm run export:web` (static web build in `dist/`).
 
-## Online play (v3, in progress)
+## Online play (v3)
 
 ```
 packages/protocol   Messages between the app and the server (shared types + validation)
 apps/server         Cloudflare Worker + Durable Objects: one object per room, server-side throws, computer players
 ```
 
+The live server is **https://asta-chemma-server.asta-server.workers.dev** (`/health` answers `{"ok":true,...}`). Every build of the app uses it, including development, so `npm run client` plus "Play online" works on any phone on any network.
+
 ```sh
-npm run server   # run the server locally (Cloudflare's runtime via wrangler dev) on port 8787, reachable on your Wi-Fi
-npm run client   # in a second terminal: the app; tap "Play online" on two devices (or two browser windows)
-npm test         # engine tests + room logic tests + end-to-end tests against the local Worker
+npm run deploy:server   # run the server tests, then deploy to Cloudflare (after `npx wrangler login`)
+npm run logs:server     # live logs from the deployed server
+npm test                # engine tests + room logic tests + end-to-end tests against a local Worker
 ```
 
-**In the app:** "Play online" → enter a name → *Create room* (pick the mode and number of players) or *Join a room* with a 4-letter code. In the lobby the host sees a big room code to share, can fill empty seats with computers (any level), and starts once every seat is filled. During the game only your own pieces and buttons respond, and only on your turn; the other players' throws and moves animate just like local ones. Friends who drop out show as *offline*, then *away · computer playing*. If the app is closed or the connection drops it reconnects by itself, and the start screen offers *Rejoin* for your game. The ⚙ sheet has *Leave game* (the computer takes your seat). Undo is off online.
+**Working on the server itself:** run `npm run server` (local server on port 8787, reachable on your Wi-Fi) and create `apps/client/.env.local` containing `EXPO_PUBLIC_SERVER_URL=local`, then restart `npm run client`. Any other `ws://` or `wss://` address there points the app at that server instead. Delete the file to go back to the live server.
 
-The app finds the server at `EXPO_PUBLIC_SERVER_URL` (e.g. `wss://asta-chemma-server.<account>.workers.dev`); without it, development builds use port 8787 on the computer running Expo.
+**Changing the protocol:** phones keep old app versions for a long time, so the deployed server must keep understanding them. Add to messages rather than changing them; if a change truly can't be compatible, bump `PROTOCOL_VERSION` (older apps are then told to update).
+
+**In the app:** "Play online" → enter a name → *Create room* (pick the mode and number of players) or *Join a room* with a 4-letter code. In the lobby the host sees a big room code to share, can fill empty seats with computers (any level), and starts once every seat is filled. During the game only your own pieces and buttons respond, and only on your turn; the other players' throws and moves animate just like local ones. Friends who drop out show as *offline*, then *away · computer playing*. If the app is closed or the connection drops it reconnects by itself, and the start screen offers *Rejoin* for your game. The ⚙ sheet has *Leave game* (the computer takes your seat). Undo is off online.
 
 **Endpoints:** `GET /health`; WebSocket `/rooms/new` to create a room (then send `create`), `/rooms/<CODE>` to join or rejoin (then send `join` / `rejoin`).
 
@@ -53,7 +57,7 @@ The app finds the server at `EXPO_PUBLIC_SERVER_URL` (e.g. `wss://asta-chemma-se
 
 **The server is the referee:** it throws the shells, accepts actions only from the player whose turn it is and only legal moves (checked with the shared engine), runs computer players, and broadcasts the room after every change with the last action so apps can animate it. The random-number state is removed before the game is sent out, so throws can't be predicted. Players rejoin with the secret token from their welcome message; mid-game leavers are replaced by the computer. Apps ping every 25 seconds; a connection silent for 60 seconds (a phone that lost signal never says goodbye) is dropped and the player marked offline. Each connection is limited to 60 messages per 10 seconds.
 
-**Deploying** (needs a Cloudflare account): `npx wrangler login`, then `npm run deploy --workspace @asta/server`.
+**Hosting:** Cloudflare Workers + Durable Objects (SQLite storage). Rooms run close to the players, idle rooms cost nothing, and there are no servers to look after.
 
 ## Installable Android app (APK)
 

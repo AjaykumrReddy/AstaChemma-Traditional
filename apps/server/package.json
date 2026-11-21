@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --port 8787 --ip 0.0.0.0",
-    "deploy": "wrangler deploy",
+    "deploy": "vitest run && wrangler deploy",
+    "logs": "wrangler tail --format pretty",
     "types": "wrangler types src/worker-configuration.d.ts",
     "test": "vitest run",
     "typecheck": "wrangler types src/worker-configuration.d.ts && tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
