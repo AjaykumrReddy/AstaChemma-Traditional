@@ -5,7 +5,6 @@ import { Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, Vie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Board } from '../components/Board';
 import { Confetti } from '../components/Effects';
-import { MoveHistory } from '../components/MoveHistory';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Shells } from '../components/Shells';
 import { displayState, useGameStore, useTimings } from '../store/game';
@@ -122,7 +121,6 @@ export default function GameScreen() {
   const shakeKey = useGameStore((s) => s.shakeKey);
   const removeEffect = useGameStore((s) => s.removeEffect);
   const hydrated = useGameStore((s) => s.hydrated);
-  const history = useGameStore((s) => s.history);
   const timings = useTimings();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -326,13 +324,9 @@ export default function GameScreen() {
           <View style={styles.side}>
             {players}
             {panel}
-            <MoveHistory history={history} players={game.players} />
           </View>
         ) : (
-          <>
-            {panel}
-            <MoveHistory history={history} players={game.players} />
-          </>
+          panel
         )}
       </ScrollView>
 

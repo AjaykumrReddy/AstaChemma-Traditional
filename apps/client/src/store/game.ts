@@ -12,7 +12,6 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { feedbackForMove, feedbackForThrow, type BoardEffect, type Feedback } from '../feedback/effects';
 import { haptic } from '../feedback/haptics';
 import { playSound, playSoundAfter, setSoundEnabled } from '../feedback/sounds';
-import { addHistory, historyFromEvents, lastMoveEvents, type HistoryEntry } from './history';
 import { describeEvents } from './messages';
 
 export type Speed = 'slow' | 'normal' | 'fast';
@@ -55,8 +54,6 @@ interface GameStore {
   animation: MoveAnimation | null;
   selected: string | null;
   messages: string[];
-  /** Everything that happened this game, newest first. */
-  history: HistoryEntry[];
   /** Move automatically when a throw allows only one distinct move. */
   autoMove: boolean;
   speed: Speed;
@@ -85,7 +82,7 @@ interface GameStore {
 let generation = 0;
 
 /** What is saved on the device: enough to resume exactly where the game stopped. */
-type SavedGame = Pick<GameStore, 'config' | 'game' | 'history' | 'autoMove' | 'speed' | 'sound'>;
+type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove' | 'speed' | 'sound'>;
 
 /** Bump when the saved shape changes in a way old saves can't be read. */
 const SAVE_VERSION = 1;
@@ -128,7 +125,6 @@ export const useGameStore = create<GameStore>()(
         animation: null,
         selected: null,
         messages: [],
-        history: [],
         autoMove: true,
         speed: 'normal',
         sound: true,
@@ -145,7 +141,6 @@ export const useGameStore = create<GameStore>()(
             animation: null,
             selected: null,
             messages: ['Throw the shells to begin'],
-            history: [],
             effects: [],
           });
         },
@@ -161,7 +156,7 @@ export const useGameStore = create<GameStore>()(
 
         quit() {
           generation++;
-          set({ game: null, rolling: false, animation: null, selected: null, messages: [], history: [], effects: [] });
+          set({ game: null, rolling: false, animation: null, selected: null, messages: [], effects: [] });
         },
 
         throwShells() {
@@ -178,12 +173,7 @@ export const useGameStore = create<GameStore>()(
             const current = get().game;
             if (!current) return;
             const next = engineThrow(current);
-            set((s) => ({
-              game: next,
-              rolling: false,
-              messages: describeEvents(next, next.events),
-              history: addHistory(s.history, historyFromEvents(next, next.events)),
-            }));
+            set({ game: next, rolling: false, messages: describeEvents(next, next.events) });
             play(feedbackForThrow(next));
           }, timings().roll);
         },
@@ -207,13 +197,12 @@ export const useGameStore = create<GameStore>()(
 
           const finish = () => {
             const gen = generation;
-            set((s) => ({
+            set({
               game: after,
               animation: null,
               selected: null,
               messages: describeEvents(after, after.events),
-              history: addHistory(s.history, historyFromEvents(after, lastMoveEvents(after))),
-            }));
+            });
             // Celebrate as the piece touches down on its last square.
             setTimeout(() => {
               if (gen !== generation) return;
@@ -267,13 +256,12 @@ export const useGameStore = create<GameStore>()(
       partialize: (s): SavedGame => ({
         config: s.config,
         game: s.game,
-        history: s.history,
         autoMove: s.autoMove,
         speed: s.speed,
         sound: s.sound,
       }),
       // A save from an incompatible version is dropped rather than risking a crash.
-      migrate: (): SavedGame => ({ config: null, game: null, history: [], autoMove: true, speed: 'normal', sound: true }),
+      migrate: (): SavedGame => ({ config: null, game: null, autoMove: true, speed: 'normal', sound: true }),
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<SavedGame>;
         const game = isGameState(saved.game) ? saved.game : null;
@@ -283,7 +271,6 @@ export const useGameStore = create<GameStore>()(
           ...current,
           game,
           config: game ? (saved.config ?? game.config) : null,
-          history: game && Array.isArray(saved.history) ? saved.history : [],
           autoMove: typeof saved.autoMove === 'boolean' ? saved.autoMove : current.autoMove,
           speed: isSpeed(saved.speed) ? saved.speed : current.speed,
           sound,
