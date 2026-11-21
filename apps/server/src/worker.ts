@@ -173,9 +173,14 @@ export class GameRoom extends DurableObject<Env> {
     const record = room.result();
     if (!record || !this.env.HYPERDRIVE) return;
     try {
-      await withDb(this.env.HYPERDRIVE.connectionString, (db) => recordGame(db, record));
+      const paid = await withDb(this.env.HYPERDRIVE.connectionString, (db) => recordGame(db, record));
       room.data.recorded = true;
       this.ctx.storage.kv.put('room', room.data);
+      // Tell each signed-in player what they earned.
+      for (const [userId, reward] of paid ?? []) {
+        const seat = Object.values(room.data.seats).find((s) => s?.userId === userId);
+        if (seat?.memberId) this.sendToMember(seat.memberId, { t: 'reward', coins: reward.coins, won: reward.won });
+      }
     } catch (error) {
       console.error('could not record the result', error);
     }

@@ -1,5 +1,16 @@
-import { PROTOCOL_VERSION, type ClientMessage, type Profile, type RoomView, type ServerMessage } from '@asta/protocol';
+import {
+  COINS,
+  PROTOCOL_VERSION,
+  dailyBonus,
+  gameReward,
+  type ClientMessage,
+  type Profile,
+  type RoomView,
+  type ServerMessage,
+} from '@asta/protocol';
 import pg from 'pg';
+import { claimDaily, credit } from './db/accounts';
+import { withDb } from './db/db';
 import { describe, expect, inject, it } from 'vitest';
 import { WebSocket } from 'ws';
 
@@ -64,6 +75,7 @@ async function connect(path: string) {
     },
     actions,
     welcome: () => next((m): m is Extract<ServerMessage, { t: 'welcome' }> => m.t === 'welcome'),
+    reward: () => next((m): m is Extract<ServerMessage, { t: 'reward' }> => m.t === 'reward', 10_000),
     error: () => next((m): m is Extract<ServerMessage, { t: 'error' }> => m.t === 'error'),
     close: () => socket.close(),
     /** Go quiet without closing, like a phone that lost signal. */
@@ -302,7 +314,14 @@ describe('accounts', () => {
   it('creates a guest account, reads it back with its token, and renames it', async () => {
     const { token, profile } = await newGuest('  Asha   K ');
     expect(token.length).toBeGreaterThan(30);
-    expect(profile).toMatchObject({ name: 'Asha K', guest: true, coins: 0, gamesPlayed: 0, gamesWon: 0 });
+    expect(profile).toMatchObject({
+      name: 'Asha K',
+      guest: true,
+      coins: COINS.welcome,
+      gamesPlayed: 0,
+      gamesWon: 0,
+      daily: { available: true, streak: 0, amount: COINS.dailyBase },
+    });
 
     const me = await api('GET', '/v1/me', { token });
     expect(me.status).toBe(200);
@@ -343,13 +362,12 @@ describe('accounts', () => {
     const final = await play(host, { 0: host, 2: guest }, (r) => r.status === 'finished', 4000);
     const ashaWon = final.game!.winners.includes(final.game!.players.find((p) => p.seat === 0)!.index);
 
-    // Recording happens as the game ends; give it a moment.
-    let me = (await api('GET', '/v1/me', { token: asha.token })).body.profile as Profile;
-    for (let i = 0; i < 20 && me.gamesPlayed === 0; i++) {
-      await new Promise((r) => setTimeout(r, 100));
-      me = (await api('GET', '/v1/me', { token: asha.token })).body.profile as Profile;
-    }
-    expect(me).toMatchObject({ gamesPlayed: 1, gamesWon: ashaWon ? 1 : 0 });
+    // The server tells Asha what she earned: two people played, so a win pays for beating one other person.
+    const reward = await host.reward();
+    const expected = gameReward(ashaWon, 1);
+    expect(reward).toEqual({ t: 'reward', coins: expected, won: ashaWon });
+    const me = (await api('GET', '/v1/me', { token: asha.token })).body.profile as Profile;
+    expect(me).toMatchObject({ gamesPlayed: 1, gamesWon: ashaWon ? 1 : 0, coins: COINS.welcome + expected });
 
     const client = new pg.Client({ connectionString: dbUrl });
     await client.connect();
@@ -368,6 +386,43 @@ describe('accounts', () => {
       await client.end();
     }
   }, 180_000);
+
+  it('pays the daily bonus once a day', async () => {
+    const { token } = await newGuest('Daily');
+    const first = await api('POST', '/v1/me/daily', { token });
+    expect(first.body).toMatchObject({ claimed: true, coins: COINS.dailyBase });
+    expect(first.body.profile).toMatchObject({
+      coins: COINS.welcome + COINS.dailyBase,
+      daily: { available: false, streak: 1, amount: dailyBonus(2) },
+    });
+    const again = await api('POST', '/v1/me/daily', { token });
+    expect(again.body).toMatchObject({ claimed: false, coins: 0 });
+    expect(again.body.profile.coins).toBe(COINS.welcome + COINS.dailyBase);
+    expect((await api('POST', '/v1/me/daily')).status).toBe(401);
+  });
+
+  it('grows the daily bonus for days in a row, and starts again after a missed day', async () => {
+    const { profile } = await newGuest('Streak');
+    const claim = (day: string) => withDb(dbUrl, (db) => claimDaily(db, profile.id, day));
+    expect((await claim('2030-01-01')).coins).toBe(dailyBonus(1));
+    expect((await claim('2030-01-02')).coins).toBe(dailyBonus(2));
+    expect((await claim('2030-01-02')).claimed).toBe(false);
+    expect((await claim('2030-01-03')).coins).toBe(dailyBonus(3));
+    const afterGap = await claim('2030-01-05');
+    expect(afterGap.coins).toBe(dailyBonus(1));
+    expect(afterGap.profile.daily.streak).toBe(1);
+    // The bonus stops growing after a few days.
+    expect(dailyBonus(30)).toBe(COINS.dailyBase + COINS.dailyStep * COINS.dailyMaxSteps);
+  });
+
+  it('never pays the same reward twice', async () => {
+    const { profile } = await newGuest('Ledger');
+    const pay = () => withDb(dbUrl, (db) => db.tx((tx) => credit(tx, profile.id, 50, 'test', 'once')));
+    expect(await pay()).toBe(true);
+    expect(await pay()).toBe(false);
+    const coins = await withDb(dbUrl, (db) => db.query<{ coins: string }>('SELECT coins FROM users WHERE id = $1', [profile.id]));
+    expect(Number(coins[0]!.coins)).toBe(COINS.welcome + 50);
+  });
 
   it('lets people play with an unknown account token (the game just is not counted)', async () => {
     const { host } = await createRoom('Asha', 2, 'stale-token-from-an-old-install');

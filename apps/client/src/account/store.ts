@@ -68,6 +68,8 @@ interface AccountStore {
   ensure(defaultName?: string): Promise<void>;
   /** Change the display name. Returns false if it couldn't be saved. */
   rename(name: string): Promise<boolean>;
+  /** Collect today's daily bonus. Returns the coins paid (0 if already collected), or null if offline. */
+  claimDaily(): Promise<number | null>;
 }
 
 let ensuring: Promise<void> | null = null;
@@ -119,6 +121,18 @@ export const useAccountStore = create<AccountStore>()(
           return true;
         } catch {
           return false;
+        }
+      },
+
+      async claimDaily() {
+        const { token } = get();
+        if (!token) return null;
+        try {
+          const result = await call<{ claimed: boolean; coins: number; profile: Profile }>('POST', '/v1/me/daily', { token });
+          set({ profile: result.profile, status: 'ready' });
+          return result.coins;
+        } catch {
+          return null;
         }
       },
     }),

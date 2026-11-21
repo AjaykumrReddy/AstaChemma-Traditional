@@ -61,11 +61,22 @@ npm test                # engine tests + room logic tests + end-to-end tests aga
 
 ## Accounts (v4)
 
-Every install gets a **guest account** automatically (no sign-up screen); its session token is kept in the phone's secure storage (Android Keystore / iOS Keychain). The profile screen (avatar, top-left of the start screen) shows the name and online stats. Online games played with an account are recorded when they finish, and count towards each signed-in player's stats. Coming next: Google/Apple sign-in (keep the account across phones) and coins.
+Every install gets a **guest account** automatically (no sign-up screen); its session token is kept in the phone's secure storage (Android Keystore / iOS Keychain). The profile screen (avatar, top-left of the start screen) shows the name and online stats. Online games played with an account are recorded when they finish, and count towards each signed-in player's stats. Coming next: Google/Apple sign-in (keep the account across phones).
+
+**Coins** are play money, awarded only by the server and never bought, sold or exchanged for money. The amounts live in one place (`COINS` in `packages/protocol`), which the server pays and the app's "How to earn" list shows:
+
+| | Coins |
+|---|---|
+| New account (welcome) | 500, once |
+| Daily bonus (India date) | 100, +20 per day in a row, up to 200; missing a day starts again |
+| Finish an online game | 10 |
+| Win an online game | 30, +70 per other human player (wins against computers only pay 30) |
+
+Every change is a `coin_ledger` row; (user, reason, ref) is unique, so the same reward can't be paid twice, even if a request is retried. A finished online game pays each signed-in player and tells them (`{ t: 'reward', coins, won }`), shown in the results. The start screen shows the balance next to the avatar and offers the daily bonus in a popup.
 
 **Database:** Postgres on [Neon](https://neon.tech), reached through Cloudflare **Hyperdrive** (pooling close to the database; binding `HYPERDRIVE` in `apps/server/wrangler.jsonc`). The server creates and updates the tables itself the first time it connects (`apps/server/src/db/migrations.ts`: numbered steps, never edited once deployed). Tables: `users`, `sessions` (only a SHA-256 hash of each token), `coin_ledger` (every coin change with its reason; a reward can't be paid twice), `games`, `game_players`.
 
-**Account API** (same server): `POST /v1/auth/guest` → `{ token, profile }`; `GET /v1/me` and `PATCH /v1/me { name }` with `Authorization: Bearer <token>`. New guests are limited to 10 per minute per address. Online rooms accept the token as `account` in `create`/`join` (optional: playing never depends on the database).
+**Account API** (same server): `POST /v1/auth/guest` → `{ token, profile }`; `GET /v1/me`, `PATCH /v1/me { name }` and `POST /v1/me/daily` (collect the daily bonus) with `Authorization: Bearer <token>`. New guests are limited to 10 per minute per address. Online rooms accept the token as `account` in `create`/`join` (optional: playing never depends on the database).
 
 **Local and tests:** no cloud database needed. `npm run server` and the tests run a real Postgres in-process (PGlite) and hand it to the Worker the same way Hyperdrive does (`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE`).
 

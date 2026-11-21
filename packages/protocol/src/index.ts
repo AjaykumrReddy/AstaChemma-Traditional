@@ -94,7 +94,9 @@ export type ServerMessage =
   | { t: 'room'; room: RoomView }
   | { t: 'error'; code: ErrorCode; message: string }
   | { t: 'left' }
-  | { t: 'pong' };
+  | { t: 'pong' }
+  /** A finished game paid you coins (signed-in players only). */
+  | GameRewardMessage;
 
 // ---------------------------------------------------------------------------
 // Accounts (HTTP, JSON)
@@ -102,6 +104,7 @@ export type ServerMessage =
 //   POST  /v1/auth/guest   { name? }          → 201 { token, profile }
 //   GET   /v1/me           Bearer token       → { profile }
 //   PATCH /v1/me           Bearer, { name }   → { profile }
+//   POST  /v1/me/daily     Bearer             → { claimed, coins, profile }
 //
 // Errors: { error: AccountErrorCode } with 400 / 401 / 429 / 503.
 // ---------------------------------------------------------------------------
@@ -117,9 +120,55 @@ export interface Profile {
   /** Online games finished / won. */
   gamesPlayed: number;
   gamesWon: number;
+  daily: DailyStatus;
 }
 
 export type AccountErrorCode = 'bad-request' | 'unauthorized' | 'too-many' | 'unavailable';
+
+// ---------------------------------------------------------------------------
+// Coins: play money, awarded only by the server. Never bought, sold or cashed.
+// ---------------------------------------------------------------------------
+
+export const COINS = {
+  /** Once, for a new account. */
+  welcome: 500,
+  /** Daily bonus: base, plus `dailyStep` per day in a row, up to `dailyMaxSteps` steps. */
+  dailyBase: 100,
+  dailyStep: 20,
+  dailyMaxSteps: 5,
+  /** Finishing an online game without winning. */
+  played: 10,
+  /** Winning an online game: base, plus this much per other human player (computers don't count). */
+  winBase: 30,
+  winPerHuman: 70,
+} as const;
+
+/** The daily bonus on the `streak`-th day in a row (1 = first day). */
+export function dailyBonus(streak: number): number {
+  return COINS.dailyBase + COINS.dailyStep * Math.min(Math.max(streak - 1, 0), COINS.dailyMaxSteps);
+}
+
+/** Coins for finishing an online game. */
+export function gameReward(won: boolean, otherHumans: number): number {
+  return won ? COINS.winBase + COINS.winPerHuman * otherHumans : COINS.played;
+}
+
+/** The daily bonus as the app shows it. */
+export interface DailyStatus {
+  /** Not yet claimed today (India time). */
+  available: boolean;
+  /** Days in a row so far (including today if already claimed). */
+  streak: number;
+  /** What claiming pays: today's bonus if available, otherwise tomorrow's. */
+  amount: number;
+}
+
+/** Sent to a player when a finished online game pays them coins. */
+export interface GameRewardMessage {
+  t: 'reward';
+  coins: number;
+  won: boolean;
+}
 
 /** Session tokens are opaque strings; anything longer is not one of ours. */
 export const MAX_TOKEN_LENGTH = 128;

@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Backdrop } from '../components/Backdrop';
 import { Board } from '../components/Board';
+import { CoinIcon } from '../components/CoinIcon';
 import { IconButton, Popup, TopBar } from '../components/Chrome';
 import { Confetti } from '../components/Effects';
 import { CoachCard } from '../components/CoachCard';
@@ -188,6 +189,8 @@ export default function GameScreen() {
   const onlineSeats = useOnlineStore((s) => s.room?.seats);
   const onlineStatus = useOnlineStore((s) => s.status);
   const roomCode = useOnlineStore((s) => s.room?.code ?? null);
+  /** Coins this online game paid (arrives just after it ends). */
+  const reward = useOnlineStore((s) => s.reward);
   const leaveOnline = useOnlineStore((s) => s.leave);
   const timings = useTimings();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -467,7 +470,7 @@ export default function GameScreen() {
       <View style={{ paddingTop: insets.top }}>
         <TopBar
           // Online, the room code stays in view so it can be told to a friend who dropped out.
-          title={online && roomCode ? `${t.appTitle} · ${roomCode}` : t.appTitle}
+          title={online && roomCode ? t.rejoinHint(roomCode) : t.appTitle}
           onBack={goBack}
           backLabel={t.back}
           right={
@@ -552,6 +555,12 @@ export default function GameScreen() {
             <BouncingTrophy />
             <Text style={styles.dialogTitle}>{t.won(winners.join(' & '))}</Text>
             <Text style={styles.dialogText}>{game.config.mode === 'team' ? t.winTeam : t.winSolo}</Text>
+            {online && reward && (
+              <View style={styles.rewardRow} accessibilityLabel={t.rewardEarned(reward.coins)}>
+                <CoinIcon size={30} />
+                <Text style={styles.rewardText}>{t.rewardEarned(reward.coins)}</Text>
+              </View>
+            )}
             {online ? (
               <Pressable style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]} onPress={leaveOnlineGame}>
                 <Text style={styles.bigButtonText}>{t.backToStart}</Text>
@@ -713,6 +722,19 @@ const styles = StyleSheet.create({
   iconGlyph: { color: colors.chalk, fontSize: 19, fontWeight: '900' },
   gearGlyph: { color: colors.chalk, fontSize: 20, marginTop: -2 },
   dialogEmoji: { fontSize: 44 },
+  rewardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(246, 215, 123, 0.55)',
+    marginBottom: space.sm,
+  },
+  rewardText: { color: '#F6D77B', fontSize: 22, fontWeight: '900' },
   dialogTitle: { color: colors.text, fontSize: 24, fontWeight: '800', textAlign: 'center' },
   dialogText: { color: colors.textMuted, fontSize: 14, textAlign: 'center', marginBottom: space.sm },
   dialogSecondary: { paddingVertical: space.md },

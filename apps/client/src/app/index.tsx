@@ -1,11 +1,23 @@
 import { HOME_INDEX, type Player, type Seat } from '@asta/engine';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 import { useAccountStore } from '../account/store';
 import { Avatar } from '../components/Avatar';
+import { CoinIcon } from '../components/CoinIcon';
 import { Backdrop } from '../components/Backdrop';
 import { BoardDrawing } from '../components/BoardDrawing';
 import { GRID_END, MID, VIEW_PAD, VIEW_TOTAL, cellCentre, rotateToSeat } from '../components/boardGeometry';
@@ -28,6 +40,7 @@ const useNativeDriver = Platform.OS !== 'web';
  */
 let resumeOffered = false;
 let rejoinOffered = false;
+let dailyOffered = false;
 
 /** Four seats for the decorative board on the start screen. */
 const HERO_PLAYERS: Player[] = ([0, 1, 2, 3] as Seat[]).map((seat) => ({ index: seat, name: '', seat }));
@@ -133,6 +146,10 @@ export default function HomeScreen() {
   /** 'auto': show the popup by itself if there's something to offer (first visit this launch). */
   const [resumeChoice, setResumeChoice] = useState<'auto' | 'open' | 'closed'>(() => (resumeOffered ? 'closed' : 'auto'));
   const [rejoinChoice, setRejoinChoice] = useState<'auto' | 'open' | 'closed'>(() => (rejoinOffered ? 'closed' : 'auto'));
+  const [dailyChoice, setDailyChoice] = useState<'auto' | 'open' | 'closed'>(() => (dailyOffered ? 'closed' : 'auto'));
+  /** Coins just collected from the daily bonus (shown in the popup), or null before collecting. */
+  const [collected, setCollected] = useState<number | null>(null);
+  const [collecting, setCollecting] = useState(false);
 
   // Coming back here ends a guided game and restores the player's own game.
   // An online game is only set aside: the seat stays connected and can be rejoined.
@@ -152,8 +169,28 @@ export default function HomeScreen() {
   const saved = savedGame ? withDisplayNames(t, savedGame) : null;
 
   // Offer the online seat first (friends are waiting), then the saved game; each once per launch.
+  // Friends waiting come first, then the daily bonus, then the saved game.
   const rejoinOpen = focused && !!session && (rejoinChoice === 'open' || rejoinChoice === 'auto');
-  const resumeOpen = focused && !!saved && !rejoinOpen && (resumeChoice === 'open' || (resumeChoice === 'auto' && !session));
+  const dailyOpen =
+    focused && !rejoinOpen && (dailyChoice === 'open' || (dailyChoice === 'auto' && !!profile?.daily.available));
+  const resumeOpen =
+    focused && !!saved && !rejoinOpen && !dailyOpen && (resumeChoice === 'open' || (resumeChoice === 'auto' && !session));
+  const setDailyOpen = (open: boolean) => {
+    if (!open) {
+      dailyOffered = true;
+      setCollected(null);
+    }
+    setDailyChoice(open ? 'open' : 'closed');
+  };
+  const collectDaily = async () => {
+    // Keep the popup up to show what was collected (the bonus stops being "available").
+    setDailyChoice('open');
+    setCollecting(true);
+    const coins = await useAccountStore.getState().claimDaily();
+    setCollecting(false);
+    if (coins === null) setDailyOpen(false);
+    else setCollected(coins);
+  };
   const setRejoinOpen = (open: boolean) => {
     if (!open) rejoinOffered = true;
     setRejoinChoice(open ? 'open' : 'closed');
@@ -213,6 +250,20 @@ export default function HomeScreen() {
                 </View>
               )}
             </Pressable>
+            {profile && (
+              <Pressable
+                onPress={() => (profile.daily.available ? setDailyOpen(true) : router.push('/profile'))}
+                style={({ pressed }) => [styles.coinChip, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel={t.coinsA11y(profile.coins)}
+              >
+                <CoinIcon size={22} />
+                <Text style={styles.coinText} numberOfLines={1}>
+                  {profile.coins.toLocaleString('en-IN')}
+                </Text>
+                {profile.daily.available && <View style={styles.coinDot} />}
+              </Pressable>
+            )}
             <View style={styles.pills}>
               {session && !rejoinOpen ? (
                 <Pressable style={({ pressed }) => [styles.pill, pressed && styles.pressed]} onPress={() => setRejoinOpen(true)} accessibilityRole="button">
@@ -314,6 +365,41 @@ export default function HomeScreen() {
         </Pressable>
       </Popup>
 
+      {/* Daily bonus */}
+      <Popup visible={dailyOpen && !!profile} onClose={() => setDailyOpen(false)} closeLabel={t.close} title={t.dailyTitle}>
+        {profile && (
+          <View style={styles.daily}>
+            <CoinIcon size={72} />
+            {collected === null ? (
+              <>
+                <Text style={styles.dailyAmount}>+{profile.daily.amount}</Text>
+                <Text style={styles.hint}>{t.dailyStreak(profile.daily.streak + 1)}</Text>
+                <Pressable
+                  style={({ pressed }) => [styles.primary, styles.stretch, (pressed || collecting) && styles.pressed]}
+                  onPress={() => void collectDaily()}
+                  disabled={collecting}
+                  accessibilityRole="button"
+                >
+                  {collecting ? <ActivityIndicator color="#2A2208" /> : <Text style={styles.primaryText}>{t.dailyCollect}</Text>}
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.dailyAmount}>{t.rewardEarned(collected)}</Text>
+                <Text style={styles.hint}>{t.dailyNext(profile.daily.amount)}</Text>
+                <Pressable
+                  style={({ pressed }) => [styles.primary, styles.stretch, pressed && styles.pressed]}
+                  onPress={() => setDailyOpen(false)}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.primaryText}>{t.done}</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        )}
+      </Popup>
+
       {/* Continue the saved game */}
       <Popup visible={resumeOpen} onClose={() => setResumeOpen(false)} closeLabel={t.close} title={t.continueTitle}>
         {saved && (
@@ -381,6 +467,40 @@ const styles = StyleSheet.create({
   },
   pillText: { color: '#2A2208', fontSize: 14, fontWeight: '900' },
   langGlyph: { color: colors.chalk, fontSize: 15, fontWeight: '800' },
+  coinChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 36,
+    paddingLeft: 6,
+    paddingRight: 12,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(246, 215, 123, 0.55)',
+  },
+  coinText: { color: '#F6D77B', fontSize: 15, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  coinDot: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#E5484D',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  daily: { alignItems: 'center', gap: space.sm },
+  dailyAmount: {
+    color: '#F6D77B',
+    fontSize: 40,
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  stretch: { alignSelf: 'stretch' },
   avatarPlaceholder: {
     width: 44,
     height: 44,

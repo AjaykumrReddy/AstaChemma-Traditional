@@ -1,13 +1,16 @@
 import type { GameMode, Seat } from '@asta/engine';
-import type { Profile } from '@asta/protocol';
+import { COINS, dailyBonus, gameReward, type DailyStatus, type Profile } from '@asta/protocol';
 import type { Db } from './db';
 
 /**
- * Accounts: guests (and later Google/Apple sign-ins), their sessions, and the
- * results of finished online games.
+ * Accounts: guests (and later Google/Apple sign-ins), their sessions, coins,
+ * and the results of finished online games.
  *
  * Session tokens are 256 random bits handed to the app once; only their
  * SHA-256 hash is stored, so a database leak doesn't hand out sign-ins.
+ *
+ * Coins only ever change through `credit`, which writes the ledger row first:
+ * (user, reason, ref) is unique there, so the same reward can't be paid twice.
  */
 
 interface UserRow {
@@ -18,11 +21,38 @@ interface UserRow {
   coins: string | number; // bigint comes back as a string
   games_played: number;
   games_won: number;
+  /** 'YYYY-MM-DD' or null. */
+  last_daily: string | null;
+  daily_streak: number;
 }
 
-const USER_COLUMNS = 'u.id, u.name, u.google_sub, u.apple_sub, u.coins, u.games_played, u.games_won';
+const USER_COLUMNS =
+  "u.id, u.name, u.google_sub, u.apple_sub, u.coins, u.games_played, u.games_won, to_char(u.last_daily, 'YYYY-MM-DD') AS last_daily, u.daily_streak";
 
-function toProfile(row: UserRow): Profile {
+// ---------------------------------------------------------------------------
+// Days (the daily bonus follows India time, where the players are)
+// ---------------------------------------------------------------------------
+
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+/** Today's date in India, as 'YYYY-MM-DD'. */
+export function indiaDate(now: number): string {
+  return new Date(now + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function dayBefore(date: string): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+}
+
+function dailyStatus(row: UserRow, today: string): DailyStatus {
+  if (row.last_daily === today) {
+    return { available: false, streak: row.daily_streak, amount: dailyBonus(row.daily_streak + 1) };
+  }
+  const streak = row.last_daily === dayBefore(today) ? row.daily_streak + 1 : 1;
+  return { available: true, streak: streak - 1, amount: dailyBonus(streak) };
+}
+
+function toProfile(row: UserRow, today: string): Profile {
   return {
     id: row.id,
     name: row.name,
@@ -30,8 +60,13 @@ function toProfile(row: UserRow): Profile {
     coins: Number(row.coins),
     gamesPlayed: row.games_played,
     gamesWon: row.games_won,
+    daily: dailyStatus(row, today),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Tokens
+// ---------------------------------------------------------------------------
 
 function base64url(bytes: Uint8Array): string {
   let s = '';
@@ -50,22 +85,49 @@ export async function hashToken(token: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** A new guest account and its first session. */
-export async function createGuest(db: Db, name: string): Promise<{ token: string; profile: Profile }> {
+// ---------------------------------------------------------------------------
+// Coins
+// ---------------------------------------------------------------------------
+
+/**
+ * Add `delta` coins for (`reason`, `ref`) — at most once ever. Returns whether
+ * it was paid now. Must run inside a transaction.
+ */
+export async function credit(tx: Db, userId: string, delta: number, reason: string, ref: string): Promise<boolean> {
+  const [entry] = await tx.query<{ id: string }>(
+    `INSERT INTO coin_ledger (user_id, delta, reason, ref) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id, reason, ref) DO NOTHING RETURNING id`,
+    [userId, delta, reason, ref],
+  );
+  if (!entry) return false;
+  await tx.query('UPDATE users SET coins = coins + $2 WHERE id = $1', [userId, delta]);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Accounts
+// ---------------------------------------------------------------------------
+
+async function loadUser(db: Db, userId: string, today: string): Promise<Profile> {
+  const [row] = await db.query<UserRow>(`SELECT ${USER_COLUMNS} FROM users u WHERE u.id = $1`, [userId]);
+  if (!row) throw new Error('no such user');
+  return toProfile(row, today);
+}
+
+/** A new guest account (with its welcome coins) and its first session. */
+export async function createGuest(db: Db, name: string, today: string): Promise<{ token: string; profile: Profile }> {
   const token = newToken();
   const tokenHash = await hashToken(token);
   return db.tx(async (tx) => {
-    const [row] = await tx.query<UserRow>(
-      `INSERT INTO users AS u (name) VALUES ($1) RETURNING ${USER_COLUMNS}`,
-      [name],
-    );
+    const [row] = await tx.query<{ id: string }>('INSERT INTO users (name) VALUES ($1) RETURNING id', [name]);
     await tx.query('INSERT INTO sessions (token_hash, user_id) VALUES ($1, $2)', [tokenHash, row!.id]);
-    return { token, profile: toProfile(row!) };
+    await credit(tx, row!.id, COINS.welcome, 'welcome', 'welcome');
+    return { token, profile: await loadUser(tx, row!.id, today) };
   });
 }
 
 /** The account a session token belongs to, or null if the token is unknown. */
-export async function profileForToken(db: Db, token: string): Promise<Profile | null> {
+export async function profileForToken(db: Db, token: string, today: string): Promise<Profile | null> {
   const tokenHash = await hashToken(token);
   const [row] = await db.query<UserRow>(
     `SELECT ${USER_COLUMNS} FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1`,
@@ -77,17 +139,39 @@ export async function profileForToken(db: Db, token: string): Promise<Profile | 
     `UPDATE users SET last_seen_at = now() WHERE id = $1 AND last_seen_at < now() - interval '1 hour'`,
     [row.id],
   );
-  return toProfile(row);
+  return toProfile(row, today);
 }
 
-export async function renameUser(db: Db, userId: string, name: string): Promise<Profile> {
-  const [row] = await db.query<UserRow>(`UPDATE users AS u SET name = $2 WHERE u.id = $1 RETURNING ${USER_COLUMNS}`, [
-    userId,
-    name,
-  ]);
-  if (!row) throw new Error('no such user');
-  return toProfile(row);
+export async function renameUser(db: Db, userId: string, name: string, today: string): Promise<Profile> {
+  await db.query('UPDATE users SET name = $2 WHERE id = $1', [userId, name]);
+  return loadUser(db, userId, today);
 }
+
+/**
+ * Claim today's daily bonus. Days in a row grow the bonus; missing a day
+ * starts again from the first day.
+ */
+export async function claimDaily(
+  db: Db,
+  userId: string,
+  today: string,
+): Promise<{ claimed: boolean; coins: number; profile: Profile }> {
+  return db.tx(async (tx) => {
+    // Lock the row so two taps at once can't both claim.
+    const [row] = await tx.query<UserRow>(`SELECT ${USER_COLUMNS} FROM users u WHERE u.id = $1 FOR UPDATE`, [userId]);
+    if (!row) throw new Error('no such user');
+    const status = dailyStatus(row, today);
+    if (!status.available) return { claimed: false, coins: 0, profile: toProfile(row, today) };
+    const streak = status.streak + 1;
+    const paid = await credit(tx, userId, status.amount, 'daily', today);
+    await tx.query('UPDATE users SET last_daily = $2::date, daily_streak = $3 WHERE id = $1', [userId, today, streak]);
+    return { claimed: paid, coins: paid ? status.amount : 0, profile: await loadUser(tx, userId, today) };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Online games
+// ---------------------------------------------------------------------------
 
 export interface GameRecord {
   /** Unique per game (room code + start time): recording twice is harmless. */
@@ -99,37 +183,36 @@ export interface GameRecord {
 }
 
 /**
- * Store a finished online game and add it to each signed-in player's stats.
- * Returns false if this game was already recorded.
+ * Store a finished online game, add it to each signed-in player's stats and
+ * pay their coins. Returns the coins paid per account, or null if this game
+ * was already recorded.
  */
-export async function recordGame(db: Db, game: GameRecord): Promise<boolean> {
+export async function recordGame(db: Db, game: GameRecord): Promise<Map<string, { coins: number; won: boolean }> | null> {
   return db.tx(async (tx) => {
     const [row] = await tx.query<{ id: string }>(
       `INSERT INTO games (game_key, room_code, mode, started_at) VALUES ($1, $2, $3, to_timestamp($4 / 1000.0))
        ON CONFLICT (game_key) DO NOTHING RETURNING id`,
       [game.key, game.code, game.mode, game.startedAt],
     );
-    if (!row) return false;
+    if (!row) return null;
+    const humans = game.players.filter((p) => p.bot === null).length;
+    const paid = new Map<string, { coins: number; won: boolean }>();
     for (const p of game.players) {
-      await tx.query('INSERT INTO game_players (game_id, seat, user_id, name, bot, won) VALUES ($1, $2, $3, $4, $5, $6)', [
-        row.id,
-        p.seat,
-        p.userId,
-        p.name,
-        p.bot,
-        p.won,
-      ]);
-    }
-    // One update per player; a player can't hold two seats, but guard anyway.
-    const counted = new Set<string>();
-    for (const p of game.players) {
-      if (!p.userId || counted.has(p.userId)) continue;
-      counted.add(p.userId);
+      // A player can't hold two seats, but never pay anyone twice.
+      const counted = p.userId !== null && !paid.has(p.userId);
+      const coins = counted ? gameReward(p.won, humans - 1) : 0;
+      await tx.query(
+        'INSERT INTO game_players (game_id, seat, user_id, name, bot, won, coins) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [row.id, p.seat, p.userId, p.name, p.bot, p.won, coins],
+      );
+      if (!counted) continue;
+      paid.set(p.userId!, { coins, won: p.won });
       await tx.query('UPDATE users SET games_played = games_played + 1, games_won = games_won + $2 WHERE id = $1', [
         p.userId,
         p.won ? 1 : 0,
       ]);
+      await credit(tx, p.userId!, coins, p.won ? 'win' : 'played', game.key);
     }
-    return true;
+    return paid;
   });
 }

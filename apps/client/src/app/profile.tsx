@@ -1,4 +1,4 @@
-import { MAX_NAME_LENGTH } from '@asta/protocol';
+import { COINS, MAX_NAME_LENGTH, dailyBonus } from '@asta/protocol';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DEFAULT_GUEST_NAME, useAccountStore } from '../account/store';
 import { Avatar } from '../components/Avatar';
 import { Backdrop } from '../components/Backdrop';
+import { CoinIcon } from '../components/CoinIcon';
 import { TopBar } from '../components/Chrome';
 import { useStrings } from '../i18n';
 import { colors, radius, space } from '../theme';
@@ -91,10 +92,33 @@ export default function ProfileScreen() {
             {saving === 'failed' && <Text style={styles.error}>{t.saveFailed}</Text>}
           </View>
 
+          <View style={[styles.card, styles.coinCard]} accessibilityLabel={t.coinsA11y(profile.coins)}>
+            <CoinIcon size={44} />
+            <View>
+              <Text style={styles.coinValue}>{profile.coins.toLocaleString('en-IN')}</Text>
+              <Text style={styles.label}>{t.coins}</Text>
+            </View>
+          </View>
+
           <View style={styles.stats}>
             <Stat label={t.statsOnlineGames} value={String(profile.gamesPlayed)} />
             <Stat label={t.statsWins} value={String(profile.gamesWon)} />
             <Stat label={t.statsWinRate} value={winRate} />
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{t.howToEarn}</Text>
+            {[
+              t.earnDaily(dailyBonus(1), dailyBonus(COINS.dailyMaxSteps + 1)),
+              t.earnWin(COINS.winBase, COINS.winPerHuman),
+              t.earnPlayed(COINS.played),
+            ].map((line) => (
+              <View key={line} style={styles.earnRow}>
+                <CoinIcon size={16} />
+                <Text style={styles.earnText}>{line}</Text>
+              </View>
+            ))}
+            <Text style={styles.note}>{t.coinsNote}</Text>
           </View>
 
           {status === 'offline' && <Text style={[styles.hint, styles.center]}>{t.accountOffline}</Text>}
@@ -143,6 +167,12 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   label: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
+  cardTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 2 },
+  coinCard: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  coinValue: { color: '#F6D77B', fontSize: 30, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  earnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+  earnText: { flex: 1, color: colors.text, fontSize: 14, lineHeight: 20 },
+  note: { color: colors.textMuted, fontSize: 12.5, lineHeight: 18, marginTop: space.xs, fontStyle: 'italic' },
   nameRow: { flexDirection: 'row', gap: space.sm },
   input: {
     flex: 1,

@@ -1,5 +1,5 @@
 import { cleanName, MAX_TOKEN_LENGTH, type AccountErrorCode, type Profile } from '@asta/protocol';
-import { createGuest, profileForToken, renameUser } from './db/accounts';
+import { claimDaily, createGuest, indiaDate, profileForToken, renameUser } from './db/accounts';
 import { withDb, type Db } from './db/db';
 
 /**
@@ -8,6 +8,7 @@ import { withDb, type Db } from './db/db';
  *   POST  /v1/auth/guest   { name? }          → 201 { token, profile }
  *   GET   /v1/me           Bearer token       → { profile }
  *   PATCH /v1/me           Bearer, { name }   → { profile }
+ *   POST  /v1/me/daily     Bearer             → { claimed, coins, profile }
  */
 
 export interface ApiEnv {
@@ -58,6 +59,7 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
   const hyperdrive = env.HYPERDRIVE;
   if (!hyperdrive) return fail('unavailable', 503);
   const db = <T>(fn: (d: Db) => Promise<T>) => withDb(hyperdrive.connectionString, fn);
+  const today = indiaDate(Date.now());
 
   try {
     if (url.pathname === '/v1/auth/guest' && request.method === 'POST') {
@@ -70,8 +72,18 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
       if (!body) return fail('bad-request', 400);
       const name = body.name === undefined ? DEFAULT_GUEST_NAME : cleanName(body.name);
       if (!name) return fail('bad-request', 400);
-      const { token, profile } = await db((d) => createGuest(d, name));
+      const { token, profile } = await db((d) => createGuest(d, name, today));
       return json({ token, profile }, 201);
+    }
+
+    if (url.pathname === '/v1/me/daily' && request.method === 'POST') {
+      const token = bearer(request);
+      if (!token) return fail('unauthorized', 401);
+      const result = await db(async (d) => {
+        const me = await profileForToken(d, token, today);
+        return me ? claimDaily(d, me.id, today) : null;
+      });
+      return result ? json(result) : fail('unauthorized', 401);
     }
 
     if (url.pathname === '/v1/me' && (request.method === 'GET' || request.method === 'PATCH')) {
@@ -83,9 +95,9 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
       if (body && !name) return fail('bad-request', 400);
 
       const profile = await db(async (d): Promise<Profile | null> => {
-        const me = await profileForToken(d, token);
+        const me = await profileForToken(d, token, today);
         if (!me) return null;
-        return name && name !== me.name ? renameUser(d, me.id, name) : me;
+        return name && name !== me.name ? renameUser(d, me.id, name, today) : me;
       });
       return profile ? json({ profile }) : fail('unauthorized', 401);
     }
@@ -101,7 +113,7 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
 export async function userIdForToken(env: ApiEnv, token: string | undefined): Promise<string | null> {
   if (!token || !env.HYPERDRIVE) return null;
   try {
-    const profile = await withDb(env.HYPERDRIVE.connectionString, (d) => profileForToken(d, token));
+    const profile = await withDb(env.HYPERDRIVE.connectionString, (d) => profileForToken(d, token, indiaDate(Date.now())));
     return profile?.id ?? null;
   } catch (error) {
     // Playing matters more than stats: carry on without the account.

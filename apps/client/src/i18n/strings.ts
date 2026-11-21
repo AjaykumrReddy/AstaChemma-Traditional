@@ -195,6 +195,20 @@ export interface Strings {
   saved: string;
   saveFailed: string;
   accountOffline: string;
+
+  // Coins
+  coins: string;
+  coinsA11y: (n: number) => string;
+  dailyTitle: string;
+  dailyStreak: (day: number) => string;
+  dailyCollect: string;
+  dailyNext: (amount: number) => string;
+  howToEarn: string;
+  earnDaily: (min: number, max: number) => string;
+  earnWin: (base: number, perFriend: number) => string;
+  earnPlayed: (n: number) => string;
+  coinsNote: string;
+  rewardEarned: (n: number) => string;
   onlineError: Record<ErrorCode | 'network', string>;
 
   // How to play
@@ -384,6 +398,18 @@ const en: Strings = {
   saved: 'Saved',
   saveFailed: 'Couldn’t save – check your internet connection.',
   accountOffline: 'Can’t reach the server – showing your last known stats.',
+  coins: 'Coins',
+  coinsA11y: (n) => `${n.toLocaleString('en-IN')} coins`,
+  dailyTitle: 'Daily bonus',
+  dailyStreak: (day) => (day <= 1 ? 'Day 1 – come back tomorrow for more' : `Day ${day} in a row!`),
+  dailyCollect: 'Collect',
+  dailyNext: (amount) => `Come back tomorrow for ${amount}`,
+  howToEarn: 'How to earn coins',
+  earnDaily: (min, max) => `Daily bonus: ${min}–${max} (grows each day in a row)`,
+  earnWin: (base, perFriend) => `Win online: ${base}, plus ${perFriend} for each friend you beat`,
+  earnPlayed: (n) => `Finish an online game: ${n}`,
+  coinsNote: 'Coins are just for fun – they can’t be bought, sold or exchanged for money.',
+  rewardEarned: (n) => `+${n} coins`,
   onlineError: {
     'bad-message': 'Something went wrong. Please try again.',
     version: 'Please update the app to play online.',
@@ -652,6 +678,18 @@ const te: Strings = {
   saved: 'సేవ్ అయింది',
   saveFailed: 'సేవ్ కాలేదు – ఇంటర్నెట్ కనెక్షన్ చూడండి.',
   accountOffline: 'సర్వర్ అందుబాటులో లేదు – చివరిగా తెలిసిన వివరాలు చూపిస్తున్నాం.',
+  coins: 'నాణేలు',
+  coinsA11y: (n) => `${n.toLocaleString('en-IN')} నాణేలు`,
+  dailyTitle: 'రోజువారీ బోనస్',
+  dailyStreak: (day) => (day <= 1 ? 'మొదటి రోజు – రేపు మళ్ళీ రండి, ఇంకా ఎక్కువ' : `వరుసగా ${day}వ రోజు!`),
+  dailyCollect: 'తీసుకోండి',
+  dailyNext: (amount) => `రేపు మళ్ళీ రండి – ${amount} నాణేలు`,
+  howToEarn: 'నాణేలు ఎలా సంపాదించాలి',
+  earnDaily: (min, max) => `రోజువారీ బోనస్: ${min}–${max} (వరుస రోజులకు పెరుగుతుంది)`,
+  earnWin: (base, perFriend) => `ఆన్‌లైన్ గెలుపు: ${base}, ఓడించిన ప్రతి స్నేహితునికి ఇంకా ${perFriend}`,
+  earnPlayed: (n) => `ఆన్‌లైన్ ఆట పూర్తి చేస్తే: ${n}`,
+  coinsNote: 'నాణేలు సరదా కోసమే – వాటిని కొనలేరు, అమ్మలేరు, డబ్బుగా మార్చలేరు.',
+  rewardEarned: (n) => `+${n} నాణేలు`,
   onlineError: {
     'bad-message': 'ఏదో తప్పు జరిగింది. మళ్ళీ ప్రయత్నించండి.',
     version: 'ఆన్‌లైన్‌లో ఆడటానికి యాప్‌ను అప్‌డేట్ చేయండి.',

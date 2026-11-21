@@ -64,4 +64,14 @@ export const MIGRATIONS: { version: number; sql: string }[] = [
       CREATE INDEX game_players_user_idx ON game_players(user_id);
     `,
   },
+  {
+    version: 2,
+    sql: `
+      -- Daily bonus: the last day it was claimed (India time) and the run of days in a row.
+      ALTER TABLE users ADD COLUMN last_daily date;
+      ALTER TABLE users ADD COLUMN daily_streak integer NOT NULL DEFAULT 0;
+      -- Coins won per game, so the app can show them in the results.
+      ALTER TABLE game_players ADD COLUMN coins integer NOT NULL DEFAULT 0;
+    `,
+  },
 ];

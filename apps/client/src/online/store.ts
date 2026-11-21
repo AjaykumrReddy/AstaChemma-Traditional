@@ -41,6 +41,8 @@ interface OnlineStore {
   room: RoomView | null;
   status: ConnectionStatus;
   error: OnlineErrorCode | null;
+  /** Coins the last finished game paid (shown in the results). */
+  reward: { coins: number; won: boolean } | null;
 
   setName(name: string): void;
   create(mode: GameMode, players: 2 | 3 | 4): void;
@@ -212,6 +214,12 @@ function handle(message: ServerMessage): void {
       }
       return;
     }
+    case 'reward': {
+      store.setState({ reward: { coins: message.coins, won: message.won } });
+      // The new balance and stats.
+      void useAccountStore.getState().ensure();
+      return;
+    }
     case 'left':
     case 'pong':
       return;
@@ -257,6 +265,7 @@ export const useOnlineStore = create<OnlineStore>()(
       room: null,
       status: 'idle',
       error: null,
+      reward: null,
 
       setName(name) {
         set({ name });
@@ -307,7 +316,7 @@ export const useOnlineStore = create<OnlineStore>()(
       forget() {
         stayConnected = false;
         closeSocket();
-        set({ session: null, room: null, status: 'idle' });
+        set({ session: null, room: null, status: 'idle', reward: null });
         useGameStore.getState().exitOnline();
       },
 
