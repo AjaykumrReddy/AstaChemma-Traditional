@@ -1,4 +1,4 @@
-import type { BotLevel, GameConfig, GameMode, Seat } from '@asta/engine';
+import { HOME_INDEX, type BotLevel, type GameConfig, type GameMode, type Seat } from '@asta/engine';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -42,6 +42,7 @@ export default function SetupScreen() {
   const startGame = useGameStore((s) => s.startGame);
   const autoMove = useGameStore((s) => s.autoMove);
   const setAutoMove = useGameStore((s) => s.setAutoMove);
+  const saved = useGameStore((s) => (s.hydrated && s.game && s.game.phase !== 'finished' ? s.game : null));
 
   const [mode, setMode] = useState<GameMode>('individual');
   const [count, setCount] = useState(2);
@@ -73,6 +74,38 @@ export default function SetupScreen() {
           <View style={styles.hero}>
             <Text style={styles.title}>Asta Chemma</Text>
           </View>
+
+          {saved && (
+            <View style={[styles.card, styles.resumeCard]}>
+              <Text style={styles.cardTitle}>Continue your game</Text>
+              <View style={styles.resumePlayers}>
+                {saved.players.map((p) => {
+                  const home = saved.pieces.filter((pc) => pc.owner === p.index && pc.progress === HOME_INDEX).length;
+                  const isTurn = p.index === saved.current;
+                  return (
+                    <View key={p.index} style={styles.resumePlayer}>
+                      <View style={[styles.dot, { backgroundColor: seatColors[p.seat].fill }]} />
+                      <Text style={[styles.resumeName, isTurn && styles.resumeTurn]} numberOfLines={1}>
+                        {p.name}
+                      </Text>
+                      <Text style={styles.hint}>{home}/3 home</Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <Text style={styles.hint}>
+                {saved.config.mode === 'team' ? 'Teams' : `${saved.players.length} players`} · turn {saved.turn} ·{' '}
+                {saved.players[saved.current]?.name} to play
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+                onPress={() => router.push('/game')}
+                accessibilityRole="button"
+              >
+                <Text style={styles.primaryText}>Continue game</Text>
+              </Pressable>
+            </View>
+          )}
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Game</Text>
@@ -139,8 +172,9 @@ export default function SetupScreen() {
             />
           </View>
 
+          {saved && <Text style={[styles.hint, styles.centerText]}>Starting a new game replaces your saved game.</Text>}
           <Pressable style={({ pressed }) => [styles.primary, pressed && styles.pressed]} onPress={start} accessibilityRole="button">
-            <Text style={styles.primaryText}>Start game</Text>
+            <Text style={styles.primaryText}>{saved ? 'Start a new game' : 'Start game'}</Text>
           </Pressable>
           <Link href="/rules" asChild>
             <Pressable style={styles.secondary} accessibilityRole="link">
@@ -164,6 +198,12 @@ const styles = StyleSheet.create({
   field: { gap: space.sm },
   label: { color: colors.textMuted, fontSize: 13, fontWeight: '600' },
   hint: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+  centerText: { textAlign: 'center' },
+  resumeCard: { borderWidth: 2, borderColor: colors.accent },
+  resumePlayers: { gap: space.sm },
+  resumePlayer: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  resumeName: { color: colors.text, fontSize: 15, fontWeight: '600', flex: 1 },
+  resumeTurn: { fontWeight: '800', color: colors.accent },
   seat: { gap: space.sm, paddingTop: space.xs },
   seatHeader: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   dot: { width: 14, height: 14, borderRadius: 7 },

@@ -6,7 +6,9 @@ import {
   type GameConfig,
   type GameState,
 } from '@asta/engine';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { feedbackForMove, feedbackForThrow, type BoardEffect, type Feedback } from '../feedback/effects';
 import { haptic } from '../feedback/haptics';
 import { describeEvents } from './messages';
@@ -39,6 +41,8 @@ interface GameStore {
   effects: BoardEffect[];
   /** Bumped to shake the board. */
   shakeKey: number;
+  /** True once the saved game (if any) has been loaded from the device. */
+  hydrated: boolean;
 
   startGame(config: GameConfig): void;
   removeEffect(id: number): void;
@@ -54,7 +58,29 @@ interface GameStore {
 // Incremented on every new game so stale timers from an old game do nothing.
 let generation = 0;
 
-export const useGameStore = create<GameStore>((set, get) => {
+/** What is saved on the device: enough to resume exactly where the game stopped. */
+type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove'>;
+
+/** Bump when the saved shape changes in a way old saves can't be read. */
+const SAVE_VERSION = 1;
+
+/** A light sanity check so a corrupt or outdated save never crashes the app. */
+function isGameState(value: unknown): value is GameState {
+  const g = value as Partial<GameState> | null;
+  return (
+    !!g &&
+    Array.isArray(g.players) &&
+    Array.isArray(g.pieces) &&
+    Array.isArray(g.pending) &&
+    Array.isArray(g.legalMoves) &&
+    typeof g.current === 'number' &&
+    typeof g.phase === 'string'
+  );
+}
+
+export const useGameStore = create<GameStore>()(
+  persist(
+    (set, get) => {
   /** Show effects, a shake and a vibration for something that just happened. */
   const play = (feedback: Feedback) => {
     if (feedback.haptic) haptic(feedback.haptic);
@@ -74,6 +100,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   autoMove: true,
   effects: [],
   shakeKey: 0,
+  hydrated: false,
 
   startGame(config) {
     generation++;
@@ -172,7 +199,30 @@ export const useGameStore = create<GameStore>((set, get) => {
     set({ autoMove: on });
   },
   };
-});
+    },
+    {
+      name: 'asta-chemma/saved-game',
+      version: SAVE_VERSION,
+      storage: createJSONStorage(() => AsyncStorage),
+      // Only the game itself is saved, never animations, effects or rolls in progress.
+      partialize: (s): SavedGame => ({ config: s.config, game: s.game, autoMove: s.autoMove }),
+      // A save from an incompatible version is dropped rather than risking a crash.
+      migrate: (): SavedGame => ({ config: null, game: null, autoMove: true }),
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<SavedGame>;
+        const game = isGameState(saved.game) ? saved.game : null;
+        return {
+          ...current,
+          game,
+          config: game ? (saved.config ?? game.config) : null,
+          autoMove: typeof saved.autoMove === 'boolean' ? saved.autoMove : current.autoMove,
+          messages: game ? ['Welcome back'] : current.messages,
+        };
+      },
+      onRehydrateStorage: () => () => useGameStore.setState({ hydrated: true }),
+    },
+  ),
+);
 
 /** The state to draw: mid-animation positions while a move is animating. */
 export function displayState(game: GameState, animation: MoveAnimation | null): GameState {

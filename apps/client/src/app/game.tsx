@@ -123,6 +123,7 @@ export default function GameScreen() {
   const effects = useGameStore((s) => s.effects);
   const shakeKey = useGameStore((s) => s.shakeKey);
   const removeEffect = useGameStore((s) => s.removeEffect);
+  const hydrated = useGameStore((s) => s.hydrated);
 
   const current = game?.players[game.current];
   const busy = rolling || animation !== null;
@@ -174,6 +175,8 @@ export default function GameScreen() {
     [game, movable, selected, move],
   );
 
+  // Wait for a saved game to load before deciding there is no game to show.
+  if (!hydrated) return <View style={styles.screen} />;
   if (!game || !current) return <Redirect href="/" />;
 
   const wide = width >= WIDE_BREAKPOINT;

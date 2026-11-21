@@ -9,6 +9,9 @@ apps/client       Expo app (Expo Router, react-native-svg, Zustand) → iOS, And
 
 Version 1 covers playing on one device (2–4 players, or 2 v 2 teams) and playing against the computer (easy, medium or hard).
 
+Version 2 (in progress) adds:
+- **Save and resume:** the current game is saved on the device after every action and offered as "Continue game" on the start screen, even after the app is closed.
+
 ## Run it
 
 ```sh
