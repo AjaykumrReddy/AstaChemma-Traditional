@@ -79,6 +79,11 @@ interface GameStore {
   stash: { config: GameConfig | null; game: GameState | null } | null;
   /** The player has finished or skipped the guided game once. */
   tutorialDone: boolean;
+  /**
+   * The game as it was before each recent human decision (newest last), for
+   * Undo. Kept in memory only, so it adds nothing to the saved game.
+   */
+  undoStack: GameState[];
 
   startGame(config: GameConfig): void;
   startTutorial(): void;
@@ -90,8 +95,13 @@ interface GameStore {
   quit(): void;
   throwShells(): void;
   select(pieceId: string | null): void;
-  /** Make a legal move, by Move id. */
-  move(moveId: string): void;
+  /**
+   * Make a legal move, by Move id. `forced` marks moves the app made for the
+   * player (auto-move with a single choice); Undo skips past those.
+   */
+  move(moveId: string, forced?: boolean): void;
+  /** Take back the last human decision (and any computer turns since). */
+  undo(): void;
   setAutoMove(on: boolean): void;
   setSpeed(speed: Speed): void;
   setSound(on: boolean): void;
@@ -100,6 +110,9 @@ interface GameStore {
 
 // Incremented on every new game so stale timers from an old game do nothing.
 let generation = 0;
+
+/** How many decisions Undo can take back in a row. */
+const UNDO_LIMIT = 30;
 
 /** What is saved on the device: enough to resume exactly where the game stopped. */
 type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language' | 'tutorialDone'>;
@@ -128,6 +141,16 @@ export const useGameStore = create<GameStore>()(
     (set, get) => {
       const timings = () => TIMINGS[get().speed];
 
+      /**
+       * Remember the game before a human decision, so Undo can return to it.
+       * Not in the guided game, and not for computer players.
+       */
+      const snapshot = (game: GameState) => {
+        const { tutorial } = get();
+        if (tutorial || game.players[game.current]?.bot) return;
+        set((s) => ({ undoStack: [...s.undoStack, game].slice(-UNDO_LIMIT) }));
+      };
+
       /** Show effects, shake, vibrate and play sounds for something that just happened. */
       const play = (feedback: Feedback) => {
         if (feedback.haptic) haptic(feedback.haptic);
@@ -155,6 +178,7 @@ export const useGameStore = create<GameStore>()(
         tutorial: null,
         stash: null,
         tutorialDone: false,
+        undoStack: [],
 
         startGame(config) {
           generation++;
@@ -168,6 +192,7 @@ export const useGameStore = create<GameStore>()(
             effects: [],
             tutorial: null,
             stash: null,
+            undoStack: [],
           });
         },
 
@@ -185,6 +210,7 @@ export const useGameStore = create<GameStore>()(
             note: null,
             effects: [],
             tutorial: { step: 0, throwIndex: 0 },
+            undoStack: [],
           });
         },
 
@@ -211,6 +237,7 @@ export const useGameStore = create<GameStore>()(
             selected: null,
             effects: [],
             note: stash?.game ? 'welcome' : null,
+            undoStack: [],
           });
         },
 
@@ -225,7 +252,7 @@ export const useGameStore = create<GameStore>()(
 
         quit() {
           generation++;
-          set({ game: null, rolling: false, animation: null, selected: null, note: null, effects: [] });
+          set({ game: null, rolling: false, animation: null, selected: null, note: null, effects: [], undoStack: [] });
         },
 
         throwShells() {
@@ -234,6 +261,8 @@ export const useGameStore = create<GameStore>()(
           // A throw is due, or the player keeps their 4/8 and throws again.
           const canThrow = game.phase === 'awaitingThrow' || (game.phase === 'awaitingMove' && game.canHold);
           if (!canThrow) return;
+          // Keeping a 4/8 is a decision Undo can take back.
+          if (game.phase === 'awaitingMove') snapshot(game);
           const gen = generation;
           set({ rolling: true, selected: null });
           playSound('shake');
@@ -265,11 +294,12 @@ export const useGameStore = create<GameStore>()(
           set({ selected: pieceId });
         },
 
-        move(moveId) {
+        move(moveId, forced = false) {
           const { game, animation } = get();
           if (!game || game.phase !== 'awaitingMove' || animation) return;
           const move = game.legalMoves.find((m) => m.id === moveId);
           if (!move) return;
+          if (!forced) snapshot(game);
           const pieceId = move.pieceId;
           const after = applyMove(game, moveId);
           const stepMs = timings().step;
@@ -311,6 +341,23 @@ export const useGameStore = create<GameStore>()(
             setTimeout(tick, stepMs);
           };
           setTimeout(tick, stepMs);
+        },
+
+        undo() {
+          const { undoStack, rolling, animation, tutorial } = get();
+          const previous = undoStack[undoStack.length - 1];
+          if (!previous || rolling || animation || tutorial) return;
+          // Stop anything still in flight from the moves being undone.
+          generation++;
+          playSound('select');
+          haptic('tap');
+          set({
+            game: previous,
+            undoStack: undoStack.slice(0, -1),
+            selected: null,
+            effects: [],
+            note: null,
+          });
         },
 
         setAutoMove(on) {

@@ -86,6 +86,8 @@ export interface Strings {
   winSolo: string;
   playAgain: string;
   newSetup: string;
+  undo: string;
+  undoA11y: string;
 
   // What a throw allows
   open: (n: number) => string;
@@ -200,6 +202,8 @@ const en: Strings = {
   winSolo: 'All three pieces are home.',
   playAgain: 'Play again',
   newSetup: 'New game setup',
+  undo: 'Undo',
+  undoA11y: 'Undo your last move',
 
   open: (n) => `${n} open`,
   noneOpenEight: 'None open = 8',
@@ -394,6 +398,8 @@ const te: Strings = {
   winSolo: 'మూడు కాయలూ ఇంటికి చేరాయి.',
   playAgain: 'మళ్ళీ ఆడండి',
   newSetup: 'కొత్త ఆట ఏర్పాటు',
+  undo: 'వెనక్కి',
+  undoA11y: 'మీ చివరి కదలికను వెనక్కి తీసుకోండి',
 
   open: (n) => `${n} తెరుచుకున్నాయి`,
   noneOpenEight: 'ఒక్కటీ తెరవలేదు = 8',

@@ -15,6 +15,7 @@ Version 2 (in progress) adds:
 - **Game speed:** Slow, Normal or Fast for shell rolls, piece walks and computer turns.
 - **Settings** (language, speed, sound, auto-move) on the start screen and from the ⚙ button during a game.
 - **Guided first game:** a 15-step game against the computer with scripted shell results, so every lesson comes up: entering on a 4, extra throws, keeping a 4 and joining 4 + 4 to release the Mother, the Mother not moving on a 3, the computer's turn, and an 8 that captures. A coach card explains each step and only the asked-for action is available. First-time players see it on the start screen; it's always available from "Play the guided game". The player's own saved game is set aside and kept safe; at the end they can keep playing or go back. Steps and the throw script are in `apps/client/src/tutorial/steps.ts`.
+- **Undo:** takes back the last human decision (a move, a 4 + 4 join, or keeping a throw), rewinding any computer turns since, up to 30 in a row. The shell randomness is part of the game state, so undoing never allows a re-roll. Forced auto-moves are skipped; not available in the guided game; kept in memory only.
 - **Telugu / English:** every screen, message and the full rules page in both languages, switchable at any time (also from the start screen). All text lives in `apps/client/src/i18n/strings.ts`; both languages share one typed interface, so a missing translation fails the typecheck. Default player names ("You", "Computer 2") follow the language; names you type stay as typed.
 
 ## Run it

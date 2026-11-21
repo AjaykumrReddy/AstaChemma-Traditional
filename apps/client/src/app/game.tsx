@@ -126,6 +126,8 @@ export default function GameScreen() {
   const removeEffect = useGameStore((s) => s.removeEffect);
   const hydrated = useGameStore((s) => s.hydrated);
   const tutorial = useGameStore((s) => s.tutorial);
+  const undoCount = useGameStore((s) => s.undoStack.length);
+  const undo = useGameStore((s) => s.undo);
   const nextTutorialStep = useGameStore((s) => s.nextTutorialStep);
   const endTutorial = useGameStore((s) => s.endTutorial);
   const timings = useTimings();
@@ -171,7 +173,8 @@ export default function GameScreen() {
     } else if (autoMove && !tutorial && game.phase === 'awaitingMove' && !game.canHold) {
       // Never auto-use a 4 the player might want to keep for joining.
       const options = distinctMoves(game, game.legalMoves);
-      if (options.length === 1) timer = setTimeout(() => move(options[0]!.id), timings.autoMove);
+      // Forced: Undo skips past moves the app made for the player.
+      if (options.length === 1) timer = setTimeout(() => move(options[0]!.id, true), timings.autoMove);
     }
     return () => clearTimeout(timer);
   }, [game, busy, current, autoMove, throwShells, move, timings, settingsOpen, tutorial]);
@@ -239,6 +242,9 @@ export default function GameScreen() {
 
   const winners = game.winners.map((i) => named.players[i]!.name);
   const joinMove = humanTurn && !busy ? movable.find((m) => m.join) : undefined;
+  // Undo: not mid-roll or mid-move, not in the guided game, and not once the game is won.
+  const canUndo = undoCount > 0 && !busy && !tutorial && game.phase !== 'finished';
+
   // In the guided game only the action the step asks for is offered.
   const showHold = humanTurn && !busy && game.phase === 'awaitingMove' && game.canHold && (!step || !!step.allowHold);
   const showThrow = humanTurn && game.phase === 'awaitingThrow' && (!step || !!step.allowThrow);
@@ -278,6 +284,17 @@ export default function GameScreen() {
         <Text style={styles.status} numberOfLines={2}>
           {status}
         </Text>
+        {canUndo && (
+          <Pressable
+            onPress={undo}
+            hitSlop={8}
+            style={({ pressed }) => [styles.undo, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={t.undoA11y}
+          >
+            <Text style={styles.undoText}>↶ {t.undo}</Text>
+          </Pressable>
+        )}
       </View>
       <Shells shells={game.lastThrow?.shells ?? null} rolling={rolling} size={wide ? 40 : 34} />
       <Text style={styles.score}>
@@ -474,6 +491,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'stretch' },
+  undo: {
+    borderWidth: 1.5,
+    borderColor: colors.chalkDim,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
+    paddingVertical: 5,
+  },
+  undoText: { color: colors.chalk, fontSize: 13.5, fontWeight: '700' },
   status: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1 },
   score: { color: colors.chalk, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   message: { color: colors.textMuted, fontSize: 13, textAlign: 'center', minHeight: 18 },
