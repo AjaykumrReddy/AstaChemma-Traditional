@@ -7,9 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "npm run test --workspace @asta/engine",
+    "test": "npm run test --workspace @asta/engine && npm run test --workspace @asta/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "client": "npm run start --workspace client",
+    "server": "npm run dev --workspace @asta/server",
     "tunnel": "npm run tunnel --workspace client",
     "web": "npm run web --workspace client"
   }

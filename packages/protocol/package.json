@@ -1,0 +1,17 @@
+{
+  "name": "@asta/protocol",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Messages exchanged between the Asta Chemma app and the online game server.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@asta/engine": "*"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

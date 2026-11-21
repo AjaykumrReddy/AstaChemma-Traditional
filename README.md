@@ -30,6 +30,20 @@ npm test               # engine tests
 
 Inside `apps/client`: `npm run typecheck`, `npm run lint`, `npm run export:web` (static web build in `dist/`).
 
+## Online play (v3, in progress)
+
+```
+packages/protocol   Messages between the app and the server (shared types + validation)
+apps/server         WebSocket game server: rooms with a 4-letter code, server-side throws, computer players
+```
+
+```sh
+npm run server   # start the game server on port 3001 (restarts on changes)
+npm test         # engine tests + server integration tests
+```
+
+The server is the referee: it creates rooms, seats players by code, throws the shells, checks every move with the shared engine, runs computer players, and broadcasts the room after every change. The random-number state is removed before the game is sent out, so throws can't be predicted. A player who disconnects can rejoin with the token from their welcome message; after 30 seconds away, a computer plays their turns until they return. Empty rooms are removed after 10 minutes. For deployment, `npm run build --workspace @asta/server` bundles it into `apps/server/dist/server.mjs` (run with `node`; listens on `PORT`, default 3001; health check at `/health`).
+
 ## Installable Android app (APK)
 
 Built in the cloud with EAS (a free Expo account is enough). From `apps/client`:
