@@ -18,6 +18,7 @@ import {
   type SeatView,
   type ServerMessage,
 } from '@asta/protocol';
+import type { GameRecord } from './db/accounts';
 
 /**
  * One online room: lobby, seats, the authoritative game, computer players and
@@ -56,6 +57,8 @@ export interface SeatData {
   name: string | null;
   level?: BotLevel;
   memberId?: string;
+  /** The player's account, when they joined signed in: their result counts towards it. */
+  userId?: string;
 }
 
 export interface MemberData {
@@ -88,6 +91,10 @@ export interface RoomData {
   /** When the computer should take the current turn, if it's a computer's turn. */
   botAt: number | null;
   lastActivity: number;
+  /** When the game started (identifies it when recording the result). */
+  startedAt?: number;
+  /** The finished game's result has been saved to players' accounts. */
+  recorded?: boolean;
 }
 
 /** How the room reaches players and reads the time. */
@@ -150,7 +157,7 @@ export class Room {
    * `attach` binds the player's connection before the room is broadcast, so
    * they receive it too.
    */
-  join(name: string, attach: (member: MemberData) => void): MemberData {
+  join(name: string, attach: (member: MemberData) => void, userId?: string | null): MemberData {
     const d = this.data;
     if (d.status !== 'lobby') throw new RoomError('already-started', 'This game has already started.');
     const seat = d.seatsInPlay.find((s) => d.seats[s]?.kind === 'open');
@@ -165,7 +172,7 @@ export class Room {
       awayAt: null,
     };
     d.members.push(member);
-    d.seats[seat] = { kind: 'human', name, memberId: member.id };
+    d.seats[seat] = { kind: 'human', name, memberId: member.id, ...(userId ? { userId } : {}) };
     d.hostId ??= member.id;
     attach(member);
     this.changed(null);
@@ -252,7 +259,31 @@ export class Room {
     };
     d.game = createGame(config, randomSeed());
     d.status = 'playing';
+    d.startedAt = this.io.now();
     this.changed({ type: 'start' });
+  }
+
+  /**
+   * The finished game's result for players' accounts, or null if there's
+   * nothing (more) to record. Seats whose player left count as the computer's.
+   */
+  result(): GameRecord | null {
+    const d = this.data;
+    if (d.status !== 'finished' || !d.game || d.recorded) return null;
+    const game = d.game;
+    const players = d.seatsInPlay.map((seat) => {
+      const slot = d.seats[seat];
+      const player = game.players.find((p) => p.seat === seat)!;
+      return {
+        seat,
+        userId: slot?.kind === 'human' ? (slot.userId ?? null) : null,
+        name: player.name,
+        bot: slot?.kind === 'bot' ? (slot.level ?? 'medium') : null,
+        won: game.winners.includes(player.index),
+      };
+    });
+    const startedAt = d.startedAt ?? 0;
+    return { key: `${d.code}:${startedAt}`, code: d.code, mode: d.mode, startedAt, players };
   }
 
   private requireHost(memberId: string): void {

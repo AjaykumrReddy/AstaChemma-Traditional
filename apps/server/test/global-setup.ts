@@ -1,3 +1,5 @@
+import { PGlite } from '@electric-sql/pglite';
+import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import type { TestProject } from 'vitest/node';
@@ -10,6 +12,8 @@ import type { TestProject } from 'vitest/node';
 declare module 'vitest' {
   export interface ProvidedContext {
     port: number;
+    /** The test Postgres, for checking what the Worker stored. */
+    dbUrl: string;
   }
 }
 
@@ -24,9 +28,19 @@ async function freePort(): Promise<number> {
 }
 
 let child: ChildProcess | null = null;
+let pg: { server: PGLiteSocketServer; db: PGlite } | null = null;
 
 export async function setup(project: TestProject) {
   const port = await freePort();
+  // A real (in-memory) Postgres for the accounts tables, reached the way the
+  // deployed Worker reaches Neon: through the Hyperdrive binding.
+  const dbPort = await freePort();
+  const db = await PGlite.create();
+  const server = new PGLiteSocketServer({ db, port: dbPort, host: '127.0.0.1', maxConnections: 20 });
+  await server.start();
+  pg = { server, db };
+  const dbUrl = `postgres://postgres:postgres@127.0.0.1:${dbPort}/postgres`;
+  project.provide('dbUrl', dbUrl);
   // Tiny timings, and a high message limit: the test robots play far faster than people.
   // Test clients ping every 0.5 s, so 2 s of silence means a client has gone quiet.
   const vars = [
@@ -42,7 +56,12 @@ export async function setup(project: TestProject) {
   child = spawn('npx', ['wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1', ...vars], {
     cwd: new URL('..', import.meta.url),
     shell: true,
-    env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: 'true' },
+    env: {
+      ...process.env,
+      WRANGLER_SEND_METRICS: 'false',
+      CI: 'true',
+      CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE: dbUrl,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
@@ -65,7 +84,12 @@ export async function setup(project: TestProject) {
 }
 
 export async function teardown() {
-  if (!child?.pid) return;
-  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F']);
-  else child.kill('SIGTERM');
+  if (child?.pid) {
+    if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F']);
+    else child.kill('SIGTERM');
+  }
+  if (pg) {
+    await pg.server.stop().catch(() => {});
+    await pg.db.close().catch(() => {});
+  }
 }

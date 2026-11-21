@@ -5,7 +5,7 @@
   "description": "Online game server for Asta Chemma on Cloudflare Workers + Durable Objects: rooms with a code, server-side shell throws and computer players.",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --port 8787 --ip 0.0.0.0",
+    "dev": "node scripts/dev.mjs",
     "deploy": "vitest run && wrangler deploy",
     "logs": "wrangler tail --format pretty",
     "types": "wrangler types src/worker-configuration.d.ts",
@@ -14,10 +14,14 @@
   },
   "dependencies": {
     "@asta/engine": "*",
-    "@asta/protocol": "*"
+    "@asta/protocol": "*",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.17",
+    "@electric-sql/pglite-socket": "^0.2.20",
     "@types/node": "^22.15.0",
+    "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.2",
     "typescript": "~6.0.3",
     "vitest": "^3.2.4",

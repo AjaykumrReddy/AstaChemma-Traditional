@@ -45,7 +45,7 @@ npm run logs:server     # live logs from the deployed server
 npm test                # engine tests + room logic tests + end-to-end tests against a local Worker
 ```
 
-**Working on the server itself:** run `npm run server` (local server on port 8787, reachable on your Wi-Fi) and create `apps/client/.env.local` containing `EXPO_PUBLIC_SERVER_URL=local`, then restart `npm run client`. Any other `ws://` or `wss://` address there points the app at that server instead. Delete the file to go back to the live server.
+**Working on the server itself:** run `npm run server` (local server on port 8787, reachable on your Wi-Fi, with its own local Postgres saved in `apps/server/.data/`) and create `apps/client/.env.local` containing `EXPO_PUBLIC_SERVER_URL=local`, then restart `npm run client`. Any other `ws://` or `wss://` address there points the app at that server instead. Delete the file to go back to the live server.
 
 **Changing the protocol:** phones keep old app versions for a long time, so the deployed server must keep understanding them. Add to messages rather than changing them; if a change truly can't be compatible, bump `PROTOCOL_VERSION` (older apps are then told to update).
 
@@ -58,6 +58,18 @@ npm test                # engine tests + room logic tests + end-to-end tests aga
 **The server is the referee:** it throws the shells, accepts actions only from the player whose turn it is and only legal moves (checked with the shared engine), runs computer players, and broadcasts the room after every change with the last action so apps can animate it. The random-number state is removed before the game is sent out, so throws can't be predicted. Players rejoin with the secret token from their welcome message; mid-game leavers are replaced by the computer. Apps ping every 25 seconds; a connection silent for 60 seconds (a phone that lost signal never says goodbye) is dropped and the player marked offline. Each connection is limited to 60 messages per 10 seconds.
 
 **Hosting:** Cloudflare Workers + Durable Objects (SQLite storage). Rooms run close to the players, idle rooms cost nothing, and there are no servers to look after.
+
+## Accounts (v4)
+
+Every install gets a **guest account** automatically (no sign-up screen); its session token is kept in the phone's secure storage (Android Keystore / iOS Keychain). The profile screen (avatar, top-left of the start screen) shows the name and online stats. Online games played with an account are recorded when they finish, and count towards each signed-in player's stats. Coming next: Google/Apple sign-in (keep the account across phones) and coins.
+
+**Database:** Postgres on [Neon](https://neon.tech), reached through Cloudflare **Hyperdrive** (pooling close to the database; binding `HYPERDRIVE` in `apps/server/wrangler.jsonc`). The server creates and updates the tables itself the first time it connects (`apps/server/src/db/migrations.ts`: numbered steps, never edited once deployed). Tables: `users`, `sessions` (only a SHA-256 hash of each token), `coin_ledger` (every coin change with its reason; a reward can't be paid twice), `games`, `game_players`.
+
+**Account API** (same server): `POST /v1/auth/guest` → `{ token, profile }`; `GET /v1/me` and `PATCH /v1/me { name }` with `Authorization: Bearer <token>`. New guests are limited to 10 per minute per address. Online rooms accept the token as `account` in `create`/`join` (optional: playing never depends on the database).
+
+**Local and tests:** no cloud database needed. `npm run server` and the tests run a real Postgres in-process (PGlite) and hand it to the Worker the same way Hyperdrive does (`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE`).
+
+**Setting up Hyperdrive** (once): in Neon, copy the connection string with *connection pooling off*, then in `apps/server` run `npx wrangler hyperdrive create asta-chemma-db --connection-string="…"` and put the printed id in `wrangler.jsonc`. Query caching is turned off (`npx wrangler hyperdrive update <id> --caching-disabled true`) so profiles and coins are never served stale.
 
 ## Installable Android app (APK)
 

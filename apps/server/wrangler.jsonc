@@ -10,5 +10,11 @@
   "exports": {
     "GameRoom": { "type": "durable-object", "storage": "sqlite" }
   },
+  // Postgres (Neon) through Hyperdrive. Locally and in tests the connection
+  // string comes from CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
+  // (a PGlite server started by scripts/dev.mjs or the test setup).
+  "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
+  // At most 10 new guest accounts per minute from one address.
+  "ratelimits": [{ "name": "GUEST_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
   "observability": { "enabled": true }
 }

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
+import { useAccountStore } from '../account/store';
+import { Avatar } from '../components/Avatar';
 import { Backdrop } from '../components/Backdrop';
 import { BoardDrawing } from '../components/BoardDrawing';
 import { GRID_END, MID, VIEW_PAD, VIEW_TOTAL, cellCentre, rotateToSeat } from '../components/boardGeometry';
@@ -120,6 +122,7 @@ export default function HomeScreen() {
   const startTutorial = useGameStore((s) => s.startTutorial);
   const tutorialDone = useGameStore((s) => s.tutorialDone);
   const hydrated = useGameStore((s) => s.hydrated);
+  const profile = useAccountStore((s) => s.profile);
   const session = useOnlineStore((s) => s.session);
   const onlineRoom = useOnlineStore((s) => s.room);
   const onlineStatus = useOnlineStore((s) => s.status);
@@ -195,9 +198,21 @@ export default function HomeScreen() {
         <View style={styles.container}>
           {/* Top bar */}
           <View style={styles.topBar}>
-            <IconButton label={language === 'te' ? 'English' : 'తెలుగు'} onPress={() => setLanguage(language === 'te' ? 'en' : 'te')}>
-              <Text style={styles.langGlyph}>{language === 'te' ? 'EN' : 'తె'}</Text>
-            </IconButton>
+            <Pressable
+              onPress={() => router.push('/profile')}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t.profileA11y(profile?.name ?? '')}
+              style={({ pressed }) => pressed && styles.pressed}
+            >
+              {profile ? (
+                <Avatar name={profile.name} seed={profile.id} size={44} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.iconGlyph}>👤</Text>
+                </View>
+              )}
+            </Pressable>
             <View style={styles.pills}>
               {session && !rejoinOpen ? (
                 <Pressable style={({ pressed }) => [styles.pill, pressed && styles.pressed]} onPress={() => setRejoinOpen(true)} accessibilityRole="button">
@@ -209,8 +224,8 @@ export default function HomeScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <IconButton label={t.howToPlay} onPress={() => router.push('/rules')}>
-              <Text style={styles.iconGlyph}>?</Text>
+            <IconButton label={language === 'te' ? 'English' : 'తెలుగు'} onPress={() => setLanguage(language === 'te' ? 'en' : 'te')}>
+              <Text style={styles.langGlyph}>{language === 'te' ? 'EN' : 'తె'}</Text>
             </IconButton>
             <IconButton label={t.settings} onPress={() => setSettingsOpen(true)}>
               <Text style={styles.gearGlyph}>⚙</Text>
@@ -281,9 +296,19 @@ export default function HomeScreen() {
 
       {/* Settings */}
       <Popup visible={focused && settingsOpen} onClose={() => setSettingsOpen(false)} closeLabel={t.close} title={t.settings}>
-        <ScrollView style={{ maxHeight: height * 0.62 }} bounces={false}>
+        <ScrollView style={{ maxHeight: height * 0.58 }} bounces={false}>
           <SettingsPanel />
         </ScrollView>
+        <Pressable
+          style={styles.secondary}
+          onPress={() => {
+            setSettingsOpen(false);
+            router.push('/rules');
+          }}
+          accessibilityRole="link"
+        >
+          <Text style={styles.secondaryText}>{t.howToPlay}</Text>
+        </Pressable>
         <Pressable style={({ pressed }) => [styles.primary, pressed && styles.pressed]} onPress={() => setSettingsOpen(false)} accessibilityRole="button">
           <Text style={styles.primaryText}>{t.done}</Text>
         </Pressable>
@@ -356,6 +381,16 @@ const styles = StyleSheet.create({
   },
   pillText: { color: '#2A2208', fontSize: 14, fontWeight: '900' },
   langGlyph: { color: colors.chalk, fontSize: 15, fontWeight: '800' },
+  avatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(246, 215, 123, 0.55)',
+  },
   iconGlyph: { color: colors.chalk, fontSize: 21, fontWeight: '900' },
   gearGlyph: { color: colors.chalk, fontSize: 22, marginTop: -2 },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center' },

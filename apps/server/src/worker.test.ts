@@ -1,4 +1,5 @@
-import { PROTOCOL_VERSION, type ClientMessage, type RoomView, type ServerMessage } from '@asta/protocol';
+import { PROTOCOL_VERSION, type ClientMessage, type Profile, type RoomView, type ServerMessage } from '@asta/protocol';
+import pg from 'pg';
 import { describe, expect, inject, it } from 'vitest';
 import { WebSocket } from 'ws';
 
@@ -71,17 +72,36 @@ async function connect(path: string) {
 }
 type TestClient = Awaited<ReturnType<typeof connect>>;
 
-async function createRoom(name: string, players: 2 | 3 | 4 = 2) {
+async function createRoom(name: string, players: 2 | 3 | 4 = 2, account?: string) {
   const host = await connect('new');
-  host.send({ t: 'create', protocol: P, name, mode: 'individual', players });
+  host.send({ t: 'create', protocol: P, name, mode: 'individual', players, ...(account ? { account } : {}) });
   const welcome = await host.welcome();
   return { host, welcome };
 }
 
-async function joinRoom(code: string, name: string) {
+async function joinRoom(code: string, name: string, account?: string) {
   const guest = await connect(code);
-  guest.send({ t: 'join', protocol: P, code, name });
+  guest.send({ t: 'join', protocol: P, code, name, ...(account ? { account } : {}) });
   return { guest, welcome: await guest.welcome() };
+}
+
+/** Call the account API. */
+async function api(method: string, path: string, opts: { token?: string; body?: unknown } = {}) {
+  const res = await fetch(`http://127.0.0.1:${port}${path}`, {
+    method,
+    headers: {
+      ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}),
+      ...(opts.body !== undefined ? { 'content-type': 'application/json' } : {}),
+    },
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  return { status: res.status, body: (await res.json()) as Record<string, any> };
+}
+
+async function newGuest(name: string): Promise<{ token: string; profile: Profile }> {
+  const { status, body } = await api('POST', '/v1/auth/guest', { body: { name } });
+  expect(status).toBe(201);
+  return body as { token: string; profile: Profile };
 }
 
 /** A host and a guest in a started 2-player game. */
@@ -273,5 +293,93 @@ describe('connections', () => {
     guest.close();
     await host.room((r) => r.seats.find((s) => s.seat === 2)?.away === true, 10_000);
     await play(host, { 0: host }, () => host.actions.some((a) => a && 'by' in a && a.by === 2));
+  });
+});
+
+const dbUrl = inject('dbUrl');
+
+describe('accounts', () => {
+  it('creates a guest account, reads it back with its token, and renames it', async () => {
+    const { token, profile } = await newGuest('  Asha   K ');
+    expect(token.length).toBeGreaterThan(30);
+    expect(profile).toMatchObject({ name: 'Asha K', guest: true, coins: 0, gamesPlayed: 0, gamesWon: 0 });
+
+    const me = await api('GET', '/v1/me', { token });
+    expect(me.status).toBe(200);
+    expect(me.body.profile).toEqual(profile);
+
+    const renamed = await api('PATCH', '/v1/me', { token, body: { name: 'Asha' } });
+    expect(renamed.body.profile).toMatchObject({ id: profile.id, name: 'Asha' });
+  });
+
+  it('refuses unknown tokens, missing tokens and bad names', async () => {
+    expect((await api('GET', '/v1/me')).status).toBe(401);
+    expect((await api('GET', '/v1/me', { token: 'not-a-real-token' })).status).toBe(401);
+    const { token } = await newGuest('Ravi');
+    expect((await api('PATCH', '/v1/me', { token, body: { name: '   ' } })).status).toBe(400);
+    expect((await api('POST', '/v1/auth/guest', { body: { name: 42 } })).status).toBe(400);
+  });
+
+  it('stores only a hash of the session token', async () => {
+    const { token, profile } = await newGuest('Hash');
+    const client = new pg.Client({ connectionString: dbUrl });
+    await client.connect();
+    try {
+      const { rows } = await client.query('SELECT token_hash FROM sessions WHERE user_id = $1', [profile.id]);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].token_hash).not.toContain(token);
+      expect(rows[0].token_hash).toMatch(/^[0-9a-f]{64}$/);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('records a finished online game once, and counts it for signed-in players only', async () => {
+    const asha = await newGuest('Asha');
+    const { host, welcome } = await createRoom('Asha', 2, asha.token);
+    const { guest } = await joinRoom(welcome.code, 'Anon'); // not signed in
+    host.send({ t: 'start' });
+    await host.room((r) => r.status === 'playing');
+    const final = await play(host, { 0: host, 2: guest }, (r) => r.status === 'finished', 4000);
+    const ashaWon = final.game!.winners.includes(final.game!.players.find((p) => p.seat === 0)!.index);
+
+    // Recording happens as the game ends; give it a moment.
+    let me = (await api('GET', '/v1/me', { token: asha.token })).body.profile as Profile;
+    for (let i = 0; i < 20 && me.gamesPlayed === 0; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      me = (await api('GET', '/v1/me', { token: asha.token })).body.profile as Profile;
+    }
+    expect(me).toMatchObject({ gamesPlayed: 1, gamesWon: ashaWon ? 1 : 0 });
+
+    const client = new pg.Client({ connectionString: dbUrl });
+    await client.connect();
+    try {
+      const games = await client.query('SELECT id FROM games WHERE room_code = $1', [welcome.code]);
+      expect(games.rows).toHaveLength(1);
+      const players = await client.query('SELECT seat, user_id, won FROM game_players WHERE game_id = $1 ORDER BY seat', [
+        games.rows[0].id,
+      ]);
+      expect(players.rows.map((r) => [r.seat, r.user_id])).toEqual([
+        [0, asha.profile.id],
+        [2, null],
+      ]);
+      expect(players.rows.filter((r) => r.won)).toHaveLength(1);
+    } finally {
+      await client.end();
+    }
+  }, 180_000);
+
+  it('lets people play with an unknown account token (the game just is not counted)', async () => {
+    const { host } = await createRoom('Asha', 2, 'stale-token-from-an-old-install');
+    expect((await host.room()).seats[0]).toMatchObject({ name: 'Asha', kind: 'human' });
+  });
+
+  // Last: it uses up this address's allowance of new guests for the minute.
+  it('limits how fast one address can create guest accounts', async () => {
+    let limited = false;
+    for (let i = 0; i < 15 && !limited; i++) {
+      limited = (await api('POST', '/v1/auth/guest', { body: { name: `G${i}` } })).status === 429;
+    }
+    expect(limited).toBe(true);
   });
 });

@@ -9,6 +9,9 @@ import {
   parseClientMessage,
   type ServerMessage,
 } from '@asta/protocol';
+import { handleApi, userIdForToken, type ApiEnv } from './api';
+import { recordGame } from './db/accounts';
+import { withDb } from './db/db';
 import { DEFAULT_TIMINGS, Room, RoomError, type RoomData, type RoomTimings } from './room';
 
 /**
@@ -23,7 +26,7 @@ import { DEFAULT_TIMINGS, Room, RoomError, type RoomData, type RoomTimings } fro
  * rooms cost nothing), and uses its single storage alarm for every timed event.
  */
 
-export interface Env {
+export interface Env extends ApiEnv {
   GAME_ROOM: DurableObjectNamespace<GameRoom>;
   /** Optional overrides (tests use tiny values). */
   BOT_THROW_MS?: string;
@@ -51,6 +54,8 @@ export default {
     if (url.pathname === '/health') return json({ ok: true, protocol: PROTOCOL_VERSION });
     // Opening the address in a browser: say what this is rather than "not found".
     if (url.pathname === '/') return json({ service: 'Asta Chemma game server', ok: true, protocol: PROTOCOL_VERSION });
+    const api = await handleApi(request, env, url);
+    if (api) return api;
 
     const match = url.pathname.match(/^\/rooms\/([^/]+)$/);
     if (!match) return json({ error: 'not found' }, 404);
@@ -152,10 +157,28 @@ export class GameRoom extends DurableObject<Env> {
       return;
     }
     this.ctx.storage.kv.put('room', room.data);
+    await this.recordResult(room);
     // The one alarm serves both the room's timers and the connection check.
     const times = [room.wakeAt(), this.nextSilenceCheck()].filter((t): t is number => t !== null);
     if (times.length === 0) await this.ctx.storage.deleteAlarm();
     else await this.ctx.storage.setAlarm(Math.min(...times));
+  }
+
+  /**
+   * Once a game is won, save the result to the players' accounts. Recording is
+   * idempotent (keyed by room and start time); if the database is unreachable
+   * it is tried again on the room's next change or alarm.
+   */
+  private async recordResult(room: Room): Promise<void> {
+    const record = room.result();
+    if (!record || !this.env.HYPERDRIVE) return;
+    try {
+      await withDb(this.env.HYPERDRIVE.connectionString, (db) => recordGame(db, record));
+      room.data.recorded = true;
+      this.ctx.storage.kv.put('room', room.data);
+    } catch (error) {
+      console.error('could not record the result', error);
+    }
   }
 
   /** The last time we heard anything from a socket, including automatically answered pings. */
@@ -243,14 +266,16 @@ export class GameRoom extends DurableObject<Env> {
           safeSend(ws, JSON.stringify({ t: 'welcome', code: att.code, playerId: memberId, token, seat } as ServerMessage));
         };
 
+        // Signed-in players: their results count towards their account.
+        const userId = message.t === 'rejoin' ? null : await userIdForToken(this.env, message.account);
         let room = this.load();
         if (message.t === 'create') {
           if (!att.create || room) return fail('illegal', 'This room already exists.');
           room = this.room = this.makeRoom(Room.create(att.code, message.mode, message.players, Date.now()));
-          room.join(message.name, (m) => attach(m.id, m.seat, m.token));
+          room.join(message.name, (m) => attach(m.id, m.seat, m.token), userId);
         } else {
           if (!room) return fail('no-room', 'No room with that code.');
-          if (message.t === 'join') room.join(message.name, (m) => attach(m.id, m.seat, m.token));
+          if (message.t === 'join') room.join(message.name, (m) => attach(m.id, m.seat, m.token), userId);
           else {
             // A newer connection replaces any older one for the same player.
             for (const other of this.ctx.getWebSockets()) {

@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { useAccountStore } from '../account/store';
 import { useGameStore } from '../store/game';
 import { serverUrl } from './config';
 
@@ -163,6 +164,17 @@ function rejoinSession(session: Session): void {
   connect(session.code, { t: 'rejoin', protocol: PROTOCOL_VERSION, ...session }, true);
 }
 
+/**
+ * The account to play under (so the result counts towards it), keeping the
+ * profile name in step with the name typed for this game.
+ */
+function accountFor(name: string): { account?: string } {
+  const account = useAccountStore.getState();
+  if (!account.token) return {};
+  if (account.profile && name && account.profile.name !== name) void account.rename(name);
+  return { account: account.token };
+}
+
 /** Start online mode in the game screen, sending this player's actions to the server. */
 function enterGame(seat: Seat): void {
   useGameStore.getState().enterOnline(
@@ -254,7 +266,7 @@ export const useOnlineStore = create<OnlineStore>()(
         const name = get().name.trim();
         get().forget();
         stayConnected = false;
-        connect('new', { t: 'create', protocol: PROTOCOL_VERSION, name, mode, players });
+        connect('new', { t: 'create', protocol: PROTOCOL_VERSION, name, mode, players, ...accountFor(name) });
       },
 
       join(code) {
@@ -262,7 +274,7 @@ export const useOnlineStore = create<OnlineStore>()(
         const clean = normaliseCode(code);
         get().forget();
         stayConnected = false;
-        connect(clean, { t: 'join', protocol: PROTOCOL_VERSION, code: clean, name });
+        connect(clean, { t: 'join', protocol: PROTOCOL_VERSION, code: clean, name, ...accountFor(name) });
       },
 
       rejoin() {

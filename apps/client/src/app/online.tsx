@@ -8,6 +8,7 @@ import { Backdrop } from '../components/Backdrop';
 import { TopBar } from '../components/Chrome';
 import { Segmented } from '../components/Segmented';
 import { useStrings } from '../i18n';
+import { DEFAULT_GUEST_NAME, useAccountStore } from '../account/store';
 import { useOnlineStore } from '../online/store';
 import { colors, radius, space } from '../theme';
 
@@ -30,6 +31,12 @@ export default function OnlineScreen() {
   const [nameMissing, setNameMissing] = useState(false);
 
   useEffect(() => clearError(), [clearError]);
+
+  // Start from the profile's name (a new guest is just "Player": leave the box empty then).
+  const profileName = useAccountStore((s) => s.profile?.name);
+  useEffect(() => {
+    if (!useOnlineStore.getState().name && profileName && profileName !== DEFAULT_GUEST_NAME) setName(profileName);
+  }, [profileName, setName]);
 
   // In a room: go to the lobby (it moves on to the game once it starts).
   useEffect(() => {

@@ -1,10 +1,25 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { AppState } from 'react-native';
+import { useAccountStore } from '../account/store';
 import { useStrings } from '../i18n';
+import { useOnlineStore } from '../online/store';
 import { colors } from '../theme';
+
+/** Every install has an account (a guest one to start with); keep its profile fresh. */
+function useAccount() {
+  useEffect(() => {
+    const ensure = () => void useAccountStore.getState().ensure(useOnlineStore.getState().name);
+    ensure();
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && ensure());
+    return () => sub.remove();
+  }, []);
+}
 
 export default function RootLayout() {
   const t = useStrings();
+  useAccount();
   return (
     <>
       <StatusBar style="light" />
@@ -24,6 +39,7 @@ export default function RootLayout() {
         <Stack.Screen name="setup" options={{ headerShown: false }} />
         <Stack.Screen name="online" options={{ headerShown: false }} />
         <Stack.Screen name="lobby" options={{ headerShown: false }} />
+        <Stack.Screen name="profile" options={{ headerShown: false }} />
       </Stack>
     </>
   );

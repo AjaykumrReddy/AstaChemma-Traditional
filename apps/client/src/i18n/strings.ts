@@ -182,6 +182,19 @@ export interface Strings {
   difficulty: string;
   /** Small top-bar button to bring back a saved game after its popup was closed. */
   continuePill: string;
+
+  // Profile
+  profileTitle: string;
+  profileA11y: (name: string) => string;
+  guestAccount: string;
+  guestHint: string;
+  statsOnlineGames: string;
+  statsWins: string;
+  statsWinRate: string;
+  save: string;
+  saved: string;
+  saveFailed: string;
+  accountOffline: string;
   onlineError: Record<ErrorCode | 'network', string>;
 
   // How to play
@@ -360,6 +373,17 @@ const en: Strings = {
   back: 'Back',
   difficulty: 'Difficulty',
   continuePill: 'Continue',
+  profileTitle: 'Profile',
+  profileA11y: (name) => `Your profile: ${name}`,
+  guestAccount: 'Guest account',
+  guestHint: 'Your account is kept on this phone. Signing in with Google, to use it on any phone, is coming soon.',
+  statsOnlineGames: 'Online games',
+  statsWins: 'Wins',
+  statsWinRate: 'Win rate',
+  save: 'Save',
+  saved: 'Saved',
+  saveFailed: 'Couldn’t save – check your internet connection.',
+  accountOffline: 'Can’t reach the server – showing your last known stats.',
   onlineError: {
     'bad-message': 'Something went wrong. Please try again.',
     version: 'Please update the app to play online.',
@@ -617,6 +641,17 @@ const te: Strings = {
   back: 'వెనక్కి',
   difficulty: 'కష్టం స్థాయి',
   continuePill: 'కొనసాగించు',
+  profileTitle: 'ప్రొఫైల్',
+  profileA11y: (name) => `మీ ప్రొఫైల్: ${name}`,
+  guestAccount: 'అతిథి ఖాతా',
+  guestHint: 'మీ ఖాతా ఈ ఫోన్‌లోనే ఉంటుంది. ఏ ఫోన్‌లోనైనా వాడుకునేలా Google తో సైన్ ఇన్ త్వరలో వస్తుంది.',
+  statsOnlineGames: 'ఆన్‌లైన్ ఆటలు',
+  statsWins: 'గెలుపులు',
+  statsWinRate: 'గెలుపు శాతం',
+  save: 'సేవ్ చేయండి',
+  saved: 'సేవ్ అయింది',
+  saveFailed: 'సేవ్ కాలేదు – ఇంటర్నెట్ కనెక్షన్ చూడండి.',
+  accountOffline: 'సర్వర్ అందుబాటులో లేదు – చివరిగా తెలిసిన వివరాలు చూపిస్తున్నాం.',
   onlineError: {
     'bad-message': 'ఏదో తప్పు జరిగింది. మళ్ళీ ప్రయత్నించండి.',
     version: 'ఆన్‌లైన్‌లో ఆడటానికి యాప్‌ను అప్‌డేట్ చేయండి.',

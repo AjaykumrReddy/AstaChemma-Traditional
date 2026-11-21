@@ -61,8 +61,9 @@ export interface RoomView {
 }
 
 export type ClientMessage =
-  | { t: 'create'; protocol: number; name: string; mode: GameMode; players: 2 | 3 | 4 }
-  | { t: 'join'; protocol: number; code: string; name: string }
+  /** `account`: the player's session token, so results count towards their profile (optional). */
+  | { t: 'create'; protocol: number; name: string; mode: GameMode; players: 2 | 3 | 4; account?: string }
+  | { t: 'join'; protocol: number; code: string; name: string; account?: string }
   | { t: 'rejoin'; protocol: number; code: string; playerId: string; token: string }
   /** Host, in the lobby: make a seat open or a computer player. */
   | { t: 'seat'; seat: Seat; kind: 'open' | 'bot'; level?: BotLevel }
@@ -94,6 +95,34 @@ export type ServerMessage =
   | { t: 'error'; code: ErrorCode; message: string }
   | { t: 'left' }
   | { t: 'pong' };
+
+// ---------------------------------------------------------------------------
+// Accounts (HTTP, JSON)
+//
+//   POST  /v1/auth/guest   { name? }          → 201 { token, profile }
+//   GET   /v1/me           Bearer token       → { profile }
+//   PATCH /v1/me           Bearer, { name }   → { profile }
+//
+// Errors: { error: AccountErrorCode } with 400 / 401 / 429 / 503.
+// ---------------------------------------------------------------------------
+
+/** A player's account as the app shows it. */
+export interface Profile {
+  id: string;
+  name: string;
+  /** Not yet signed in with Google/Apple: lives on this device only. */
+  guest: boolean;
+  /** Play money; never convertible to cash. */
+  coins: number;
+  /** Online games finished / won. */
+  gamesPlayed: number;
+  gamesWon: number;
+}
+
+export type AccountErrorCode = 'bad-request' | 'unauthorized' | 'too-many' | 'unavailable';
+
+/** Session tokens are opaque strings; anything longer is not one of ours. */
+export const MAX_TOKEN_LENGTH = 128;
 
 /** Seats used for a player count: two players always sit opposite each other. */
 export function seatsForCount(count: number): Seat[] {
@@ -131,6 +160,9 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   if (!isObject(data) || typeof data.t !== 'string') return null;
   const str = (k: string) => (typeof data[k] === 'string' ? (data[k] as string) : null);
   const protocol = typeof data.protocol === 'number' ? data.protocol : -1;
+  // Optional and never trusted as-is: the server looks the token up.
+  const rawAccount = str('account');
+  const account = rawAccount && rawAccount.length <= MAX_TOKEN_LENGTH ? rawAccount : undefined;
 
   switch (data.t) {
     case 'create': {
@@ -139,13 +171,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const players = data.players;
       if (!name || !mode || (players !== 2 && players !== 3 && players !== 4)) return null;
       if (mode === 'team' && players !== 4) return null;
-      return { t: 'create', protocol, name, mode, players };
+      return { t: 'create', protocol, name, mode, players, ...(account ? { account } : {}) };
     }
     case 'join': {
       const name = cleanName(data.name);
       const code = str('code');
       if (!name || !code) return null;
-      return { t: 'join', protocol, code: normaliseCode(code), name };
+      return { t: 'join', protocol, code: normaliseCode(code), name, ...(account ? { account } : {}) };
     }
     case 'rejoin': {
       const code = str('code');

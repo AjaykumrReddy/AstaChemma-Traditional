@@ -25,3 +25,8 @@ export function serverUrl(): string {
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
   return `ws://${host ?? 'localhost'}:${DEV_PORT}`;
 }
+
+/** The same server's HTTP address, for the account API. */
+export function apiBaseUrl(): string {
+  return serverUrl().replace(/^ws(s?):/, 'http$1:');
+}
