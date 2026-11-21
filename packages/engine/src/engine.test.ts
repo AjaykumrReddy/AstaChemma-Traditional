@@ -7,6 +7,8 @@ import {
   applyThrow,
   cellKey,
   chooseBotAction,
+  greedyBotAction,
+  searchBotAction,
   createGame,
   expectedTurnsToFinish,
   isSafeCell,
@@ -466,7 +468,40 @@ describe('determinism and full games', () => {
       const g = playOut(twoPlayers, seed, levels);
       if (levels[g.winners[0]!] === 'hard') hardWins++;
     }
-    expect(hardWins / games).toBeGreaterThan(0.55);
+    expect(hardWins / games).toBeGreaterThan(0.6);
+  });
+
+  it('hard (look-ahead) beats the greedy player with hard settings', () => {
+    // Measured at 59% ± 3.4 over 800 games; this fixed sample guards against regressions.
+    let wins = 0;
+    const games = 300;
+    for (let seed = 1; seed <= games; seed++) {
+      const searchFirst = seed % 2 === 1;
+      let g = createGame(twoPlayers, seed * 7919 + 424242);
+      for (let i = 0; i < 20000 && g.phase !== 'finished'; i++) {
+        const searchTurn = (g.current === 0) === searchFirst;
+        const action = searchTurn ? searchBotAction(g) : greedyBotAction(g, 'hard');
+        g = action.type === 'throw' ? throwShells(g) : applyMove(g, action.move.id);
+      }
+      if ((g.winners[0] === 0) === searchFirst) wins++;
+    }
+    expect(wins / games).toBeGreaterThan(0.53);
+  });
+
+  it('hard clears the way before using a kept throw', () => {
+    // Mother on a plain square; her own Child sits where the Mother's 4 would land.
+    let g = place(createGame(twoPlayers, 1), { '0-M': 1, '0-C1': 5 });
+    g = applyThrow(g, open(5)); // an 8: Mother 4 or Child 8
+    g = applyThrow(g, open(3)); // keep it and throw a 3: Child 3 only
+    // Let Hard spend both throws.
+    for (let i = 0; i < 5 && g.current === 0 && g.phase === 'awaitingMove'; i++) {
+      const action = searchBotAction(g);
+      if (action.type !== 'move') break;
+      g = applyMove(g, action.move.id);
+    }
+    // Best play: Child 3 first (off the square), then the Mother uses the 8.
+    expect(g.pieces.find((p) => p.id === '0-C1')!.progress).toBe(8);
+    expect(g.pieces.find((p) => p.id === '0-M')!.progress).toBe(5);
   });
 
   it('solves the solo race: Mother is the bottleneck', () => {

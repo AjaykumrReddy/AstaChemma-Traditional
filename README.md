@@ -30,7 +30,12 @@ Inside `apps/client`: `npm run typecheck`, `npm run lint`, `npm run export:web` 
 
 The rules live in `packages/engine/src/rules.ts` and the route and safe squares in `board.ts`. Every function is pure: it takes a `GameState` and returns a new one. Shell throws use a seeded random number generator, so a game can be replayed exactly from its seed. That lets the same engine later run on an online game server.
 
-The computer opponent (`bot.ts`) rates each move by its effect on each side's expected turns left. Those numbers come from an exact solution of the solo race (`race.ts`, 17,576 positions, worked out once in about 50 ms), adjusted for the chance of being captured on the next throw.
+The computer opponent (`bot.ts`) rates positions by each side's expected turns left. Those numbers come from an exact solution of the solo race (`race.ts`, 17,576 positions, worked out once in about 50 ms), adjusted for the chance of being captured on the next throw.
+
+- **Easy and Medium** pick the move that looks best right now (Easy often plays at random).
+- **Hard** looks ahead through the rest of its turn. It tries every move, every order of kept throws, and keeping versus using a 4 or 8, and averages over all six results of its next throw. Its own capture risk counts fully and opponents' at half, since opponents move before Hard throws again. Decisions average about 0.2 ms.
+
+Measured in two-player games: Hard beats the earlier greedy Hard 59% of the time (800 games), Medium 55% and Easy 73%; Medium beats Easy 64%.
 
 The rules come from *Asta_Chemma_Traditional_Rules_and_Game_Specification.docx* v1.0, plus these clarifications from the player:
 
