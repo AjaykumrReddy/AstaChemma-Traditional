@@ -2,7 +2,22 @@ import { BOARD_SIZE, SAFE_CELLS, cellKey, isSafeCell, type Cell, type Player, ty
 import { memo } from 'react';
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { boardColors as b, colors, seatColors } from '../theme';
-import { GRID_END, MID, ORIGIN, VIEW_PAD, VIEW_TOTAL, YARD_RADIUS, cellCentre, ringOf, rotateToSeat, yardPath, type Point } from './boardGeometry';
+import {
+  GRID_END,
+  MID,
+  ORIGIN,
+  VIEW_PAD,
+  VIEW_TOTAL,
+  YARD_RADIUS,
+  cellCentre,
+  ringOf,
+  rotateToSeat,
+  viewCell,
+  viewDirection,
+  viewSeat,
+  yardPath,
+  type Point,
+} from './boardGeometry';
 
 const FRAME = 0.2;
 const TILE_GAP = 0.035;
@@ -84,10 +99,16 @@ export interface BoardDrawingProps {
   destinations: Cell[];
   strong: boolean;
   size: number;
+  /**
+   * The seat drawn at the bottom. Tiles, safe squares and the frame look the
+   * same from every side (and keep their lighting); starting areas, route
+   * arrows and highlights turn.
+   */
+  view?: Seat;
 }
 
 /** The static board artwork: frame, tiles, safe squares, home, starting areas and move highlights. */
-function BoardDrawingImpl({ players, currentSeat, destinations, strong, size }: BoardDrawingProps) {
+function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, view = 0 }: BoardDrawingProps) {
   const tiles: Cell[] = [];
   for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) tiles.push({ row, col });
   const frameX = ORIGIN - FRAME;
@@ -130,7 +151,7 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size }: 
           <Stop offset="1" stopColor={b.goldDeep} />
         </RadialGradient>
         {([0, 1, 2, 3] as Seat[]).map((seat) => {
-          const inner = rotateToSeat({ x: MID, y: GRID_END }, seat);
+          const inner = rotateToSeat({ x: MID, y: GRID_END }, viewSeat(seat, view));
           return (
             <RadialGradient
               key={seat}
@@ -150,13 +171,14 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size }: 
       {/* Starting areas, tucked under the frame */}
       {players.map((p) => {
         const active = p.seat === currentSeat;
+        const side = viewSeat(p.seat, view);
         return (
           <G key={`yard${p.seat}`}>
             {active && (
-              <Path d={yardPath(p.seat, YARD_RADIUS + 0.04)} fill="none" stroke={seatColors[p.seat].fill} strokeWidth={0.1} strokeOpacity={0.7} />
+              <Path d={yardPath(side, YARD_RADIUS + 0.04)} fill="none" stroke={seatColors[p.seat].fill} strokeWidth={0.1} strokeOpacity={0.7} />
             )}
-            <Path d={yardPath(p.seat)} fill={`url(#yard${p.seat})`} stroke={b.gold} strokeWidth={0.045} />
-            <Path d={yardPath(p.seat, YARD_RADIUS - 0.1)} fill="none" stroke={b.gold} strokeOpacity={0.35} strokeWidth={0.015} strokeDasharray="0.05 0.05" />
+            <Path d={yardPath(side)} fill={`url(#yard${p.seat})`} stroke={b.gold} strokeWidth={0.045} />
+            <Path d={yardPath(side, YARD_RADIUS - 0.1)} fill="none" stroke={b.gold} strokeOpacity={0.35} strokeWidth={0.015} strokeDasharray="0.05 0.05" />
           </G>
         );
       })}
@@ -199,7 +221,7 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size }: 
       {ROUTE_HINTS.filter((h) => !isSafeCell(h.cell)).map((h) => (
         <Path
           key={`r${cellKey(h.cell)}`}
-          d={chevron(cellCentre(h.cell), h.dir, 0.22)}
+          d={chevron(cellCentre(viewCell(h.cell, view)), viewDirection(h.dir, view), 0.22)}
           fill="none"
           stroke={b.gold}
           strokeOpacity={0.28}
@@ -215,7 +237,9 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size }: 
       <Lotus c={{ x: MID, y: MID }} />
 
       {/* Legal destinations */}
-      {destinations.map((cell) => (
+      {destinations.map((real) => {
+        const cell = viewCell(real, view);
+        return (
         <Rect
           key={`d${cellKey(cell)}`}
           x={ORIGIN + cell.col + 0.06}
@@ -229,7 +253,8 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size }: 
           strokeWidth={0.045}
           strokeDasharray={strong ? undefined : '0.12 0.08'}
         />
-      ))}
+        );
+      })}
     </Svg>
   );
 }

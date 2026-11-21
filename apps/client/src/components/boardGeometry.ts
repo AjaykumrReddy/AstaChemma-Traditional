@@ -30,6 +30,36 @@ export function rotateToSeat(p: Point, seat: Seat): Point {
   return { x: MID + dx, y: MID + dy };
 }
 
+/*
+ * Viewing the board from a seat: everything turns so that seat sits at the
+ * bottom (online, each player sees their own side nearest them). Only the
+ * picture turns; the game itself always uses the real squares.
+ */
+
+/** Where a seat's side appears when viewing from `view`. */
+export function viewSeat(seat: Seat, view: Seat): Seat {
+  return ((seat - view + 4) % 4) as Seat;
+}
+
+/** Where a real square appears when viewing from `view` (a quarter turn clockwise per seat). */
+export function viewCell(cell: Cell, view: Seat): Cell {
+  let { row, col } = cell;
+  for (let i = 0; i < view; i++) [row, col] = [col, BOARD_SIZE - 1 - row];
+  return { row, col };
+}
+
+/** Where a board point appears when viewing from `view`. */
+export function viewPoint(p: Point, view: Seat): Point {
+  return rotateToSeat(p, viewSeat(0, view));
+}
+
+/** A direction of travel as seen from `view`. */
+export function viewDirection(d: Point, view: Seat): Point {
+  let { x, y } = d;
+  for (let i = 0; i < view; i++) [x, y] = [-y, x];
+  return { x, y };
+}
+
 /** SVG path for a seat's half-circle starting area. */
 export function yardPath(seat: Seat, radius = YARD_RADIUS): string {
   const a = rotateToSeat({ x: MID - radius, y: GRID_END }, seat);

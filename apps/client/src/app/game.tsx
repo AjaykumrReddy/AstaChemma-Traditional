@@ -451,6 +451,7 @@ export default function GameScreen() {
             effects={effects}
             onEffectDone={removeEffect}
             shakeKey={shakeKey}
+            view={online && mySeat !== null ? mySeat : 0}
           />
         </View>
         {wide ? (

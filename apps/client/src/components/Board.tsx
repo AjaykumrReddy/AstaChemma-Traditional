@@ -7,7 +7,18 @@ import { useGameStore } from '../store/game';
 import { seatShapes } from '../theme';
 import { BoardDrawing } from './BoardDrawing';
 import { BoardEffects } from './Effects';
-import { GRID_END, MID, ORIGIN, VIEW_PAD, VIEW_TOTAL, cellCentre, rotateToSeat, type Point } from './boardGeometry';
+import {
+  GRID_END,
+  MID,
+  ORIGIN,
+  VIEW_PAD,
+  VIEW_TOTAL,
+  cellCentre,
+  rotateToSeat,
+  viewCell,
+  viewSeat,
+  type Point,
+} from './boardGeometry';
 import { PieceView } from './PieceView';
 
 /**
@@ -41,7 +52,8 @@ interface PlacedPiece {
   r: number;
 }
 
-function placePieces(state: GameState): PlacedPiece[] {
+/** Where each piece is drawn, seen from the `view` seat. */
+function placePieces(state: GameState, view: Seat): PlacedPiece[] {
   const placed: PlacedPiece[] = [];
   const byCell = new Map<string, { cell: Cell; pieces: Piece[] }>();
   const yards = new Map<number, Piece[]>();
@@ -62,7 +74,7 @@ function placePieces(state: GameState): PlacedPiece[] {
   for (const { cell, pieces } of byCell.values()) {
     pieces.sort((a, b) => a.owner - b.owner || a.id.localeCompare(b.id));
     const { offsets, r } = slots(pieces.length);
-    const c = cellCentre(cell);
+    const c = cellCentre(viewCell(cell, view));
     pieces.forEach((piece, i) => {
       const o = offsets[i] ?? { x: 0, y: 0 };
       placed.push({ piece, seat: seatOf(piece), at: { x: c.x + o.x, y: c.y + o.y }, r });
@@ -75,7 +87,7 @@ function placePieces(state: GameState): PlacedPiece[] {
     pieces.forEach((piece, i) => {
       // Laid out for the bottom starting area, then rotated to the player's side.
       const base = { x: MID + (i - (pieces.length - 1) / 2) * 0.48, y: GRID_END + 0.5 };
-      placed.push({ piece, seat, at: rotateToSeat(base, seat), r: 0.22 });
+      placed.push({ piece, seat, at: rotateToSeat(base, viewSeat(seat, view)), r: 0.22 });
     });
   }
   return placed;
@@ -98,6 +110,8 @@ export interface BoardProps {
   onEffectDone?: (id: number) => void;
   /** Change this number to shake the board (captures). */
   shakeKey?: number;
+  /** The seat shown at the bottom (online: your own). Defaults to the bottom seat. */
+  view?: Seat;
 }
 
 const useNativeDriver = Platform.OS !== 'web';
@@ -115,6 +129,7 @@ function BoardView({
   effects = [],
   onEffectDone = noop,
   shakeKey = 0,
+  view = 0,
 }: BoardProps) {
   const t = useStrings();
   const markers = useGameStore((s) => s.markers);
@@ -135,7 +150,11 @@ function BoardView({
   }, [shakeKey, shake]);
   /** Board units → pixels, accounting for the padding around the drawing. */
   const px = (v: number) => (v + VIEW_PAD) * unit;
-  const placed = useMemo(() => placePieces(state), [state]);
+  const placed = useMemo(() => placePieces(state, view), [state, view]);
+  const shownEffects = useMemo(
+    () => (view === 0 ? effects : effects.map((e) => ({ ...e, cell: viewCell(e.cell, view) }))),
+    [effects, view],
+  );
   const movableIds = useMemo(() => new Set(movable.map((m) => m.pieceId)), [movable]);
   const currentSeat = state.phase === 'finished' ? null : (state.players[state.current]?.seat ?? null);
 
@@ -165,6 +184,7 @@ function BoardView({
         destinations={destinations}
         strong={selected !== null}
         size={size}
+        view={view}
       />
       <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none' }]}>
         {ordered.map(({ piece, seat, at, r }) => (
@@ -191,24 +211,28 @@ function BoardView({
             above other pieces, so a square occupied by one of your own pieces
             still moves the selected piece instead of selecting the other one. */}
         {onCellPress &&
-          destinations.map((cell) => (
+          destinations.map((cell) => {
+            // Drawn where the viewer sees the square; reports the real square.
+            const shown = viewCell(cell, view);
+            return (
             <Pressable
               key={`tap${cellKey(cell)}`}
               onPress={() => onCellPress(cell)}
               accessibilityRole="button"
-              accessibilityLabel={t.moveToA11y(cell.row + 1, cell.col + 1)}
+              accessibilityLabel={t.moveToA11y(shown.row + 1, shown.col + 1)}
               style={{
                 position: 'absolute',
-                left: px(ORIGIN + cell.col),
-                top: px(ORIGIN + cell.row),
+                left: px(ORIGIN + shown.col),
+                top: px(ORIGIN + shown.row),
                 width: unit,
                 height: unit,
                 zIndex: selected ? 40 : 0,
               }}
             />
-          ))}
+            );
+          })}
       </View>
-      <BoardEffects effects={effects} px={px} unit={unit} onDone={onEffectDone} />
+      <BoardEffects effects={shownEffects} px={px} unit={unit} onDone={onEffectDone} />
     </Animated.View>
   );
 }
