@@ -34,15 +34,21 @@ Inside `apps/client`: `npm run typecheck`, `npm run lint`, `npm run export:web` 
 
 ```
 packages/protocol   Messages between the app and the server (shared types + validation)
-apps/server         WebSocket game server: rooms with a 4-letter code, server-side throws, computer players
+apps/server         Cloudflare Worker + Durable Objects: one object per room, server-side throws, computer players
 ```
 
 ```sh
-npm run server   # start the game server on port 3001 (restarts on changes)
-npm test         # engine tests + server integration tests
+npm run server   # run the server locally (Cloudflare's runtime via wrangler dev) on http://localhost:8787
+npm test         # engine tests + room logic tests + end-to-end tests against the local Worker
 ```
 
-The server is the referee: it creates rooms, seats players by code, throws the shells, checks every move with the shared engine, runs computer players, and broadcasts the room after every change. The random-number state is removed before the game is sent out, so throws can't be predicted. A player who disconnects can rejoin with the token from their welcome message; after 30 seconds away, a computer plays their turns until they return. Empty rooms are removed after 10 minutes. For deployment, `npm run build --workspace @asta/server` bundles it into `apps/server/dist/server.mjs` (run with `node`; listens on `PORT`, default 3001; health check at `/health`).
+**Endpoints:** `GET /health`; WebSocket `/rooms/new` to create a room (then send `create`), `/rooms/<CODE>` to join or rejoin (then send `join` / `rejoin`).
+
+**How it runs:** each room is a Durable Object named by its code. It accepts WebSockets with the Hibernation API (idle rooms cost nothing), saves the room to its SQLite-backed storage after every change (so deploys and crashes don't end games), and uses a storage alarm for every timed event: computer turns, the 30-second away grace period, and removing a room abandoned for 10 minutes. The room logic itself (`src/room.ts`) is platform-independent plain data plus an injected clock, so it is unit-tested without any server.
+
+**The server is the referee:** it throws the shells, accepts actions only from the player whose turn it is and only legal moves (checked with the shared engine), runs computer players, and broadcasts the room after every change with the last action so apps can animate it. The random-number state is removed before the game is sent out, so throws can't be predicted. Players rejoin with the secret token from their welcome message; mid-game leavers are replaced by the computer. Each connection is limited to 60 messages per 10 seconds.
+
+**Deploying** (needs a Cloudflare account): `npx wrangler login`, then `npm run deploy --workspace @asta/server`.
 
 ## Installable Android app (APK)
 

@@ -1,4 +1,5 @@
 {
+  // The Worker itself: Cloudflare runtime types (from `npm run types`), no Node.
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -9,7 +10,8 @@
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "types": ["node"]
+    "types": []
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "test"]
 }

@@ -1,0 +1,17 @@
+{
+  // Tests run in Node: the room logic unit tests and the end-to-end tests
+  // against a local Worker (wrangler dev).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": ["node"]
+  },
+  "include": ["src/room.ts", "src/**/*.test.ts", "test"]
+}
