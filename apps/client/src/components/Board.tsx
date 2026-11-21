@@ -2,6 +2,7 @@ import { HOME_INDEX, cellAt, cellKey, type Cell, type GameState, type Move, type
 import { memo, useEffect, useMemo, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import type { BoardEffect } from '../feedback/effects';
+import { useStrings } from '../i18n';
 import { BoardDrawing } from './BoardDrawing';
 import { BoardEffects } from './Effects';
 import { GRID_END, MID, ORIGIN, VIEW_PAD, VIEW_TOTAL, cellCentre, rotateToSeat, type Point } from './boardGeometry';
@@ -113,6 +114,7 @@ function BoardView({
   onEffectDone = noop,
   shakeKey = 0,
 }: BoardProps) {
+  const t = useStrings();
   const unit = size / VIEW_TOTAL;
   const [shake] = useState(() => new Animated.Value(0));
 
@@ -167,6 +169,7 @@ function BoardView({
             key={piece.id}
             id={piece.id}
             kind={piece.kind}
+            label={t.pieceA11y(t.colour[seat], t.piece[piece.kind])}
             seat={seat}
             x={px(at.x)}
             y={px(at.y)}
@@ -189,7 +192,7 @@ function BoardView({
               key={`tap${cellKey(cell)}`}
               onPress={() => onCellPress(cell)}
               accessibilityRole="button"
-              accessibilityLabel={`Move to row ${cell.row + 1}, column ${cell.col + 1}`}
+              accessibilityLabel={t.moveToA11y(cell.row + 1, cell.col + 1)}
               style={{
                 position: 'absolute',
                 left: px(ORIGIN + cell.col),

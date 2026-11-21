@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import Svg, { Ellipse, G, Line, Path } from 'react-native-svg';
+import { useStrings } from '../i18n';
 import { colors } from '../theme';
 
 const useNativeDriver = Platform.OS !== 'web';
@@ -162,6 +163,7 @@ export interface ShellsProps {
 
 /** The five cowries; they tumble while a throw is in progress. */
 export function Shells({ shells, rolling, size = 34 }: ShellsProps) {
+  const t = useStrings();
   const [flicker, setFlicker] = useState<boolean[]>([false, false, false, false, false]);
 
   // While rolling, flip faces now and then so the shells look like they tumble.
@@ -172,7 +174,7 @@ export function Shells({ shells, rolling, size = 34 }: ShellsProps) {
   }, [rolling]);
 
   const shown = rolling ? flicker : (shells ?? [false, false, false, false, false]);
-  const label = shells && !rolling ? `${shells.filter(Boolean).length} shells open` : 'Cowrie shells';
+  const label = shells && !rolling ? t.shellsOpenA11y(shells.filter(Boolean).length) : t.shellsA11y;
   return (
     <View style={styles.row} accessibilityLabel={label}>
       {shown.map((open, i) => (

@@ -5,17 +5,17 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Segmented } from '../components/Segmented';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { STRINGS, useStrings, withDisplayNames, type Lang, type Strings } from '../i18n';
 import { useGameStore } from '../store/game';
 import { colors, radius, seatColors, space } from '../theme';
 
 type SeatKind = 'human' | BotLevel;
 
 interface SeatSetup {
-  name: string;
+  /** What the player typed, or null to use the default name (which follows the language). */
+  name: string | null;
   kind: SeatKind;
 }
-
-const SEAT_LABELS: Record<Seat, string> = { 0: 'Bottom', 1: 'Right', 2: 'Top', 3: 'Left' };
 
 /** Which seats are used: two players always sit opposite each other. */
 function seatsFor(count: number): Seat[] {
@@ -25,23 +25,32 @@ function seatsFor(count: number): Seat[] {
 }
 
 const DEFAULT_SEATS: Record<Seat, SeatSetup> = {
-  0: { name: 'You', kind: 'human' },
-  1: { name: 'Computer 1', kind: 'medium' },
-  2: { name: 'Computer 2', kind: 'medium' },
-  3: { name: 'Computer 3', kind: 'medium' },
+  0: { name: null, kind: 'human' },
+  1: { name: null, kind: 'medium' },
+  2: { name: null, kind: 'medium' },
+  3: { name: null, kind: 'medium' },
 };
 
-const KIND_OPTIONS: { value: SeatKind; label: string }[] = [
-  { value: 'human', label: 'Human' },
-  { value: 'easy', label: 'Easy' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'hard', label: 'Hard' },
+/** "You" for the first human, the colour for other humans, "Computer n" for computers. */
+function defaultName(t: Strings, seat: Seat, kind: SeatKind): string {
+  if (kind !== 'human') return t.computer(seat);
+  return seat === 0 ? t.you : t.colour[seat];
+}
+
+const LANGUAGE_OPTIONS: { value: Lang; label: string }[] = [
+  { value: 'en', label: STRINGS.en.langName },
+  { value: 'te', label: STRINGS.te.langName },
 ];
 
 export default function SetupScreen() {
   const router = useRouter();
+  const t = useStrings();
+  const language = useGameStore((s) => s.language);
+  const setLanguage = useGameStore((s) => s.setLanguage);
   const startGame = useGameStore((s) => s.startGame);
-  const saved = useGameStore((s) => (s.hydrated && s.game && s.game.phase !== 'finished' ? s.game : null));
+  const savedGame = useGameStore((s) => (s.hydrated && s.game && s.game.phase !== 'finished' ? s.game : null));
+  // Default player names in the saved game follow the current language.
+  const saved = savedGame ? withDisplayNames(t, savedGame) : null;
 
   const [mode, setMode] = useState<GameMode>('individual');
   const [count, setCount] = useState(2);
@@ -53,12 +62,19 @@ export default function SetupScreen() {
   const updateSeat = (seat: Seat, patch: Partial<SeatSetup>) =>
     setSeats((prev) => ({ ...prev, [seat]: { ...prev[seat], ...patch } }));
 
+  const kindOptions: { value: SeatKind; label: string }[] = [
+    { value: 'human', label: t.level.human },
+    { value: 'easy', label: t.level.easy },
+    { value: 'medium', label: t.level.medium },
+    { value: 'hard', label: t.level.hard },
+  ];
+
   const start = () => {
     const config: GameConfig = {
       mode,
       players: active.map((seat) => {
         const s = seats[seat];
-        const name = s.name.trim() || `${seatColors[seat].name}`;
+        const name = s.name?.trim() || defaultName(t, seat, s.kind);
         return { name, seat, bot: s.kind === 'human' ? undefined : s.kind };
       }),
     };
@@ -71,12 +87,15 @@ export default function SetupScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.container}>
           <View style={styles.hero}>
-            <Text style={styles.title}>Asta Chemma</Text>
+            <Text style={styles.title}>{t.appTitle}</Text>
+            <View style={styles.heroLanguage}>
+              <Segmented compact options={LANGUAGE_OPTIONS} value={language} onChange={setLanguage} />
+            </View>
           </View>
 
           {saved && (
             <View style={[styles.card, styles.resumeCard]}>
-              <Text style={styles.cardTitle}>Continue your game</Text>
+              <Text style={styles.cardTitle}>{t.continueTitle}</Text>
               <View style={styles.resumePlayers}>
                 {saved.players.map((p) => {
                   const home = saved.pieces.filter((pc) => pc.owner === p.index && pc.progress === HOME_INDEX).length;
@@ -87,89 +106,89 @@ export default function SetupScreen() {
                       <Text style={[styles.resumeName, isTurn && styles.resumeTurn]} numberOfLines={1}>
                         {p.name}
                       </Text>
-                      <Text style={styles.hint}>{home}/3 home</Text>
+                      <Text style={styles.hint}>{t.homeCount(home)}</Text>
                     </View>
                   );
                 })}
               </View>
               <Text style={styles.hint}>
-                {saved.config.mode === 'team' ? 'Teams' : `${saved.players.length} players`} · turn {saved.turn} ·{' '}
-                {saved.players[saved.current]?.name} to play
+                {t.resumeSummary(
+                  saved.config.mode === 'team' ? t.teams : t.playersCount(saved.players.length),
+                  saved.turn,
+                  saved.players[saved.current]?.name ?? '',
+                )}
               </Text>
               <Pressable
                 style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
                 onPress={() => router.push('/game')}
                 accessibilityRole="button"
               >
-                <Text style={styles.primaryText}>Continue game</Text>
+                <Text style={styles.primaryText}>{t.continueGame}</Text>
               </Pressable>
             </View>
           )}
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Game</Text>
+            <Text style={styles.cardTitle}>{t.gameCard}</Text>
             <Segmented
               options={[
-                { value: 'individual', label: 'Individual' },
-                { value: 'team', label: 'Teams (2 v 2)' },
+                { value: 'individual', label: t.individual },
+                { value: 'team', label: t.teams2v2 },
               ]}
               value={mode}
               onChange={setMode}
             />
             {mode === 'individual' ? (
               <View style={styles.field}>
-                <Text style={styles.label}>Players</Text>
+                <Text style={styles.label}>{t.playersLabel}</Text>
                 <Segmented
-                  options={[2, 3, 4].map((n) => ({ value: n, label: `${n} players` }))}
+                  options={[2, 3, 4].map((n) => ({ value: n, label: t.playersCount(n) }))}
                   value={count}
                   onChange={setCount}
                 />
               </View>
             ) : (
-              <Text style={styles.hint}>
-                Opposite players are partners: {seatColors[0].name} & {seatColors[2].name} against {seatColors[1].name} &{' '}
-                {seatColors[3].name}. A team wins when both partners have all pieces home.
-              </Text>
+              <Text style={styles.hint}>{t.teamHint(t.colour[0], t.colour[2], t.colour[1], t.colour[3])}</Text>
             )}
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Players</Text>
+            <Text style={styles.cardTitle}>{t.playersLabel}</Text>
             {active.map((seat) => (
               <View key={seat} style={styles.seat}>
                 <View style={styles.seatHeader}>
                   <View style={[styles.dot, { backgroundColor: seatColors[seat].fill }]} />
                   <Text style={styles.seatLabel}>
-                    {seatColors[seat].name} · {SEAT_LABELS[seat]}
-                    {mode === 'team' ? ` · Team ${seat % 2 === 0 ? 'A' : 'B'}` : ''}
+                    {t.colour[seat]} · {t.seat[seat]}
+                    {mode === 'team' ? ` · ${t.team(seat % 2 === 0 ? 'A' : 'B')}` : ''}
                   </Text>
                 </View>
                 <TextInput
-                  value={seats[seat].name}
+                  value={seats[seat].name ?? defaultName(t, seat, seats[seat].kind)}
                   onChangeText={(name) => updateSeat(seat, { name })}
-                  placeholder={seatColors[seat].name}
+                  placeholder={t.colour[seat]}
                   placeholderTextColor={colors.textMuted}
                   maxLength={16}
                   style={styles.input}
-                  accessibilityLabel={`${seatColors[seat].name} player name`}
+                  accessibilityLabel={t.playerNameA11y(t.colour[seat])}
                 />
-                <Segmented compact options={KIND_OPTIONS} value={seats[seat].kind} onChange={(kind) => updateSeat(seat, { kind })} />
+                <Segmented compact options={kindOptions} value={seats[seat].kind} onChange={(kind) => updateSeat(seat, { kind })} />
               </View>
             ))}
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Settings</Text>
+            <Text style={styles.cardTitle}>{t.settings}</Text>
             <SettingsPanel />
           </View>
 
-          {saved && <Text style={[styles.hint, styles.centerText]}>Starting a new game replaces your saved game.</Text>}
+          {saved && <Text style={[styles.hint, styles.centerText]}>{t.replaceWarning}</Text>}
           <Pressable style={({ pressed }) => [styles.primary, pressed && styles.pressed]} onPress={start} accessibilityRole="button">
-            <Text style={styles.primaryText}>{saved ? 'Start a new game' : 'Start game'}</Text>
+            <Text style={styles.primaryText}>{saved ? t.startNew : t.start}</Text>
           </Pressable>
           <Link href="/rules" asChild>
             <Pressable style={styles.secondary} accessibilityRole="link">
-              <Text style={styles.secondaryText}>How to play</Text>
+              <Text style={styles.secondaryText}>{t.howToPlay}</Text>
             </Pressable>
           </Link>
         </View>
@@ -182,8 +201,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { flexGrow: 1, paddingHorizontal: space.lg, paddingBottom: space.xxl },
   container: { width: '100%', maxWidth: 520, alignSelf: 'center', gap: space.lg },
-  hero: { paddingTop: space.xxl, paddingBottom: space.sm, alignItems: 'center' },
-  title: { color: colors.chalk, fontSize: 38, fontWeight: '800', letterSpacing: 0.5 },
+  hero: { paddingTop: space.xxl, paddingBottom: space.sm, alignItems: 'center', gap: space.md },
+  heroLanguage: { width: 220 },
+  title: { color: colors.chalk, fontSize: 38, fontWeight: '800', letterSpacing: 0.5, textAlign: 'center' },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.lg, gap: space.md },
   cardTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
   field: { gap: space.sm },

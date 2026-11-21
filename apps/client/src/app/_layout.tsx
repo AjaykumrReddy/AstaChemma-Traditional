@@ -1,8 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useStrings } from '../i18n';
 import { colors } from '../theme';
 
 export default function RootLayout() {
+  const t = useStrings();
   return (
     <>
       <StatusBar style="light" />
@@ -15,9 +17,9 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'Asta Chemma', headerShown: false }} />
-        <Stack.Screen name="game" options={{ title: 'Asta Chemma' }} />
-        <Stack.Screen name="rules" options={{ title: 'How to play' }} />
+        <Stack.Screen name="index" options={{ title: t.appTitle, headerShown: false }} />
+        <Stack.Screen name="game" options={{ title: t.appTitle }} />
+        <Stack.Screen name="rules" options={{ title: t.rulesTitle }} />
       </Stack>
     </>
   );

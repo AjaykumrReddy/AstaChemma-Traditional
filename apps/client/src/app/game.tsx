@@ -7,8 +7,9 @@ import { Board } from '../components/Board';
 import { Confetti } from '../components/Effects';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Shells } from '../components/Shells';
+import { useStrings, withDisplayNames, type Strings } from '../i18n';
 import { displayState, useGameStore, useTimings } from '../store/game';
-import { describeOpen, describeScore, throwValue } from '../store/messages';
+import { describeEvents, describeOpen, describeScore, throwValue } from '../store/messages';
 import { colors, radius, seatColors, space } from '../theme';
 
 /** Wide screens put the board on the left and the controls on the right. */
@@ -34,7 +35,7 @@ function distinctMoves(state: GameState, moves: Move[]): Move[] {
   });
 }
 
-function PlayerChip({ state, index }: { state: GameState; index: number }) {
+function PlayerChip({ state, index, t }: { state: GameState; index: number; t: Strings }) {
   const player = state.players[index]!;
   const pieces = state.pieces.filter((p) => p.owner === index);
   const isCurrent = state.current === index && state.phase !== 'finished';
@@ -60,8 +61,8 @@ function PlayerChip({ state, index }: { state: GameState; index: number }) {
             />
           ))}
           <Text style={styles.chipTag} numberOfLines={1}>
-            {player.bot ? `CPU ${player.bot}` : 'Human'}
-            {player.team !== undefined ? ` · Team ${player.team === 0 ? 'A' : 'B'}` : ''}
+            {player.bot ? t.cpuTag(player.bot) : t.humanTag}
+            {player.team !== undefined ? ` · ${t.team(player.team === 0 ? 'A' : 'B')}` : ''}
           </Text>
         </View>
       </View>
@@ -107,11 +108,12 @@ export default function GameScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const t = useStrings();
   const game = useGameStore((s) => s.game);
   const rolling = useGameStore((s) => s.rolling);
   const animation = useGameStore((s) => s.animation);
   const selected = useGameStore((s) => s.selected);
-  const messages = useGameStore((s) => s.messages);
+  const note = useGameStore((s) => s.note);
   const autoMove = useGameStore((s) => s.autoMove);
   const throwShells = useGameStore((s) => s.throwShells);
   const move = useGameStore((s) => s.move);
@@ -179,6 +181,10 @@ export default function GameScreen() {
   if (!hydrated) return <View style={styles.screen} />;
   if (!game || !current) return <Redirect href="/" />;
 
+  // Player names for display: default names ("You", "Computer 2") follow the language.
+  const named = withDisplayNames(t, game);
+  const currentName = named.players[game.current]!.name;
+
   const wide = width >= WIDE_BREAKPOINT;
   const available = height - HEADER_ALLOWANCE - insets.top - insets.bottom;
   const boardSize = Math.floor(
@@ -193,21 +199,22 @@ export default function GameScreen() {
   const keptLabel = game.pending.map((t) => throwValue(t.open)).join(' + ');
 
   let status: string;
-  if (game.phase === 'finished') status = 'Game over';
-  else if (current.bot) status = `${current.name} is playing…`;
-  else if (rolling) status = 'Throwing…';
-  else if (animation) status = 'Moving…';
-  else if (game.phase === 'awaitingThrow' && game.pending.length > 0) status = `Your ${keptLabel} kept – throw again`;
-  else if (game.phase === 'awaitingThrow') status = `${current.name}, throw the shells`;
+  if (game.phase === 'finished') status = t.gameOver;
+  else if (current.bot) status = t.isPlaying(currentName);
+  else if (rolling) status = t.throwing;
+  else if (animation) status = t.moving;
+  else if (game.phase === 'awaitingThrow' && game.pending.length > 0) status = t.keptThrowAgain(keptLabel);
+  else if (game.phase === 'awaitingThrow') status = t.throwPrompt(currentName);
   else if (selected) {
     const options = movable.filter((m) => m.pieceId === selected).length;
-    status = options > 1 ? 'Tap a highlighted square to move' : 'Tap the piece again or its square to move';
-  } else if (game.canHold) {
-    status = `Use the ${keptLabel} now, or keep ${game.pending.length > 1 ? 'them' : 'it'} and throw again`;
-  }
-  else status = 'Tap a glowing piece';
+    status = options > 1 ? t.tapSquare : t.tapAgain;
+  } else if (game.canHold) status = t.useOrKeep(keptLabel, game.pending.length > 1);
+  else status = t.tapGlowing;
 
-  const winners = game.winners.map((i) => game.players[i]!.name);
+  // Built at display time from the game's events, so it follows the language.
+  const messages = note === 'start' ? [t.startHint] : note === 'welcome' ? [t.welcomeBack] : describeEvents(t, named, game.events);
+
+  const winners = game.winners.map((i) => named.players[i]!.name);
   const joinMove = humanTurn && !busy ? movable.find((m) => m.join) : undefined;
   const showHold = humanTurn && !busy && game.phase === 'awaitingMove' && game.canHold;
   const showThrow = humanTurn && game.phase === 'awaitingThrow';
@@ -215,7 +222,7 @@ export default function GameScreen() {
   const players = (
     <View style={[styles.players, wide && styles.playersWide]}>
       {game.players.map((p) => (
-        <PlayerChip key={p.index} state={game} index={p.index} />
+        <PlayerChip key={p.index} state={named} index={p.index} t={t} />
       ))}
     </View>
   );
@@ -233,12 +240,12 @@ export default function GameScreen() {
         {rolling
           ? ' '
           : game.lastThrow
-            ? `${describeOpen(game.lastThrow.open)} · ${describeScore(game.lastThrow.open)}`
-            : 'Five cowries: count the open ones'}
+            ? `${describeOpen(t, game.lastThrow.open)} · ${describeScore(t, game.lastThrow.open)}`
+            : t.countOpenHint}
       </Text>
       {game.pending.length > 1 && !rolling && (
-        <View style={styles.pendingRow} accessibilityLabel="Throws to use">
-          <Text style={styles.pendingLabel}>To use:</Text>
+        <View style={styles.pendingRow} accessibilityLabel={t.throwsToUseA11y}>
+          <Text style={styles.pendingLabel}>{t.toUse}</Text>
           {game.pending.map((t, i) => (
             <View key={i} style={[styles.pendingChip, { borderColor: seat.fill }]}>
               <Text style={styles.pendingText}>{throwValue(t.open)}</Text>
@@ -255,7 +262,7 @@ export default function GameScreen() {
           style={({ pressed }) => [styles.throwButton, { backgroundColor: seat.fill }, pressed && styles.pressed]}
           accessibilityRole="button"
         >
-          <Text style={styles.throwText}>Join 4 + 4 · Release Mother</Text>
+          <Text style={styles.throwText}>{t.joinFours}</Text>
         </Pressable>
       )}
       {showHold && (
@@ -264,7 +271,7 @@ export default function GameScreen() {
           style={({ pressed }) => [styles.secondaryButton, { borderColor: seat.fill }, pressed && styles.pressed]}
           accessibilityRole="button"
         >
-          <Text style={styles.secondaryText}>Keep {keptLabel} · Throw again</Text>
+          <Text style={styles.secondaryText}>{t.keepThrow(keptLabel)}</Text>
         </Pressable>
       )}
       {showThrow && (
@@ -274,7 +281,7 @@ export default function GameScreen() {
           style={({ pressed }) => [styles.throwButton, { backgroundColor: seat.fill }, (pressed || busy) && styles.pressed]}
           accessibilityRole="button"
         >
-          <Text style={styles.throwText}>{rolling ? 'Throwing…' : 'Throw shells'}</Text>
+          <Text style={styles.throwText}>{rolling ? t.throwing : t.throwShells}</Text>
         </Pressable>
       )}
     </View>
@@ -284,14 +291,15 @@ export default function GameScreen() {
     <View style={styles.screen}>
       <Stack.Screen
         options={{
+          title: t.appTitle,
           headerRight: () => (
             <View style={styles.headerActions}>
               <Link href="/rules" asChild>
                 <Pressable hitSlop={10} accessibilityRole="link">
-                  <Text style={styles.headerLink}>Rules</Text>
+                  <Text style={styles.headerLink}>{t.rules}</Text>
                 </Pressable>
               </Link>
-              <Pressable hitSlop={10} onPress={() => setSettingsOpen(true)} accessibilityRole="button" accessibilityLabel="Settings">
+              <Pressable hitSlop={10} onPress={() => setSettingsOpen(true)} accessibilityRole="button" accessibilityLabel={t.settings}>
                 <Text style={styles.headerIcon}>⚙</Text>
               </Pressable>
             </View>
@@ -331,10 +339,10 @@ export default function GameScreen() {
       </ScrollView>
 
       <Modal visible={settingsOpen} transparent animationType="fade" onRequestClose={() => setSettingsOpen(false)}>
-        <Pressable style={styles.overlay} onPress={() => setSettingsOpen(false)} accessibilityLabel="Close settings">
+        <Pressable style={styles.overlay} onPress={() => setSettingsOpen(false)} accessibilityLabel={t.closeSettings}>
           {/* Taps inside the sheet must not close it. */}
           <Pressable style={styles.dialog} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>Settings</Text>
+            <Text style={styles.sheetTitle}>{t.settings}</Text>
             <View style={styles.sheetBody}>
               <SettingsPanel />
             </View>
@@ -343,7 +351,7 @@ export default function GameScreen() {
               onPress={() => setSettingsOpen(false)}
               accessibilityRole="button"
             >
-              <Text style={styles.throwText}>Done</Text>
+              <Text style={styles.throwText}>{t.done}</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -354,15 +362,13 @@ export default function GameScreen() {
           <Confetti width={width} height={height} seed={game.turn} />
           <View style={styles.dialog}>
             <BouncingTrophy />
-            <Text style={styles.dialogTitle}>{winners.join(' & ')} won!</Text>
-            <Text style={styles.dialogText}>
-              {game.config.mode === 'team' ? 'Both partners brought all their pieces home.' : 'All three pieces are home.'}
-            </Text>
+            <Text style={styles.dialogTitle}>{t.won(winners.join(' & '))}</Text>
+            <Text style={styles.dialogText}>{game.config.mode === 'team' ? t.winTeam : t.winSolo}</Text>
             <Pressable style={[styles.throwButton, { backgroundColor: colors.accent }]} onPress={restart}>
-              <Text style={styles.throwText}>Play again</Text>
+              <Text style={styles.throwText}>{t.playAgain}</Text>
             </Pressable>
             <Pressable style={styles.dialogSecondary} onPress={() => router.back()}>
-              <Text style={styles.dialogSecondaryText}>New game setup</Text>
+              <Text style={styles.dialogSecondaryText}>{t.newSetup}</Text>
             </Pressable>
           </View>
         </View>

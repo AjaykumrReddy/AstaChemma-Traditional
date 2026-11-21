@@ -1,12 +1,13 @@
 import { StyleSheet, Switch, Text, View } from 'react-native';
+import { STRINGS, useStrings, type Lang } from '../i18n';
 import { useGameStore, type Speed } from '../store/game';
 import { colors, space } from '../theme';
 import { Segmented } from './Segmented';
 
-const SPEED_OPTIONS: { value: Speed; label: string }[] = [
-  { value: 'slow', label: 'Slow' },
-  { value: 'normal', label: 'Normal' },
-  { value: 'fast', label: 'Fast' },
+/** Each language is shown in its own script, so it can be found without reading the other. */
+const LANGUAGE_OPTIONS: { value: Lang; label: string }[] = [
+  { value: 'en', label: STRINGS.en.langName },
+  { value: 'te', label: STRINGS.te.langName },
 ];
 
 function ToggleRow({ title, hint, value, onChange }: { title: string; hint: string; value: boolean; onChange: (v: boolean) => void }) {
@@ -27,8 +28,11 @@ function ToggleRow({ title, hint, value, onChange }: { title: string; hint: stri
   );
 }
 
-/** Game settings: speed, sound and auto-move. Saved on the device. */
+/** Game settings: language, speed, sound and auto-move. Saved on the device. */
 export function SettingsPanel() {
+  const t = useStrings();
+  const language = useGameStore((s) => s.language);
+  const setLanguage = useGameStore((s) => s.setLanguage);
   const speed = useGameStore((s) => s.speed);
   const setSpeed = useGameStore((s) => s.setSpeed);
   const sound = useGameStore((s) => s.sound);
@@ -36,20 +40,25 @@ export function SettingsPanel() {
   const autoMove = useGameStore((s) => s.autoMove);
   const setAutoMove = useGameStore((s) => s.setAutoMove);
 
+  const speedOptions: { value: Speed; label: string }[] = [
+    { value: 'slow', label: t.speed.slow },
+    { value: 'normal', label: t.speed.normal },
+    { value: 'fast', label: t.speed.fast },
+  ];
+
   return (
     <View style={styles.panel}>
       <View style={styles.field}>
-        <Text style={styles.title}>Game speed</Text>
-        <Text style={styles.hint}>How fast shells roll, pieces walk and the computer plays.</Text>
-        <Segmented options={SPEED_OPTIONS} value={speed} onChange={setSpeed} />
+        <Text style={styles.title}>{t.language}</Text>
+        <Segmented options={LANGUAGE_OPTIONS} value={language} onChange={setLanguage} />
       </View>
-      <ToggleRow title="Sound" hint="Shells, steps, captures and celebrations." value={sound} onChange={setSound} />
-      <ToggleRow
-        title="Auto-move"
-        hint="Move for you when a throw allows only one choice."
-        value={autoMove}
-        onChange={setAutoMove}
-      />
+      <View style={styles.field}>
+        <Text style={styles.title}>{t.speedTitle}</Text>
+        <Text style={styles.hint}>{t.speedHint}</Text>
+        <Segmented options={speedOptions} value={speed} onChange={setSpeed} />
+      </View>
+      <ToggleRow title={t.sound} hint={t.soundHint} value={sound} onChange={setSound} />
+      <ToggleRow title={t.autoMove} hint={t.autoMoveHint} value={autoMove} onChange={setAutoMove} />
     </View>
   );
 }

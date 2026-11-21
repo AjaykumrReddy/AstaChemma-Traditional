@@ -12,7 +12,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { feedbackForMove, feedbackForThrow, type BoardEffect, type Feedback } from '../feedback/effects';
 import { haptic } from '../feedback/haptics';
 import { playSound, playSoundAfter, setSoundEnabled } from '../feedback/sounds';
-import { describeEvents } from './messages';
+import type { Lang } from '../i18n/strings';
 
 export type Speed = 'slow' | 'normal' | 'fast';
 
@@ -53,11 +53,17 @@ interface GameStore {
   rolling: boolean;
   animation: MoveAnimation | null;
   selected: string | null;
-  messages: string[];
+  /**
+   * A note shown instead of the last action's events: at the start of a game,
+   * or after resuming one. Messages are built from events at display time so
+   * they always follow the current language.
+   */
+  note: 'start' | 'welcome' | null;
   /** Move automatically when a throw allows only one distinct move. */
   autoMove: boolean;
   speed: Speed;
   sound: boolean;
+  language: Lang;
   /** Short-lived effects on the board (bursts, shockwaves). */
   effects: BoardEffect[];
   /** Bumped to shake the board. */
@@ -76,13 +82,14 @@ interface GameStore {
   setAutoMove(on: boolean): void;
   setSpeed(speed: Speed): void;
   setSound(on: boolean): void;
+  setLanguage(language: Lang): void;
 }
 
 // Incremented on every new game so stale timers from an old game do nothing.
 let generation = 0;
 
 /** What is saved on the device: enough to resume exactly where the game stopped. */
-type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove' | 'speed' | 'sound'>;
+type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language'>;
 
 /** Bump when the saved shape changes in a way old saves can't be read. */
 const SAVE_VERSION = 1;
@@ -124,10 +131,11 @@ export const useGameStore = create<GameStore>()(
         rolling: false,
         animation: null,
         selected: null,
-        messages: [],
+        note: null,
         autoMove: true,
         speed: 'normal',
         sound: true,
+        language: 'en',
         effects: [],
         shakeKey: 0,
         hydrated: false,
@@ -140,7 +148,7 @@ export const useGameStore = create<GameStore>()(
             rolling: false,
             animation: null,
             selected: null,
-            messages: ['Throw the shells to begin'],
+            note: 'start',
             effects: [],
           });
         },
@@ -156,7 +164,7 @@ export const useGameStore = create<GameStore>()(
 
         quit() {
           generation++;
-          set({ game: null, rolling: false, animation: null, selected: null, messages: [], effects: [] });
+          set({ game: null, rolling: false, animation: null, selected: null, note: null, effects: [] });
         },
 
         throwShells() {
@@ -173,7 +181,7 @@ export const useGameStore = create<GameStore>()(
             const current = get().game;
             if (!current) return;
             const next = engineThrow(current);
-            set({ game: next, rolling: false, messages: describeEvents(next, next.events) });
+            set({ game: next, rolling: false, note: null });
             play(feedbackForThrow(next));
           }, timings().roll);
         },
@@ -201,7 +209,7 @@ export const useGameStore = create<GameStore>()(
               game: after,
               animation: null,
               selected: null,
-              messages: describeEvents(after, after.events),
+              note: null,
             });
             // Celebrate as the piece touches down on its last square.
             setTimeout(() => {
@@ -246,6 +254,10 @@ export const useGameStore = create<GameStore>()(
           setSoundEnabled(on);
           set({ sound: on });
         },
+
+        setLanguage(language) {
+          set({ language });
+        },
       };
     },
     {
@@ -259,9 +271,10 @@ export const useGameStore = create<GameStore>()(
         autoMove: s.autoMove,
         speed: s.speed,
         sound: s.sound,
+        language: s.language,
       }),
       // A save from an incompatible version is dropped rather than risking a crash.
-      migrate: (): SavedGame => ({ config: null, game: null, autoMove: true, speed: 'normal', sound: true }),
+      migrate: (): SavedGame => ({ config: null, game: null, autoMove: true, speed: 'normal', sound: true, language: 'en' }),
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<SavedGame>;
         const game = isGameState(saved.game) ? saved.game : null;
@@ -274,7 +287,8 @@ export const useGameStore = create<GameStore>()(
           autoMove: typeof saved.autoMove === 'boolean' ? saved.autoMove : current.autoMove,
           speed: isSpeed(saved.speed) ? saved.speed : current.speed,
           sound,
-          messages: game ? ['Welcome back'] : current.messages,
+          language: saved.language === 'te' || saved.language === 'en' ? saved.language : current.language,
+          note: game ? 'welcome' : current.note,
         };
       },
       onRehydrateStorage: () => () => useGameStore.setState({ hydrated: true }),

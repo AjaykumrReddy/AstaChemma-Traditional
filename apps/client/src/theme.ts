@@ -37,11 +37,11 @@ export const boardColors = {
 };
 
 /** Glass-marble colours per seat: bottom, right, top, left. */
-export const seatColors: Record<Seat, { fill: string; light: string; dark: string; name: string }> = {
-  0: { fill: '#F2C94C', light: '#FFF1B8', dark: '#9A7A12', name: 'Yellow' },
-  1: { fill: '#E5484D', light: '#FFB4B6', dark: '#8C1D21', name: 'Red' },
-  2: { fill: '#3E7BFA', light: '#B7CEFF', dark: '#173E94', name: 'Blue' },
-  3: { fill: '#30A46C', light: '#B2EBCB', dark: '#14583A', name: 'Green' },
+export const seatColors: Record<Seat, { fill: string; light: string; dark: string }> = {
+  0: { fill: '#F2C94C', light: '#FFF1B8', dark: '#9A7A12' },
+  1: { fill: '#E5484D', light: '#FFB4B6', dark: '#8C1D21' },
+  2: { fill: '#3E7BFA', light: '#B7CEFF', dark: '#173E94' },
+  3: { fill: '#30A46C', light: '#B2EBCB', dark: '#14583A' },
 };
 
 export const radius = { sm: 8, md: 12, lg: 18, pill: 999 };

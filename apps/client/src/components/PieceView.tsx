@@ -14,6 +14,8 @@ export interface PieceViewProps {
   id: string;
   kind: PieceKind;
   seat: Seat;
+  /** Screen-reader label, e.g. "Yellow Mother", in the current language. */
+  label: string;
   /** Centre position and radius, in pixels. */
   x: number;
   y: number;
@@ -34,7 +36,7 @@ export interface PieceViewProps {
  * on the board), squashes as it lands, pulses when it can move, bobs when
  * selected, flies back in a high arc when captured and pops on reaching home.
  */
-function PieceViewImpl({ id, kind, seat, x, y, radius, unit, home, movable, selected, raised, stepMs, onPress }: PieceViewProps) {
+function PieceViewImpl({ id, kind, seat, label, x, y, radius, unit, home, movable, selected, raised, stepMs, onPress }: PieceViewProps) {
   const box = MAX_R * unit * 2 * PAD;
   const baseScale = radius / (MAX_R * unit);
   const targetScale = baseScale * (selected ? 1.12 : 1);
@@ -177,7 +179,7 @@ function PieceViewImpl({ id, kind, seat, x, y, radius, unit, home, movable, sele
         disabled={!movable}
         hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel={`${colour.name} ${kind === 'mother' ? 'Mother' : 'Child'}`}
+        accessibilityLabel={label}
         accessibilityState={{ selected, disabled: !movable }}
         style={styles.fill}
       >

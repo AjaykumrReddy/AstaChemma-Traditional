@@ -13,7 +13,8 @@ Version 2 (in progress) adds:
 - **Save and resume:** the current game is saved on the device after every action and offered as "Continue game" on the start screen, even after the app is closed.
 - **Sounds:** shells rattling and landing, piece steps, captures, homecomings, the Mother's release and a win fanfare. They are synthesised by `apps/client/scripts/generate-sounds.mjs` (no third-party audio); run `node scripts/generate-sounds.mjs` in `apps/client` to regenerate them.
 - **Game speed:** Slow, Normal or Fast for shell rolls, piece walks and computer turns.
-- **Settings** (speed, sound, auto-move) on the start screen and from the ⚙ button during a game.
+- **Settings** (language, speed, sound, auto-move) on the start screen and from the ⚙ button during a game.
+- **Telugu / English:** every screen, message and the full rules page in both languages, switchable at any time (also from the start screen). All text lives in `apps/client/src/i18n/strings.ts`; both languages share one typed interface, so a missing translation fails the typecheck. Default player names ("You", "Computer 2") follow the language; names you type stay as typed.
 
 ## Run it
 
