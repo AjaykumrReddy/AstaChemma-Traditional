@@ -11,11 +11,31 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { feedbackForMove, feedbackForThrow, type BoardEffect, type Feedback } from '../feedback/effects';
 import { haptic } from '../feedback/haptics';
+import { playSound, playSoundAfter, setSoundEnabled } from '../feedback/sounds';
+import { addHistory, historyFromEvents, lastMoveEvents, type HistoryEntry } from './history';
 import { describeEvents } from './messages';
 
-const ROLL_MS = 650;
-/** Time per square when a piece walks its route; pieces glide over the same time. */
-export const STEP_MS = 190;
+export type Speed = 'slow' | 'normal' | 'fast';
+
+/** Every game timing, per speed setting (milliseconds). */
+export interface Timings {
+  /** Shells tumbling before the result shows. */
+  roll: number;
+  /** One square of a piece's walk (and its hop animation). */
+  step: number;
+  /** A computer player's pause before throwing. */
+  botThrow: number;
+  /** A computer player's pause before moving. */
+  botMove: number;
+  /** Pause before an automatic single-choice move. */
+  autoMove: number;
+}
+
+export const TIMINGS: Record<Speed, Timings> = {
+  slow: { roll: 900, step: 280, botThrow: 1150, botMove: 950, autoMove: 700 },
+  normal: { roll: 650, step: 190, botThrow: 750, botMove: 600, autoMove: 450 },
+  fast: { roll: 400, step: 115, botThrow: 380, botMove: 300, autoMove: 230 },
+};
 
 /** A move being animated square by square before the new state is shown. */
 export interface MoveAnimation {
@@ -35,8 +55,12 @@ interface GameStore {
   animation: MoveAnimation | null;
   selected: string | null;
   messages: string[];
+  /** Everything that happened this game, newest first. */
+  history: HistoryEntry[];
   /** Move automatically when a throw allows only one distinct move. */
   autoMove: boolean;
+  speed: Speed;
+  sound: boolean;
   /** Short-lived effects on the board (bursts, shockwaves). */
   effects: BoardEffect[];
   /** Bumped to shake the board. */
@@ -53,13 +77,15 @@ interface GameStore {
   /** Make a legal move, by Move id. */
   move(moveId: string): void;
   setAutoMove(on: boolean): void;
+  setSpeed(speed: Speed): void;
+  setSound(on: boolean): void;
 }
 
 // Incremented on every new game so stale timers from an old game do nothing.
 let generation = 0;
 
 /** What is saved on the device: enough to resume exactly where the game stopped. */
-type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove'>;
+type SavedGame = Pick<GameStore, 'config' | 'game' | 'history' | 'autoMove' | 'speed' | 'sound'>;
 
 /** Bump when the saved shape changes in a way old saves can't be read. */
 const SAVE_VERSION = 1;
@@ -78,144 +104,189 @@ function isGameState(value: unknown): value is GameState {
   );
 }
 
+const isSpeed = (v: unknown): v is Speed => v === 'slow' || v === 'normal' || v === 'fast';
+
 export const useGameStore = create<GameStore>()(
   persist(
     (set, get) => {
-  /** Show effects, a shake and a vibration for something that just happened. */
-  const play = (feedback: Feedback) => {
-    if (feedback.haptic) haptic(feedback.haptic);
-    set((s) => ({
-      effects: feedback.effects.length ? [...s.effects, ...feedback.effects] : s.effects,
-      shakeKey: feedback.shake ? s.shakeKey + 1 : s.shakeKey,
-    }));
-  };
+      const timings = () => TIMINGS[get().speed];
 
-  return {
-  config: null,
-  game: null,
-  rolling: false,
-  animation: null,
-  selected: null,
-  messages: [],
-  autoMove: true,
-  effects: [],
-  shakeKey: 0,
-  hydrated: false,
+      /** Show effects, shake, vibrate and play sounds for something that just happened. */
+      const play = (feedback: Feedback) => {
+        if (feedback.haptic) haptic(feedback.haptic);
+        feedback.sounds.forEach((s) => (s.delay ? playSoundAfter(s.name, s.delay) : playSound(s.name)));
+        set((s) => ({
+          effects: feedback.effects.length ? [...s.effects, ...feedback.effects] : s.effects,
+          shakeKey: feedback.shake ? s.shakeKey + 1 : s.shakeKey,
+        }));
+      };
 
-  startGame(config) {
-    generation++;
-    set({
-      config,
-      game: createGame(config, randomSeed()),
-      rolling: false,
-      animation: null,
-      selected: null,
-      messages: ['Throw the shells to begin'],
-      effects: [],
-    });
-  },
-
-  removeEffect(id) {
-    set((s) => ({ effects: s.effects.filter((e) => e.id !== id) }));
-  },
-
-  restart() {
-    const { config } = get();
-    if (config) get().startGame(config);
-  },
-
-  quit() {
-    generation++;
-    set({ game: null, rolling: false, animation: null, selected: null, messages: [], effects: [] });
-  },
-
-  throwShells() {
-    const { game, rolling, animation } = get();
-    if (!game || rolling || animation) return;
-    // A throw is due, or the player keeps their 4 and throws again.
-    const canThrow = game.phase === 'awaitingThrow' || (game.phase === 'awaitingMove' && game.canHold);
-    if (!canThrow) return;
-    const gen = generation;
-    set({ rolling: true, selected: null });
-    setTimeout(() => {
-      if (gen !== generation) return;
-      const current = get().game;
-      if (!current) return;
-      const next = engineThrow(current);
-      set({ game: next, rolling: false, messages: describeEvents(next, next.events) });
-      play(feedbackForThrow(next));
-    }, ROLL_MS);
-  },
-
-  select(pieceId) {
-    if (pieceId) haptic('tap');
-    set({ selected: pieceId });
-  },
-
-  move(moveId) {
-    const { game, animation } = get();
-    if (!game || game.phase !== 'awaitingMove' || animation) return;
-    const move = game.legalMoves.find((m) => m.id === moveId);
-    if (!move) return;
-    const pieceId = move.pieceId;
-    const after = applyMove(game, moveId);
-    const finish = () => {
-      const gen = generation;
-      set({
-        game: after,
+      return {
+        config: null,
+        game: null,
+        rolling: false,
         animation: null,
         selected: null,
-        messages: describeEvents(after, after.events),
-      });
-      // Celebrate as the piece touches down on its last square.
-      setTimeout(() => {
-        if (gen === generation) play(feedbackForMove(after));
-      }, STEP_MS * 0.8);
-    };
+        messages: [],
+        history: [],
+        autoMove: true,
+        speed: 'normal',
+        sound: true,
+        effects: [],
+        shakeKey: 0,
+        hydrated: false,
 
-    // Entering pieces appear on their entry square, then walk any bonus steps.
-    const start = move.enters ? 0 : move.from;
-    if (start === move.to) {
-      finish();
-      return;
-    }
-    const gen = generation;
-    set({ animation: { before: game, after, pieceId, step: start }, selected: null });
-    const tick = () => {
-      if (gen !== generation) return;
-      const anim = get().animation;
-      if (!anim) return;
-      if (anim.step + 1 >= move.to) {
-        finish();
-        return;
-      }
-      set({ animation: { ...anim, step: anim.step + 1 } });
-      setTimeout(tick, STEP_MS);
-    };
-    setTimeout(tick, STEP_MS);
-  },
+        startGame(config) {
+          generation++;
+          set({
+            config,
+            game: createGame(config, randomSeed()),
+            rolling: false,
+            animation: null,
+            selected: null,
+            messages: ['Throw the shells to begin'],
+            history: [],
+            effects: [],
+          });
+        },
 
-  setAutoMove(on) {
-    set({ autoMove: on });
-  },
-  };
+        removeEffect(id) {
+          set((s) => ({ effects: s.effects.filter((e) => e.id !== id) }));
+        },
+
+        restart() {
+          const { config } = get();
+          if (config) get().startGame(config);
+        },
+
+        quit() {
+          generation++;
+          set({ game: null, rolling: false, animation: null, selected: null, messages: [], history: [], effects: [] });
+        },
+
+        throwShells() {
+          const { game, rolling, animation } = get();
+          if (!game || rolling || animation) return;
+          // A throw is due, or the player keeps their 4/8 and throws again.
+          const canThrow = game.phase === 'awaitingThrow' || (game.phase === 'awaitingMove' && game.canHold);
+          if (!canThrow) return;
+          const gen = generation;
+          set({ rolling: true, selected: null });
+          playSound('shake');
+          setTimeout(() => {
+            if (gen !== generation) return;
+            const current = get().game;
+            if (!current) return;
+            const next = engineThrow(current);
+            set((s) => ({
+              game: next,
+              rolling: false,
+              messages: describeEvents(next, next.events),
+              history: addHistory(s.history, historyFromEvents(next, next.events)),
+            }));
+            play(feedbackForThrow(next));
+          }, timings().roll);
+        },
+
+        select(pieceId) {
+          if (pieceId) {
+            haptic('tap');
+            playSound('select');
+          }
+          set({ selected: pieceId });
+        },
+
+        move(moveId) {
+          const { game, animation } = get();
+          if (!game || game.phase !== 'awaitingMove' || animation) return;
+          const move = game.legalMoves.find((m) => m.id === moveId);
+          if (!move) return;
+          const pieceId = move.pieceId;
+          const after = applyMove(game, moveId);
+          const stepMs = timings().step;
+
+          const finish = () => {
+            const gen = generation;
+            set((s) => ({
+              game: after,
+              animation: null,
+              selected: null,
+              messages: describeEvents(after, after.events),
+              history: addHistory(s.history, historyFromEvents(after, lastMoveEvents(after))),
+            }));
+            // Celebrate as the piece touches down on its last square.
+            setTimeout(() => {
+              if (gen !== generation) return;
+              playSound('hop');
+              play(feedbackForMove(after));
+            }, stepMs * 0.8);
+          };
+
+          // Entering pieces appear on their entry square, then walk any bonus steps.
+          const start = move.enters ? 0 : move.from;
+          if (start === move.to) {
+            finish();
+            return;
+          }
+          const gen = generation;
+          set({ animation: { before: game, after, pieceId, step: start }, selected: null });
+          const tick = () => {
+            if (gen !== generation) return;
+            const anim = get().animation;
+            if (!anim) return;
+            if (anim.step + 1 >= move.to) {
+              finish();
+              return;
+            }
+            set({ animation: { ...anim, step: anim.step + 1 } });
+            playSound('hop');
+            setTimeout(tick, stepMs);
+          };
+          setTimeout(tick, stepMs);
+        },
+
+        setAutoMove(on) {
+          set({ autoMove: on });
+        },
+
+        setSpeed(speed) {
+          set({ speed });
+        },
+
+        setSound(on) {
+          setSoundEnabled(on);
+          set({ sound: on });
+        },
+      };
     },
     {
       name: 'asta-chemma/saved-game',
       version: SAVE_VERSION,
       storage: createJSONStorage(() => AsyncStorage),
-      // Only the game itself is saved, never animations, effects or rolls in progress.
-      partialize: (s): SavedGame => ({ config: s.config, game: s.game, autoMove: s.autoMove }),
+      // Only the game and settings are saved, never animations, effects or rolls in progress.
+      partialize: (s): SavedGame => ({
+        config: s.config,
+        game: s.game,
+        history: s.history,
+        autoMove: s.autoMove,
+        speed: s.speed,
+        sound: s.sound,
+      }),
       // A save from an incompatible version is dropped rather than risking a crash.
-      migrate: (): SavedGame => ({ config: null, game: null, autoMove: true }),
+      migrate: (): SavedGame => ({ config: null, game: null, history: [], autoMove: true, speed: 'normal', sound: true }),
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<SavedGame>;
         const game = isGameState(saved.game) ? saved.game : null;
+        const sound = typeof saved.sound === 'boolean' ? saved.sound : current.sound;
+        setSoundEnabled(sound);
         return {
           ...current,
           game,
           config: game ? (saved.config ?? game.config) : null,
+          history: game && Array.isArray(saved.history) ? saved.history : [],
           autoMove: typeof saved.autoMove === 'boolean' ? saved.autoMove : current.autoMove,
+          speed: isSpeed(saved.speed) ? saved.speed : current.speed,
+          sound,
           messages: game ? ['Welcome back'] : current.messages,
         };
       },
@@ -223,6 +294,11 @@ export const useGameStore = create<GameStore>()(
     },
   ),
 );
+
+/** The current timings, for components (bot pauses, piece glide speed). */
+export function useTimings(): Timings {
+  return TIMINGS[useGameStore((s) => s.speed)];
+}
 
 /** The state to draw: mid-animation positions while a move is animating. */
 export function displayState(game: GameState, animation: MoveAnimation | null): GameState {

@@ -11,6 +11,10 @@ Version 1 covers playing on one device (2–4 players, or 2 v 2 teams) and playi
 
 Version 2 (in progress) adds:
 - **Save and resume:** the current game is saved on the device after every action and offered as "Continue game" on the start screen, even after the app is closed.
+- **Sounds:** shells rattling and landing, piece steps, captures, homecomings, the Mother's release and a win fanfare. They are synthesised by `apps/client/scripts/generate-sounds.mjs` (no third-party audio); run `node scripts/generate-sounds.mjs` in `apps/client` to regenerate them.
+- **Game speed:** Slow, Normal or Fast for shell rolls, piece walks and computer turns.
+- **Move history:** every throw, move, capture and homecoming, newest first, saved with the game.
+- **Settings** (speed, sound, auto-move) on the start screen and from the ⚙ button during a game.
 
 ## Run it
 

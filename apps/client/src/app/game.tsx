@@ -1,18 +1,16 @@
 import { HOME_INDEX, cellAt, cellKey, chooseBotAction, type Cell, type GameState, type Move } from '@asta/engine';
 import { Link, Redirect, Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Board } from '../components/Board';
 import { Confetti } from '../components/Effects';
+import { MoveHistory } from '../components/MoveHistory';
+import { SettingsPanel } from '../components/SettingsPanel';
 import { Shells } from '../components/Shells';
-import { STEP_MS, displayState, useGameStore } from '../store/game';
+import { displayState, useGameStore, useTimings } from '../store/game';
 import { describeOpen, describeScore, throwValue } from '../store/messages';
 import { colors, radius, seatColors, space } from '../theme';
-
-const BOT_THROW_MS = 750;
-const BOT_MOVE_MS = 600;
-const AUTO_MOVE_MS = 450;
 
 /** Wide screens put the board on the left and the controls on the right. */
 const WIDE_BREAKPOINT = 820;
@@ -124,6 +122,9 @@ export default function GameScreen() {
   const shakeKey = useGameStore((s) => s.shakeKey);
   const removeEffect = useGameStore((s) => s.removeEffect);
   const hydrated = useGameStore((s) => s.hydrated);
+  const history = useGameStore((s) => s.history);
+  const timings = useTimings();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const current = game?.players[game.current];
   const busy = rolling || animation !== null;
@@ -134,22 +135,23 @@ export default function GameScreen() {
   );
 
   // Computer players, and auto-move for humans with a single real choice.
+  // Paused while the settings are open, so nothing happens behind them.
   useEffect(() => {
-    if (!game || game.phase === 'finished' || busy || !current) return;
+    if (!game || game.phase === 'finished' || busy || !current || settingsOpen) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     if (current.bot) {
       const action = chooseBotAction(game, current.bot);
       timer =
         action.type === 'throw'
-          ? setTimeout(throwShells, BOT_THROW_MS)
-          : setTimeout(() => move(action.move.id), BOT_MOVE_MS);
+          ? setTimeout(throwShells, timings.botThrow)
+          : setTimeout(() => move(action.move.id), timings.botMove);
     } else if (autoMove && game.phase === 'awaitingMove' && !game.canHold) {
       // Never auto-use a 4 the player might want to keep for joining.
       const options = distinctMoves(game, game.legalMoves);
-      if (options.length === 1) timer = setTimeout(() => move(options[0]!.id), AUTO_MOVE_MS);
+      if (options.length === 1) timer = setTimeout(() => move(options[0]!.id), timings.autoMove);
     }
     return () => clearTimeout(timer);
-  }, [game, busy, current, autoMove, throwShells, move]);
+  }, [game, busy, current, autoMove, throwShells, move, timings, settingsOpen]);
 
   // First tap selects a piece and shows where it can go; a second tap moves it
   // when it has a single option, otherwise the player taps the square.
@@ -285,11 +287,16 @@ export default function GameScreen() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Link href="/rules" asChild>
-              <Pressable hitSlop={10} accessibilityRole="link">
-                <Text style={styles.headerLink}>Rules</Text>
+            <View style={styles.headerActions}>
+              <Link href="/rules" asChild>
+                <Pressable hitSlop={10} accessibilityRole="link">
+                  <Text style={styles.headerLink}>Rules</Text>
+                </Pressable>
+              </Link>
+              <Pressable hitSlop={10} onPress={() => setSettingsOpen(true)} accessibilityRole="button" accessibilityLabel="Settings">
+                <Text style={styles.headerIcon}>⚙</Text>
               </Pressable>
-            </Link>
+            </View>
           ),
         }}
       />
@@ -307,7 +314,7 @@ export default function GameScreen() {
             movable={movable}
             selected={selected}
             movingPieceId={animation?.pieceId ?? null}
-            stepMs={STEP_MS}
+            stepMs={timings.step}
             onPiecePress={onPiecePress}
             onCellPress={onCellPress}
             effects={effects}
@@ -319,11 +326,34 @@ export default function GameScreen() {
           <View style={styles.side}>
             {players}
             {panel}
+            <MoveHistory history={history} players={game.players} />
           </View>
         ) : (
-          panel
+          <>
+            {panel}
+            <MoveHistory history={history} players={game.players} />
+          </>
         )}
       </ScrollView>
+
+      <Modal visible={settingsOpen} transparent animationType="fade" onRequestClose={() => setSettingsOpen(false)}>
+        <Pressable style={styles.overlay} onPress={() => setSettingsOpen(false)} accessibilityLabel="Close settings">
+          {/* Taps inside the sheet must not close it. */}
+          <Pressable style={styles.dialog} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Settings</Text>
+            <View style={styles.sheetBody}>
+              <SettingsPanel />
+            </View>
+            <Pressable
+              style={[styles.throwButton, { backgroundColor: colors.accent }]}
+              onPress={() => setSettingsOpen(false)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.throwText}>Done</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {game.phase === 'finished' && !animation && (
         <View style={styles.overlay}>
@@ -361,6 +391,10 @@ const styles = StyleSheet.create({
   },
   side: { width: SIDE_WIDTH, gap: space.md },
   headerLink: { color: colors.chalk, fontSize: 16, fontWeight: '600', paddingHorizontal: space.sm },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  headerIcon: { color: colors.chalk, fontSize: 22, paddingHorizontal: space.sm },
+  sheetTitle: { color: colors.text, fontSize: 20, fontWeight: '800', alignSelf: 'flex-start' },
+  sheetBody: { alignSelf: 'stretch', marginVertical: space.md },
   players: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, width: '100%', maxWidth: 620, justifyContent: 'center' },
   playersWide: { maxWidth: undefined },
   chip: {

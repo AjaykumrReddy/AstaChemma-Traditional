@@ -1,9 +1,10 @@
 import { HOME_INDEX, type BotLevel, type GameConfig, type GameMode, type Seat } from '@asta/engine';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Segmented } from '../components/Segmented';
+import { SettingsPanel } from '../components/SettingsPanel';
 import { useGameStore } from '../store/game';
 import { colors, radius, seatColors, space } from '../theme';
 
@@ -40,8 +41,6 @@ const KIND_OPTIONS: { value: SeatKind; label: string }[] = [
 export default function SetupScreen() {
   const router = useRouter();
   const startGame = useGameStore((s) => s.startGame);
-  const autoMove = useGameStore((s) => s.autoMove);
-  const setAutoMove = useGameStore((s) => s.setAutoMove);
   const saved = useGameStore((s) => (s.hydrated && s.game && s.game.phase !== 'finished' ? s.game : null));
 
   const [mode, setMode] = useState<GameMode>('individual');
@@ -159,17 +158,9 @@ export default function SetupScreen() {
             ))}
           </View>
 
-          <View style={[styles.card, styles.row]}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.toggleTitle}>Auto-move</Text>
-              <Text style={styles.hint}>Move for you when a throw allows only one choice.</Text>
-            </View>
-            <Switch
-              value={autoMove}
-              onValueChange={setAutoMove}
-              trackColor={{ true: colors.accent, false: colors.surfaceRaised }}
-              thumbColor={colors.chalk}
-            />
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Settings</Text>
+            <SettingsPanel />
           </View>
 
           {saved && <Text style={[styles.hint, styles.centerText]}>Starting a new game replaces your saved game.</Text>}
@@ -216,8 +207,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  toggleTitle: { color: colors.text, fontSize: 15, fontWeight: '600', marginBottom: 2 },
   primary: { backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: 16, alignItems: 'center' },
   pressed: { opacity: 0.8 },
   primaryText: { color: '#2A2208', fontSize: 17, fontWeight: '800' },

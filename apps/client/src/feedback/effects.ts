@@ -1,6 +1,7 @@
 import { CENTRE, cellAt, isEight, type Cell, type GameState } from '@asta/engine';
 import { boardColors, seatColors } from '../theme';
 import type { HapticKind } from './haptics';
+import type { SoundName } from './sounds';
 
 /** A short-lived visual effect drawn on the board. */
 export interface BoardEffect {
@@ -15,6 +16,8 @@ export interface Feedback {
   haptic: HapticKind | null;
   /** Shake the board (captures). */
   shake: boolean;
+  /** Sound effects to play, each after a delay in ms. */
+  sounds: { name: SoundName; delay: number }[];
 }
 
 let nextId = 1;
@@ -25,7 +28,10 @@ export function feedbackForThrow(state: GameState): Feedback {
   const thrown = state.events.find((e) => e.type === 'throw');
   const open = thrown?.type === 'throw' ? thrown.result.open : null;
   const big = open !== null && (open === 4 || isEight(open));
-  return { effects: [], haptic: big ? 'big' : 'land', shake: false };
+  const sounds: Feedback['sounds'] = [{ name: 'land', delay: 0 }];
+  if (big) sounds.push({ name: 'bonus', delay: 140 });
+  if (state.events.some((e) => e.type === 'noMove')) sounds.push({ name: 'nomove', delay: 200 });
+  return { effects: [], haptic: big ? 'big' : 'land', shake: false, sounds };
 }
 
 /** Feedback for the move that just finished (the events after the last 'move'). */
@@ -40,7 +46,7 @@ export function feedbackForMove(state: GameState): Feedback {
   }
   const events = start >= 0 ? all.slice(start) : [];
   const moveEvent = events[0];
-  const result: Feedback = { effects: [], haptic: 'land', shake: false };
+  const result: Feedback = { effects: [], haptic: 'land', shake: false, sounds: [] };
   if (!moveEvent || moveEvent.type !== 'move') return result;
 
   const move = moveEvent.move;
@@ -54,16 +60,22 @@ export function feedbackForMove(state: GameState): Feedback {
     result.effects.push({ id: id(), kind: 'capture', cell: landing, color });
     result.haptic = 'capture';
     result.shake = true;
+    result.sounds.push({ name: 'capture', delay: 0 });
   } else if (move.finishes) {
     result.effects.push({ id: id(), kind: 'home', cell: CENTRE, color: boardColors.gold });
     result.haptic = 'success';
+    result.sounds.push({ name: 'home', delay: 0 });
   } else if (move.enters && piece.kind === 'mother' && landing) {
     result.effects.push({ id: id(), kind: 'release', cell: landing, color: boardColors.gold });
     result.haptic = 'success';
+    result.sounds.push({ name: 'release', delay: 0 });
   } else if (move.enters && landing) {
     result.effects.push({ id: id(), kind: 'enter', cell: landing, color });
   }
 
-  if (events.some((e) => e.type === 'win')) result.haptic = 'success';
+  if (events.some((e) => e.type === 'win')) {
+    result.haptic = 'success';
+    result.sounds.push({ name: 'win', delay: 450 });
+  }
   return result;
 }
