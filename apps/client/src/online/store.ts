@@ -75,6 +75,7 @@ let stayConnected = false;
 
 const PING_MS = 25_000;
 const MAX_BACKOFF_MS = 15_000;
+const CONNECT_TIMEOUT_MS = 10_000;
 
 function send(message: ClientMessage): void {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -112,8 +113,14 @@ function connect(path: string, first: ClientMessage, reconnecting = false): void
     return;
   }
   socket = ws;
+  // Don't sit on "Connecting…" forever: give up on this attempt after a while
+  // (onclose then reports the error, or tries again when rejoining a seat).
+  const giveUp = setTimeout(() => {
+    if (id === socketId && ws.readyState === WebSocket.CONNECTING) ws.close();
+  }, CONNECT_TIMEOUT_MS);
 
   ws.onopen = () => {
+    clearTimeout(giveUp);
     if (id !== socketId) return;
     retries = 0;
     useOnlineStore.setState({ status: 'open' });
@@ -131,6 +138,7 @@ function connect(path: string, first: ClientMessage, reconnecting = false): void
     handle(message);
   };
   ws.onclose = () => {
+    clearTimeout(giveUp);
     if (id !== socketId) return;
     stopTimers();
     socket = null;

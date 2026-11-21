@@ -164,6 +164,8 @@ export interface Strings {
   rejoinTitle: string;
   rejoinHint: (code: string) => string;
   rejoin: string;
+  /** Online: the prompt when it becomes this player's turn. */
+  yourTurn: string;
   onlineError: Record<ErrorCode | 'network', string>;
 
   // How to play
@@ -328,6 +330,7 @@ const en: Strings = {
   rejoinTitle: 'Your online game',
   rejoinHint: (code) => `Room ${code}`,
   rejoin: 'Rejoin',
+  yourTurn: 'Your turn – throw the shells',
   onlineError: {
     'bad-message': 'Something went wrong. Please try again.',
     version: 'Please update the app to play online.',
@@ -571,6 +574,7 @@ const te: Strings = {
   rejoinTitle: 'మీ ఆన్‌లైన్ ఆట',
   rejoinHint: (code) => `గది ${code}`,
   rejoin: 'మళ్ళీ చేరండి',
+  yourTurn: 'మీ వంతు – గవ్వలు వేయండి',
   onlineError: {
     'bad-message': 'ఏదో తప్పు జరిగింది. మళ్ళీ ప్రయత్నించండి.',
     version: 'ఆన్‌లైన్‌లో ఆడటానికి యాప్‌ను అప్‌డేట్ చేయండి.',

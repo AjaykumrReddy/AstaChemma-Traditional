@@ -21,6 +21,7 @@ import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Shells } from '../components/Shells';
 import { useStrings, withDisplayNames, type Strings } from '../i18n';
+import { haptic } from '../feedback/haptics';
 import { useOnlineStore } from '../online/store';
 import { displayState, useGameStore, useTimings } from '../store/game';
 import { TUTORIAL_STEPS } from '../tutorial/steps';
@@ -154,6 +155,7 @@ export default function GameScreen() {
   const waiting = useGameStore((s) => s.waiting);
   const onlineSeats = useOnlineStore((s) => s.room?.seats);
   const onlineStatus = useOnlineStore((s) => s.status);
+  const roomCode = useOnlineStore((s) => s.room?.code ?? null);
   const leaveOnline = useOnlineStore((s) => s.leave);
   const timings = useTimings();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -168,6 +170,12 @@ export default function GameScreen() {
   // Whose hands are on the controls: online only this device's seat; locally any human.
   const humanTurn =
     !!game && !!current && game.phase !== 'finished' && (online ? current.seat === mySeat : !current.bot);
+
+  // Online: a buzz when your turn begins (the others' turns can take a while).
+  const myTurnStarts = online && humanTurn && game?.phase === 'awaitingThrow' && game.pending.length === 0 ? game.turn : null;
+  useEffect(() => {
+    if (myTurnStarts !== null) haptic('success');
+  }, [myTurnStarts]);
   const movable = useMemo(() => {
     if (!game || !humanTurn || busy || game.phase !== 'awaitingMove') return [];
     // In the guided game only the move the step asks for glows.
@@ -289,7 +297,7 @@ export default function GameScreen() {
   else if (rolling) status = t.throwing;
   else if (animation) status = t.moving;
   else if (game.phase === 'awaitingThrow' && game.pending.length > 0) status = t.keptThrowAgain(keptLabel);
-  else if (game.phase === 'awaitingThrow') status = t.throwPrompt(currentName);
+  else if (game.phase === 'awaitingThrow') status = online ? t.yourTurn : t.throwPrompt(currentName);
   else if (selected) {
     const options = movable.filter((m) => m.pieceId === selected).length;
     status = options > 1 ? t.tapSquare : t.tapAgain;
@@ -412,7 +420,8 @@ export default function GameScreen() {
     <View style={styles.screen}>
       <Stack.Screen
         options={{
-          title: t.appTitle,
+          // Online, the room code stays in view so it can be told to a friend who dropped out.
+          title: online && roomCode ? `${t.appTitle} · ${roomCode}` : t.appTitle,
           headerRight: () => (
             <View style={styles.headerActions}>
               <Link href="/rules" asChild>
