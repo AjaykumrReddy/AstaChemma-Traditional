@@ -1,6 +1,8 @@
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { generateKeyPairSync } from 'node:crypto';
+import { createServer as createHttpServer, type Server } from 'node:http';
 import { createServer } from 'node:net';
 import type { TestProject } from 'vitest/node';
 
@@ -14,6 +16,8 @@ declare module 'vitest' {
     port: number;
     /** The test Postgres, for checking what the Worker stored. */
     dbUrl: string;
+    /** Private key (PEM) for signing test "Google" ID tokens; its public half is served as the JWKS. */
+    googleKey: string;
   }
 }
 
@@ -29,6 +33,7 @@ async function freePort(): Promise<number> {
 
 let child: ChildProcess | null = null;
 let pg: { server: PGLiteSocketServer; db: PGlite } | null = null;
+let jwksServer: Server | null = null;
 
 export async function setup(project: TestProject) {
   const port = await freePort();
@@ -41,6 +46,16 @@ export async function setup(project: TestProject) {
   pg = { server, db };
   const dbUrl = `postgres://postgres:postgres@127.0.0.1:${dbPort}/postgres`;
   project.provide('dbUrl', dbUrl);
+
+  // A stand-in for Google's key server: the tests sign ID tokens with this key.
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const jwks = JSON.stringify({ keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'test-key', alg: 'RS256', use: 'sig' }] });
+  const jwksPort = await freePort();
+  jwksServer = createHttpServer((_, res) => {
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=60' });
+    res.end(jwks);
+  }).listen(jwksPort, '127.0.0.1');
+  project.provide('googleKey', privateKey.export({ type: 'pkcs8', format: 'pem' }) as string);
   // Tiny timings, and a high message limit: the test robots play far faster than people.
   // Test clients ping every 0.5 s, so 2 s of silence means a client has gone quiet.
   const vars = [
@@ -50,6 +65,8 @@ export async function setup(project: TestProject) {
     'ABANDONED_MS:60000',
     'RATE_MAX_MESSAGES:100000',
     'SILENT_MS:2000',
+    'GOOGLE_CLIENT_IDS:test-web-client',
+    `GOOGLE_JWKS_URL:http://127.0.0.1:${jwksPort}/certs`,
   ].flatMap(
     (v) => ['--var', v],
   );
@@ -92,4 +109,5 @@ export async function teardown() {
     await pg.server.stop().catch(() => {});
     await pg.db.close().catch(() => {});
   }
+  jwksServer?.close();
 }

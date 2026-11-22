@@ -1,10 +1,11 @@
-import type { AccountErrorCode, Profile } from '@asta/protocol';
+import type { AccountErrorCode, Profile, SignInOutcome } from '@asta/protocol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { apiBaseUrl } from '../online/config';
+import { googleIdToken, googleSignOut } from './google';
 
 /**
  * The player's account. Every install gets a guest account automatically (no
@@ -28,6 +29,10 @@ const tokenStorage = {
   async set(token: string): Promise<void> {
     if (Platform.OS === 'web') return AsyncStorage.setItem(TOKEN_KEY, token);
     return SecureStore.setItemAsync(TOKEN_KEY, token);
+  },
+  async clear(): Promise<void> {
+    if (Platform.OS === 'web') return AsyncStorage.removeItem(TOKEN_KEY);
+    return SecureStore.deleteItemAsync(TOKEN_KEY);
   },
 };
 
@@ -70,6 +75,10 @@ interface AccountStore {
   rename(name: string): Promise<boolean>;
   /** Collect today's daily bonus. Returns the coins paid (0 if already collected), or null if offline. */
   claimDaily(): Promise<number | null>;
+  /** Sign in with Google, keeping this phone's guest progress when it's a first sign-in. */
+  signInWithGoogle(): Promise<SignInOutcome | 'cancelled' | 'failed'>;
+  /** Sign out on this phone; a fresh guest account takes over. */
+  signOut(): Promise<void>;
 }
 
 let ensuring: Promise<void> | null = null;
@@ -134,6 +143,31 @@ export const useAccountStore = create<AccountStore>()(
         } catch {
           return null;
         }
+      },
+
+      async signInWithGoogle() {
+        const google = await googleIdToken();
+        if (google.type !== 'success') return google.type;
+        try {
+          const result = await call<{ token: string; profile: Profile; outcome: SignInOutcome }>('POST', '/v1/auth/google', {
+            token: get().token ?? undefined,
+            body: { idToken: google.idToken },
+          });
+          await tokenStorage.set(result.token);
+          set({ token: result.token, profile: result.profile, status: 'ready' });
+          return result.outcome;
+        } catch {
+          return 'failed';
+        }
+      },
+
+      async signOut() {
+        const { token } = get();
+        if (token) await call('POST', '/v1/auth/signout', { token }).catch(() => {});
+        await googleSignOut();
+        await tokenStorage.clear();
+        set({ token: null, profile: null, status: 'idle' });
+        await get().ensure();
       },
     }),
     {

@@ -3,7 +3,9 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { googleSignInAvailable } from '../account/google';
 import { DEFAULT_GUEST_NAME, useAccountStore } from '../account/store';
+import { GoogleButton } from '../components/GoogleButton';
 import { Avatar } from '../components/Avatar';
 import { Backdrop } from '../components/Backdrop';
 import { CoinIcon } from '../components/CoinIcon';
@@ -22,6 +24,26 @@ export default function ProfileScreen() {
   /** What's typed; null shows the saved name. */
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const [signing, setSigning] = useState(false);
+  const [signInMessage, setSignInMessage] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const signIn = async () => {
+    setSigning(true);
+    setSignInMessage(null);
+    const outcome = await useAccountStore.getState().signInWithGoogle();
+    setSigning(false);
+    if (outcome === 'cancelled') return;
+    if (outcome === 'failed') setSignInMessage({ text: t.signInFailed, ok: false });
+    else setSignInMessage({ text: outcome === 'existing' ? t.signInExisting : t.signInUpgraded, ok: true });
+    setDraft(null);
+  };
+  const signOut = async () => {
+    setSigning(true);
+    setSignInMessage(null);
+    await useAccountStore.getState().signOut();
+    setSigning(false);
+    setDraft(null);
+  };
 
   // Fresh stats each time the screen opens (e.g. after an online game).
   useFocusEffect(
@@ -92,6 +114,29 @@ export default function ProfileScreen() {
             {saving === 'failed' && <Text style={styles.error}>{t.saveFailed}</Text>}
           </View>
 
+          {/* Sign-in: keeps the account when changing phones. */}
+          <View style={styles.card}>
+            {profile.guest ? (
+              <>
+                <Text style={styles.earnText}>{t.guestHint}</Text>
+                {googleSignInAvailable() ? (
+                  <GoogleButton label={t.signInGoogle} busy={signing} onPress={() => void signIn()} />
+                ) : (
+                  <Text style={styles.hint}>{t.googleUnavailable}</Text>
+                )}
+              </>
+            ) : (
+              <>
+                <Text style={styles.earnText}>{t.signedInAs(profile.email)}</Text>
+                <Pressable onPress={() => void signOut()} disabled={signing} style={styles.signOut} accessibilityRole="button">
+                  <Text style={styles.signOutText}>{t.signOut}</Text>
+                </Pressable>
+                <Text style={styles.hint}>{t.signOutHint}</Text>
+              </>
+            )}
+            {signInMessage && <Text style={signInMessage.ok ? styles.ok : styles.error}>{signInMessage.text}</Text>}
+          </View>
+
           <View style={[styles.card, styles.coinCard]} accessibilityLabel={t.coinsA11y(profile.coins)}>
             <CoinIcon size={44} />
             <View>
@@ -122,7 +167,6 @@ export default function ProfileScreen() {
           </View>
 
           {status === 'offline' && <Text style={[styles.hint, styles.center]}>{t.accountOffline}</Text>}
-          {profile.guest && <Text style={[styles.hint, styles.center]}>{t.guestHint}</Text>}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -172,6 +216,8 @@ const styles = StyleSheet.create({
   coinValue: { color: '#F6D77B', fontSize: 30, fontWeight: '900', fontVariant: ['tabular-nums'] },
   earnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
   earnText: { flex: 1, color: colors.text, fontSize: 14, lineHeight: 20 },
+  signOut: { alignSelf: 'flex-start', paddingVertical: 4 },
+  signOutText: { color: colors.danger, fontSize: 15, fontWeight: '700', textDecorationLine: 'underline' },
   note: { color: colors.textMuted, fontSize: 12.5, lineHeight: 18, marginTop: space.xs, fontStyle: 'italic' },
   nameRow: { flexDirection: 'row', gap: space.sm },
   input: {

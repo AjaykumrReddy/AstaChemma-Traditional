@@ -105,6 +105,9 @@ export type ServerMessage =
 //   GET   /v1/me           Bearer token       → { profile }
 //   PATCH /v1/me           Bearer, { name }   → { profile }
 //   POST  /v1/me/daily     Bearer             → { claimed, coins, profile }
+//   POST  /v1/auth/google  { idToken }, Bearer (optional: this phone's guest)
+//                                             → { token, profile, outcome }
+//   POST  /v1/auth/signout Bearer             → { ok: true }
 //
 // Errors: { error: AccountErrorCode } with 400 / 401 / 429 / 503.
 // ---------------------------------------------------------------------------
@@ -115,6 +118,8 @@ export interface Profile {
   name: string;
   /** Not yet signed in with Google/Apple: lives on this device only. */
   guest: boolean;
+  /** The signed-in Google/Apple address (verified), if any. */
+  email: string | null;
   /** Play money; never convertible to cash. */
   coins: number;
   /** Online games finished / won. */
@@ -124,6 +129,9 @@ export interface Profile {
 }
 
 export type AccountErrorCode = 'bad-request' | 'unauthorized' | 'too-many' | 'unavailable';
+
+/** How a sign-in was matched up (see the server's signInWithGoogle). */
+export type SignInOutcome = 'upgraded' | 'existing' | 'created';
 
 // ---------------------------------------------------------------------------
 // Coins: play money, awarded only by the server. Never bought, sold or cashed.

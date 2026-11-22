@@ -16,5 +16,9 @@
   "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "6d21846b049a4e59a1022547c40c4fd8" }],
   // At most 10 new guest accounts per minute from one address.
   "ratelimits": [{ "name": "GUEST_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
+  "vars": {
+    // Google sign-in: ID tokens must be issued for our Web client (not secret).
+    "GOOGLE_CLIENT_IDS": "743187252908-gfthj90i9kealbdok71ub1bluqruiohe.apps.googleusercontent.com"
+  },
   "observability": { "enabled": true }
 }

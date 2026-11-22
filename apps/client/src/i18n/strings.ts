@@ -195,6 +195,14 @@ export interface Strings {
   saved: string;
   saveFailed: string;
   accountOffline: string;
+  signInGoogle: string;
+  googleUnavailable: string;
+  signedInAs: (email: string | null) => string;
+  signOut: string;
+  signOutHint: string;
+  signInUpgraded: string;
+  signInExisting: string;
+  signInFailed: string;
 
   // Coins
   coins: string;
@@ -390,7 +398,7 @@ const en: Strings = {
   profileTitle: 'Profile',
   profileA11y: (name) => `Your profile: ${name}`,
   guestAccount: 'Guest account',
-  guestHint: 'Your account is kept on this phone. Signing in with Google, to use it on any phone, is coming soon.',
+  guestHint: 'Sign in to keep your coins and stats if you change or lose your phone.',
   statsOnlineGames: 'Online games',
   statsWins: 'Wins',
   statsWinRate: 'Win rate',
@@ -398,6 +406,14 @@ const en: Strings = {
   saved: 'Saved',
   saveFailed: 'Couldn’t save – check your internet connection.',
   accountOffline: 'Can’t reach the server – showing your last known stats.',
+  signInGoogle: 'Sign in with Google',
+  googleUnavailable: 'Google sign-in works in the installed app.',
+  signedInAs: (email) => (email ? `Signed in with Google · ${email}` : 'Signed in with Google'),
+  signOut: 'Sign out',
+  signOutHint: 'Signing out starts a new guest account on this phone. Sign in again any time to get your account back.',
+  signInUpgraded: 'You’re signed in – your coins and stats are now kept with your Google account.',
+  signInExisting: 'Welcome back! Your account is loaded.',
+  signInFailed: 'Couldn’t sign in with Google. Please try again.',
   coins: 'Coins',
   coinsA11y: (n) => `${n.toLocaleString('en-IN')} coins`,
   dailyTitle: 'Daily bonus',
@@ -670,7 +686,7 @@ const te: Strings = {
   profileTitle: 'ప్రొఫైల్',
   profileA11y: (name) => `మీ ప్రొఫైల్: ${name}`,
   guestAccount: 'అతిథి ఖాతా',
-  guestHint: 'మీ ఖాతా ఈ ఫోన్‌లోనే ఉంటుంది. ఏ ఫోన్‌లోనైనా వాడుకునేలా Google తో సైన్ ఇన్ త్వరలో వస్తుంది.',
+  guestHint: 'ఫోన్ మార్చినా, పోయినా మీ నాణేలు, వివరాలు ఉండేలా సైన్ ఇన్ చేయండి.',
   statsOnlineGames: 'ఆన్‌లైన్ ఆటలు',
   statsWins: 'గెలుపులు',
   statsWinRate: 'గెలుపు శాతం',
@@ -678,6 +694,14 @@ const te: Strings = {
   saved: 'సేవ్ అయింది',
   saveFailed: 'సేవ్ కాలేదు – ఇంటర్నెట్ కనెక్షన్ చూడండి.',
   accountOffline: 'సర్వర్ అందుబాటులో లేదు – చివరిగా తెలిసిన వివరాలు చూపిస్తున్నాం.',
+  signInGoogle: 'Google తో సైన్ ఇన్ చేయండి',
+  googleUnavailable: 'Google సైన్ ఇన్ ఇన్‌స్టాల్ చేసిన యాప్‌లో పనిచేస్తుంది.',
+  signedInAs: (email) => (email ? `Google తో సైన్ ఇన్ అయ్యారు · ${email}` : 'Google తో సైన్ ఇన్ అయ్యారు'),
+  signOut: 'సైన్ అవుట్',
+  signOutHint: 'సైన్ అవుట్ చేస్తే ఈ ఫోన్‌లో కొత్త అతిథి ఖాతా మొదలవుతుంది. మళ్ళీ సైన్ ఇన్ చేస్తే మీ ఖాతా తిరిగి వస్తుంది.',
+  signInUpgraded: 'సైన్ ఇన్ అయ్యారు – మీ నాణేలు, వివరాలు ఇప్పుడు మీ Google ఖాతాతో ఉంటాయి.',
+  signInExisting: 'మళ్ళీ స్వాగతం! మీ ఖాతా వచ్చేసింది.',
+  signInFailed: 'Google తో సైన్ ఇన్ కాలేదు. మళ్ళీ ప్రయత్నించండి.',
   coins: 'నాణేలు',
   coinsA11y: (n) => `${n.toLocaleString('en-IN')} నాణేలు`,
   dailyTitle: 'రోజువారీ బోనస్',

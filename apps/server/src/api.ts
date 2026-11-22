@@ -1,5 +1,6 @@
 import { cleanName, MAX_TOKEN_LENGTH, type AccountErrorCode, type Profile } from '@asta/protocol';
-import { claimDaily, createGuest, indiaDate, profileForToken, renameUser } from './db/accounts';
+import { claimDaily, createGuest, endSession, indiaDate, profileForToken, renameUser, signInWithGoogle } from './db/accounts';
+import { verifyGoogleIdToken } from './google';
 import { withDb, type Db } from './db/db';
 
 /**
@@ -9,6 +10,8 @@ import { withDb, type Db } from './db/db';
  *   GET   /v1/me           Bearer token       → { profile }
  *   PATCH /v1/me           Bearer, { name }   → { profile }
  *   POST  /v1/me/daily     Bearer             → { claimed, coins, profile }
+ *   POST  /v1/auth/google  { idToken }, Bearer (optional) → { token, profile, outcome }
+ *   POST  /v1/auth/signout Bearer             → { ok: true }
  */
 
 export interface ApiEnv {
@@ -16,6 +19,10 @@ export interface ApiEnv {
   HYPERDRIVE?: Hyperdrive;
   /** Limits how fast one address can create guest accounts. */
   GUEST_LIMITER?: RateLimit;
+  /** Google OAuth client ids whose sign-ins we accept (comma-separated; the Web client id). */
+  GOOGLE_CLIENT_IDS?: string;
+  /** Where Google's signing keys are (tests point this at their own keys). */
+  GOOGLE_JWKS_URL?: string;
 }
 
 const MAX_BODY_BYTES = 4096;
@@ -74,6 +81,28 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
       if (!name) return fail('bad-request', 400);
       const { token, profile } = await db((d) => createGuest(d, name, today));
       return json({ token, profile }, 201);
+    }
+
+    if (url.pathname === '/v1/auth/google' && request.method === 'POST') {
+      const clientIds = (env.GOOGLE_CLIENT_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      if (clientIds.length === 0) return fail('unavailable', 503);
+      if (env.GUEST_LIMITER) {
+        const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
+        if (!(await env.GUEST_LIMITER.limit({ key: `google:${ip}` })).success) return fail('too-many', 429);
+      }
+      const body = await readJson(request);
+      if (!body || typeof body.idToken !== 'string') return fail('bad-request', 400);
+      const google = await verifyGoogleIdToken(body.idToken, { clientIds, jwksUrl: env.GOOGLE_JWKS_URL || undefined });
+      if (!google) return fail('unauthorized', 401);
+      const result = await db((d) => signInWithGoogle(d, google, bearer(request), DEFAULT_GUEST_NAME, today));
+      return json(result);
+    }
+
+    if (url.pathname === '/v1/auth/signout' && request.method === 'POST') {
+      const token = bearer(request);
+      if (!token) return fail('unauthorized', 401);
+      await db((d) => endSession(d, token));
+      return json({ ok: true });
     }
 
     if (url.pathname === '/v1/me/daily' && request.method === 'POST') {

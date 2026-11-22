@@ -8,6 +8,7 @@ import {
   type RoomView,
   type ServerMessage,
 } from '@asta/protocol';
+import { createPrivateKey, sign } from 'node:crypto';
 import pg from 'pg';
 import { claimDaily, credit } from './db/accounts';
 import { withDb } from './db/db';
@@ -98,10 +99,12 @@ async function joinRoom(code: string, name: string, account?: string) {
 }
 
 /** Call the account API. */
-async function api(method: string, path: string, opts: { token?: string; body?: unknown } = {}) {
+async function api(method: string, path: string, opts: { token?: string; body?: unknown; ip?: string } = {}) {
   const res = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
     headers: {
+      // Locally the test can say which address it comes from (Cloudflare sets this itself in production).
+      ...(opts.ip ? { 'cf-connecting-ip': opts.ip } : {}),
       ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}),
       ...(opts.body !== undefined ? { 'content-type': 'application/json' } : {}),
     },
@@ -309,6 +312,22 @@ describe('connections', () => {
 });
 
 const dbUrl = inject('dbUrl');
+/** A different made-up address per call, so the per-address limits don't get in the way of other tests. */
+let ipCounter = 0;
+const nextIp = () => `10.0.${Math.floor(++ipCounter / 250)}.${ipCounter % 250}`;
+const googleKey = createPrivateKey(inject('googleKey'));
+
+function claimsFor(claims: Record<string, unknown>) {
+  const now = Math.floor(Date.now() / 1000);
+  return { iss: 'https://accounts.google.com', aud: 'test-web-client', iat: now, exp: now + 3600, email_verified: true, ...claims };
+}
+
+/** An ID token signed the way Google signs them, by the test's stand-in Google. */
+function googleToken(claims: Record<string, unknown>, header: Record<string, unknown> = {}): string {
+  const part = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+  const unsigned = `${part({ alg: 'RS256', typ: 'JWT', kid: 'test-key', ...header })}.${part(claimsFor(claims))}`;
+  return `${unsigned}.${sign('RSA-SHA256', Buffer.from(unsigned), googleKey).toString('base64url')}`;
+}
 
 describe('accounts', () => {
   it('creates a guest account, reads it back with its token, and renames it', async () => {
@@ -427,6 +446,72 @@ describe('accounts', () => {
   it('lets people play with an unknown account token (the game just is not counted)', async () => {
     const { host } = await createRoom('Asha', 2, 'stale-token-from-an-old-install');
     expect((await host.room()).seats[0]).toMatchObject({ name: 'Asha', kind: 'human' });
+  });
+
+  it('signs in with Google: keeps the guest progress, then finds the same account on another phone', async () => {
+    const sub = `google-${Date.now()}`;
+    // Phone 1: a guest who has collected a daily bonus, then signs in.
+    const phone1 = await newGuest('Player');
+    await api('POST', '/v1/me/daily', { token: phone1.token });
+    const upgraded = await api('POST', '/v1/auth/google', { ip: nextIp(),
+      token: phone1.token,
+      body: { idToken: googleToken({ sub, email: 'asha@example.com', given_name: 'Asha' }) },
+    });
+    expect(upgraded.status).toBe(200);
+    expect(upgraded.body).toMatchObject({ outcome: 'upgraded', token: phone1.token });
+    expect(upgraded.body.profile).toMatchObject({
+      id: phone1.profile.id,
+      guest: false,
+      email: 'asha@example.com',
+      name: 'Asha', // was still the default name
+      coins: COINS.welcome + COINS.dailyBase,
+    });
+
+    // Phone 2: a fresh guest signs in with the same Google account and gets the same account back.
+    const phone2 = await newGuest('Someone');
+    const existing = await api('POST', '/v1/auth/google', { ip: nextIp(), token: phone2.token, body: { idToken: googleToken({ sub }) } });
+    expect(existing.body.outcome).toBe('existing');
+    expect(existing.body.token).not.toBe(phone2.token);
+    expect(existing.body.profile).toMatchObject({ id: phone1.profile.id, coins: COINS.welcome + COINS.dailyBase });
+    // Both phones are signed in to it.
+    expect((await api('GET', '/v1/me', { token: phone1.token })).body.profile.id).toBe(phone1.profile.id);
+    expect((await api('GET', '/v1/me', { token: existing.body.token })).body.profile.id).toBe(phone1.profile.id);
+  });
+
+  it('creates a new account for a first-time Google sign-in without a guest', async () => {
+    const created = await api('POST', '/v1/auth/google', { ip: nextIp(),
+      body: { idToken: googleToken({ sub: `new-${Date.now()}`, given_name: 'Ravi', email: 'ravi@example.com' }) },
+    });
+    expect(created.body).toMatchObject({ outcome: 'created' });
+    expect(created.body.profile).toMatchObject({ name: 'Ravi', guest: false, coins: COINS.welcome });
+  });
+
+  it('refuses Google tokens that are forged, expired, for another app, or unverified emails', async () => {
+    const sub = `bad-${Date.now()}`;
+    const status = async (idToken: string) => (await api('POST', '/v1/auth/google', { ip: nextIp(), body: { idToken } })).status;
+    expect(await status(googleToken({ sub, aud: 'someone-elses-app' }))).toBe(401);
+    expect(await status(googleToken({ sub, exp: Math.floor(Date.now() / 1000) - 3600 }))).toBe(401);
+    expect(await status(googleToken({ sub, iss: 'https://evil.example.com' }))).toBe(401);
+    expect(await status(googleToken({ sub }, { kid: 'unknown-key' }))).toBe(401);
+    // A real token with the claims changed after signing.
+    const [h, , s] = googleToken({ sub }).split('.');
+    const forged = Buffer.from(JSON.stringify({ ...claimsFor({ sub: 'someone-else' }) })).toString('base64url');
+    expect(await status(`${h}.${forged}.${s}`)).toBe(401);
+    expect(await status('not.a.jwt')).toBe(401);
+    // An address Google hasn't verified isn't stored.
+    const unverified = await api('POST', '/v1/auth/google', { ip: nextIp(),
+      body: { idToken: googleToken({ sub, email: 'x@example.com', email_verified: false }) },
+    });
+    expect(unverified.body.profile.email).toBeNull();
+  });
+
+  it('signs out: the session stops working', async () => {
+    // (A Google sign-in: this suite has used up the guest allowance for the minute by now.)
+    const { token } = (await api('POST', '/v1/auth/google', { ip: nextIp(), body: { idToken: googleToken({ sub: `out-${Date.now()}` }) } }))
+      .body as { token: string };
+    expect((await api('GET', '/v1/me', { token })).status).toBe(200);
+    expect((await api('POST', '/v1/auth/signout', { token })).status).toBe(200);
+    expect((await api('GET', '/v1/me', { token })).status).toBe(401);
   });
 
   // Last: it uses up this address's allowance of new guests for the minute.

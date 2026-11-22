@@ -1,5 +1,5 @@
 import type { GameMode, Seat } from '@asta/engine';
-import { COINS, dailyBonus, gameReward, type DailyStatus, type Profile } from '@asta/protocol';
+import { COINS, dailyBonus, gameReward, type DailyStatus, type Profile, type SignInOutcome } from '@asta/protocol';
 import type { Db } from './db';
 
 /**
@@ -18,6 +18,7 @@ interface UserRow {
   name: string;
   google_sub: string | null;
   apple_sub: string | null;
+  email: string | null;
   coins: string | number; // bigint comes back as a string
   games_played: number;
   games_won: number;
@@ -27,7 +28,7 @@ interface UserRow {
 }
 
 const USER_COLUMNS =
-  "u.id, u.name, u.google_sub, u.apple_sub, u.coins, u.games_played, u.games_won, to_char(u.last_daily, 'YYYY-MM-DD') AS last_daily, u.daily_streak";
+  "u.id, u.name, u.google_sub, u.apple_sub, u.email, u.coins, u.games_played, u.games_won, to_char(u.last_daily, 'YYYY-MM-DD') AS last_daily, u.daily_streak";
 
 // ---------------------------------------------------------------------------
 // Days (the daily bonus follows India time, where the players are)
@@ -57,6 +58,7 @@ function toProfile(row: UserRow, today: string): Profile {
     id: row.id,
     name: row.name,
     guest: !row.google_sub && !row.apple_sub,
+    email: row.email,
     coins: Number(row.coins),
     gamesPlayed: row.games_played,
     gamesWon: row.games_won,
@@ -124,6 +126,73 @@ export async function createGuest(db: Db, name: string, today: string): Promise<
     await credit(tx, row!.id, COINS.welcome, 'welcome', 'welcome');
     return { token, profile: await loadUser(tx, row!.id, today) };
   });
+}
+
+async function newSession(tx: Db, userId: string): Promise<string> {
+  const token = newToken();
+  await tx.query('INSERT INTO sessions (token_hash, user_id) VALUES ($1, $2)', [await hashToken(token), userId]);
+  return token;
+}
+
+/**
+ * Sign in with a verified Google identity. The outcome says how it was matched up:
+ *  - 'upgraded': this phone's guest account now belongs to the Google account (nothing lost);
+ *  - 'existing': the Google account already had an account (e.g. from another phone), now in use here;
+ *  - 'created':  a brand-new account. `currentToken` is this phone's
+ * session (usually a guest), so its progress can be kept.
+ */
+export async function signInWithGoogle(
+  db: Db,
+  google: { sub: string; email: string | null; givenName: string | null },
+  currentToken: string | null,
+  defaultName: string,
+  today: string,
+): Promise<{ token: string; profile: Profile; outcome: SignInOutcome }> {
+  const currentHash = currentToken ? await hashToken(currentToken) : null;
+  return db.tx(async (tx) => {
+    const [existing] = await tx.query<{ id: string }>('SELECT id FROM users WHERE google_sub = $1', [google.sub]);
+    const [current] = currentHash
+      ? await tx.query<{ id: string; google_sub: string | null; apple_sub: string | null; name: string }>(
+          `SELECT u.id, u.google_sub, u.apple_sub, u.name FROM sessions s JOIN users u ON u.id = s.user_id
+           WHERE s.token_hash = $1 FOR UPDATE OF u`,
+          [currentHash],
+        )
+      : [];
+
+    if (existing) {
+      // Already signed in as this person on this phone: nothing to do.
+      if (current?.id === existing.id) {
+        return { token: currentToken!, profile: await loadUser(tx, existing.id, today), outcome: 'existing' as const };
+      }
+      await tx.query('UPDATE users SET email = COALESCE($2, email) WHERE id = $1', [existing.id, google.email]);
+      return { token: await newSession(tx, existing.id), profile: await loadUser(tx, existing.id, today), outcome: 'existing' as const };
+    }
+
+    if (current && !current.google_sub && !current.apple_sub) {
+      // Keep this phone's guest progress: it becomes the Google account. A
+      // guest still called by the default name takes their Google first name.
+      const name = current.name === defaultName && google.givenName ? google.givenName : current.name;
+      await tx.query('UPDATE users SET google_sub = $2, email = $3, name = $4 WHERE id = $1', [
+        current.id,
+        google.sub,
+        google.email,
+        name,
+      ]);
+      return { token: currentToken!, profile: await loadUser(tx, current.id, today), outcome: 'upgraded' as const };
+    }
+
+    const [row] = await tx.query<{ id: string }>(
+      'INSERT INTO users (name, google_sub, email) VALUES ($1, $2, $3) RETURNING id',
+      [google.givenName ?? defaultName, google.sub, google.email],
+    );
+    await credit(tx, row!.id, COINS.welcome, 'welcome', 'welcome');
+    return { token: await newSession(tx, row!.id), profile: await loadUser(tx, row!.id, today), outcome: 'created' as const };
+  });
+}
+
+/** End a session (sign out on this phone). */
+export async function endSession(db: Db, token: string): Promise<void> {
+  await db.query('DELETE FROM sessions WHERE token_hash = $1', [await hashToken(token)]);
 }
 
 /** The account a session token belongs to, or null if the token is unknown. */
