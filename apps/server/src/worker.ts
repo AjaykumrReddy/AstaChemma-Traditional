@@ -10,6 +10,7 @@ import {
   type ServerMessage,
 } from '@asta/protocol';
 import { handleApi, userIdForToken, type ApiEnv } from './api';
+import { deleteAccountPage } from './pages';
 import { recordGame } from './db/accounts';
 import { withDb } from './db/db';
 import { DEFAULT_TIMINGS, Room, RoomError, type RoomData, type RoomTimings } from './room';
@@ -37,6 +38,8 @@ export interface Env extends ApiEnv {
   RATE_MAX_MESSAGES?: string;
   /** A connection silent this long is treated as gone (default 60 s; apps ping every 25 s). */
   SILENT_MS?: string;
+  /** Where players can write (shown on the account-deletion page). */
+  SUPPORT_EMAIL?: string;
 }
 
 const json = (body: unknown, status = 200) =>
@@ -54,6 +57,7 @@ export default {
     if (url.pathname === '/health') return json({ ok: true, protocol: PROTOCOL_VERSION });
     // Opening the address in a browser: say what this is rather than "not found".
     if (url.pathname === '/') return json({ service: 'Asta Chemma game server', ok: true, protocol: PROTOCOL_VERSION });
+    if (url.pathname === '/delete-account') return deleteAccountPage(env.SUPPORT_EMAIL || undefined);
     const api = await handleApi(request, env, url);
     if (api) return api;
 

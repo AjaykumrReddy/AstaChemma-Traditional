@@ -203,6 +203,13 @@ export interface Strings {
   signInUpgraded: string;
   signInExisting: string;
   signInFailed: string;
+  deleteAccount: string;
+  deleteTitle: string;
+  deleteBody: string;
+  deleteConfirm: string;
+  cancel: string;
+  deleted: string;
+  deleteFailed: string;
 
   // Coins
   coins: string;
@@ -414,6 +421,14 @@ const en: Strings = {
   signInUpgraded: 'You’re signed in – your coins and stats are now kept with your Google account.',
   signInExisting: 'Welcome back! Your account is loaded.',
   signInFailed: 'Couldn’t sign in with Google. Please try again.',
+  deleteAccount: 'Delete account',
+  deleteTitle: 'Delete your account?',
+  deleteBody:
+    'This permanently deletes your account, name, coins and online stats, and unlinks Google. It can’t be undone. Games saved on this phone stay.',
+  deleteConfirm: 'Delete my account',
+  cancel: 'Cancel',
+  deleted: 'Your account was deleted. You’re now playing as a new guest.',
+  deleteFailed: 'Couldn’t delete the account – check your internet connection and try again.',
   coins: 'Coins',
   coinsA11y: (n) => `${n.toLocaleString('en-IN')} coins`,
   dailyTitle: 'Daily bonus',
@@ -702,6 +717,14 @@ const te: Strings = {
   signInUpgraded: 'సైన్ ఇన్ అయ్యారు – మీ నాణేలు, వివరాలు ఇప్పుడు మీ Google ఖాతాతో ఉంటాయి.',
   signInExisting: 'మళ్ళీ స్వాగతం! మీ ఖాతా వచ్చేసింది.',
   signInFailed: 'Google తో సైన్ ఇన్ కాలేదు. మళ్ళీ ప్రయత్నించండి.',
+  deleteAccount: 'ఖాతాను తొలగించండి',
+  deleteTitle: 'మీ ఖాతాను తొలగించాలా?',
+  deleteBody:
+    'ఇది మీ ఖాతా, పేరు, నాణేలు, ఆన్‌లైన్ వివరాలను శాశ్వతంగా తొలగిస్తుంది, Google లింక్ కూడా తీసేస్తుంది. దీన్ని వెనక్కి తీసుకోలేరు. ఈ ఫోన్‌లో సేవ్ అయిన ఆటలు ఉంటాయి.',
+  deleteConfirm: 'నా ఖాతాను తొలగించు',
+  cancel: 'రద్దు',
+  deleted: 'మీ ఖాతా తొలగించబడింది. ఇప్పుడు మీరు కొత్త అతిథిగా ఆడుతున్నారు.',
+  deleteFailed: 'ఖాతా తొలగించలేకపోయాం – ఇంటర్నెట్ కనెక్షన్ చూసి మళ్ళీ ప్రయత్నించండి.',
   coins: 'నాణేలు',
   coinsA11y: (n) => `${n.toLocaleString('en-IN')} నాణేలు`,
   dailyTitle: 'రోజువారీ బోనస్',

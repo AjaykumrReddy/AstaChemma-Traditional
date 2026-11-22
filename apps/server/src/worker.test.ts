@@ -10,7 +10,7 @@ import {
 } from '@asta/protocol';
 import { createPrivateKey, sign } from 'node:crypto';
 import pg from 'pg';
-import { claimDaily, credit } from './db/accounts';
+import { claimDaily, credit, recordGame } from './db/accounts';
 import { withDb } from './db/db';
 import { describe, expect, inject, it } from 'vitest';
 import { WebSocket } from 'ws';
@@ -512,6 +512,77 @@ describe('accounts', () => {
     expect((await api('GET', '/v1/me', { token })).status).toBe(200);
     expect((await api('POST', '/v1/auth/signout', { token })).status).toBe(200);
     expect((await api('GET', '/v1/me', { token })).status).toBe(401);
+  });
+
+  it('deletes an account for good: profile, sessions, coins and coin history', async () => {
+    const sub = `delete-${Date.now()}`;
+    const signedIn = await api('POST', '/v1/auth/google', {
+      ip: nextIp(),
+      body: { idToken: googleToken({ sub, email: 'gone@example.com', given_name: 'Gone' }) },
+    });
+    const { token, profile } = signedIn.body as { token: string; profile: Profile };
+    await api('POST', '/v1/me/daily', { token });
+
+    expect((await api('DELETE', '/v1/me')).status).toBe(401);
+    expect((await api('DELETE', '/v1/me', { token })).status).toBe(200);
+    expect((await api('GET', '/v1/me', { token })).status).toBe(401);
+    expect((await api('DELETE', '/v1/me', { token })).status).toBe(401);
+
+    const left = await withDb(dbUrl, async (db) => ({
+      users: await db.query('SELECT 1 FROM users WHERE id = $1 OR google_sub = $2 OR email = $3', [profile.id, sub, 'gone@example.com']),
+      sessions: await db.query('SELECT 1 FROM sessions WHERE user_id = $1', [profile.id]),
+      ledger: await db.query('SELECT 1 FROM coin_ledger WHERE user_id = $1', [profile.id]),
+    }));
+    expect(left).toEqual({ users: [], sessions: [], ledger: [] });
+
+    // Signing in with the same Google account afterwards starts from scratch.
+    const again = await api('POST', '/v1/auth/google', { ip: nextIp(), body: { idToken: googleToken({ sub }) } });
+    expect(again.body.outcome).toBe('created');
+    expect(again.body.profile.id).not.toBe(profile.id);
+  });
+
+  it('keeps finished games for the other players, without the deleted player in them', async () => {
+    const made = async (name: string) =>
+      (await api('POST', '/v1/auth/google', { ip: nextIp(), body: { idToken: googleToken({ sub: `${name}-${Date.now()}`, given_name: name }) } }))
+        .body as { token: string; profile: Profile };
+    const stays = await made('Stays');
+    const goes = await made('Goes');
+    const game = (key: string) => ({
+      key,
+      code: 'TEST',
+      mode: 'individual' as const,
+      startedAt: Date.now(),
+      players: [
+        { seat: 0 as const, userId: stays.profile.id, name: 'Stays', bot: null, won: true },
+        { seat: 2 as const, userId: goes.profile.id, name: 'Goes', bot: null, won: false },
+      ],
+    });
+    await withDb(dbUrl, (db) => recordGame(db, game(`before-${Date.now()}`)));
+    await api('DELETE', '/v1/me', { token: goes.token });
+
+    const rows = await withDb(dbUrl, (db) =>
+      db.query<{ name: string; user_id: string | null }>(
+        'SELECT gp.name, gp.user_id FROM game_players gp JOIN game_players mine ON mine.game_id = gp.game_id WHERE mine.user_id = $1 ORDER BY gp.seat',
+        [stays.profile.id],
+      ),
+    );
+    expect(rows).toEqual([
+      { name: 'Stays', user_id: stays.profile.id },
+      { name: 'Player', user_id: null },
+    ]);
+
+    // A game that ends after someone deleted their account mid-game is still recorded for the others.
+    const paid = await withDb(dbUrl, (db) => recordGame(db, game(`after-${Date.now()}`)));
+    expect([...paid!.keys()]).toEqual([stays.profile.id]);
+  });
+
+  it('publishes a page explaining how to delete an account', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/delete-account`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const html = await res.text();
+    expect(html).toContain('Delete your Asta Chemma account');
+    expect(html).toContain('ఖాతాను తొలగించండి');
   });
 
   // Last: it uses up this address's allowance of new guests for the minute.

@@ -9,7 +9,7 @@ import { GoogleButton } from '../components/GoogleButton';
 import { Avatar } from '../components/Avatar';
 import { Backdrop } from '../components/Backdrop';
 import { CoinIcon } from '../components/CoinIcon';
-import { TopBar } from '../components/Chrome';
+import { Popup, TopBar } from '../components/Chrome';
 import { useStrings } from '../i18n';
 import { colors, radius, space } from '../theme';
 
@@ -36,6 +36,16 @@ export default function ProfileScreen() {
     if (outcome === 'failed') setSignInMessage({ text: t.signInFailed, ok: false });
     else setSignInMessage({ text: outcome === 'existing' ? t.signInExisting : t.signInUpgraded, ok: true });
     setDraft(null);
+  };
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const removeAccount = async () => {
+    setDeleting(true);
+    const ok = await useAccountStore.getState().deleteAccount();
+    setDeleting(false);
+    setConfirmDelete(false);
+    setDraft(null);
+    setSignInMessage({ text: ok ? t.deleted : t.deleteFailed, ok });
   };
   const signOut = async () => {
     setSigning(true);
@@ -167,8 +177,27 @@ export default function ProfileScreen() {
           </View>
 
           {status === 'offline' && <Text style={[styles.hint, styles.center]}>{t.accountOffline}</Text>}
+
+          <Pressable onPress={() => setConfirmDelete(true)} style={styles.deleteLink} accessibilityRole="button">
+            <Text style={styles.deleteLinkText}>{t.deleteAccount}</Text>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
+
+      <Popup visible={confirmDelete} onClose={() => !deleting && setConfirmDelete(false)} closeLabel={t.close} title={t.deleteTitle}>
+        <Text style={styles.earnText}>{t.deleteBody}</Text>
+        <Pressable
+          style={({ pressed }) => [styles.deleteButton, (pressed || deleting) && styles.dim]}
+          onPress={() => void removeAccount()}
+          disabled={deleting}
+          accessibilityRole="button"
+        >
+          {deleting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.deleteButtonText}>{t.deleteConfirm}</Text>}
+        </Pressable>
+        <Pressable style={styles.cancel} onPress={() => setConfirmDelete(false)} disabled={deleting} accessibilityRole="button">
+          <Text style={styles.cancelText}>{t.cancel}</Text>
+        </Pressable>
+      </Popup>
     </View>
   );
 }
@@ -216,6 +245,19 @@ const styles = StyleSheet.create({
   coinValue: { color: '#F6D77B', fontSize: 30, fontWeight: '900', fontVariant: ['tabular-nums'] },
   earnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
   earnText: { flex: 1, color: colors.text, fontSize: 14, lineHeight: 20 },
+  deleteLink: { alignSelf: 'center', paddingVertical: space.sm, paddingHorizontal: space.lg },
+  deleteLinkText: { color: colors.danger, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
+  deleteButton: {
+    backgroundColor: '#B42318',
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderBottomWidth: 4,
+    borderBottomColor: '#7A1A12',
+  },
+  deleteButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  cancel: { alignSelf: 'center', paddingVertical: space.sm, paddingHorizontal: space.lg },
+  cancelText: { color: colors.chalk, fontSize: 15, fontWeight: '600', textDecorationLine: 'underline' },
   signOut: { alignSelf: 'flex-start', paddingVertical: 4 },
   signOutText: { color: colors.danger, fontSize: 15, fontWeight: '700', textDecorationLine: 'underline' },
   note: { color: colors.textMuted, fontSize: 12.5, lineHeight: 18, marginTop: space.xs, fontStyle: 'italic' },

@@ -1,5 +1,14 @@
 import { cleanName, MAX_TOKEN_LENGTH, type AccountErrorCode, type Profile } from '@asta/protocol';
-import { claimDaily, createGuest, endSession, indiaDate, profileForToken, renameUser, signInWithGoogle } from './db/accounts';
+import {
+  claimDaily,
+  createGuest,
+  deleteAccount,
+  endSession,
+  indiaDate,
+  profileForToken,
+  renameUser,
+  signInWithGoogle,
+} from './db/accounts';
 import { verifyGoogleIdToken } from './google';
 import { withDb, type Db } from './db/db';
 
@@ -12,6 +21,7 @@ import { withDb, type Db } from './db/db';
  *   POST  /v1/me/daily     Bearer             → { claimed, coins, profile }
  *   POST  /v1/auth/google  { idToken }, Bearer (optional) → { token, profile, outcome }
  *   POST  /v1/auth/signout Bearer             → { ok: true }
+ *   DELETE /v1/me          Bearer             → { ok: true }   (deletes the account for good)
  */
 
 export interface ApiEnv {
@@ -31,7 +41,7 @@ const DEFAULT_GUEST_NAME = 'Player';
 const CORS: Record<string, string> = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, content-type',
-  'access-control-allow-methods': 'GET, POST, PATCH, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, PATCH, DELETE, OPTIONS',
   'access-control-max-age': '86400',
 };
 
@@ -113,6 +123,18 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
         return me ? claimDaily(d, me.id, today) : null;
       });
       return result ? json(result) : fail('unauthorized', 401);
+    }
+
+    if (url.pathname === '/v1/me' && request.method === 'DELETE') {
+      const token = bearer(request);
+      if (!token) return fail('unauthorized', 401);
+      const deleted = await db(async (d) => {
+        const me = await profileForToken(d, token, today);
+        if (!me) return false;
+        await deleteAccount(d, me.id);
+        return true;
+      });
+      return deleted ? json({ ok: true }) : fail('unauthorized', 401);
     }
 
     if (url.pathname === '/v1/me' && (request.method === 'GET' || request.method === 'PATCH')) {

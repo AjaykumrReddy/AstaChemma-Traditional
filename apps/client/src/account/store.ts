@@ -79,6 +79,8 @@ interface AccountStore {
   signInWithGoogle(): Promise<SignInOutcome | 'cancelled' | 'failed'>;
   /** Sign out on this phone; a fresh guest account takes over. */
   signOut(): Promise<void>;
+  /** Delete the account for good (server-side); a fresh guest account takes over. False if it couldn't be done. */
+  deleteAccount(): Promise<boolean>;
 }
 
 let ensuring: Promise<void> | null = null;
@@ -168,6 +170,21 @@ export const useAccountStore = create<AccountStore>()(
         await tokenStorage.clear();
         set({ token: null, profile: null, status: 'idle' });
         await get().ensure();
+      },
+
+      async deleteAccount() {
+        const { token } = get();
+        if (!token) return false;
+        try {
+          await call('DELETE', '/v1/me', { token });
+        } catch {
+          return false;
+        }
+        await googleSignOut();
+        await tokenStorage.clear();
+        set({ token: null, profile: null, status: 'idle' });
+        await get().ensure();
+        return true;
       },
     }),
     {

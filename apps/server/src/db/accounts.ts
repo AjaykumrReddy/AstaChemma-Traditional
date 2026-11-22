@@ -190,6 +190,22 @@ export async function signInWithGoogle(
   });
 }
 
+/**
+ * Delete an account for good: the user, their sessions, coins and coin
+ * history, and their Google/Apple link. Finished games stay in other players'
+ * history, but with this player's name and account removed.
+ */
+export async function deleteAccount(db: Db, userId: string): Promise<void> {
+  await db.tx(async (tx) => {
+    await tx.query(`UPDATE game_players SET name = $2, user_id = NULL WHERE user_id = $1`, [userId, DELETED_PLAYER_NAME]);
+    // Sessions and the coin ledger go with the user (ON DELETE CASCADE).
+    await tx.query('DELETE FROM users WHERE id = $1', [userId]);
+  });
+}
+
+/** How a deleted player appears in other players' game history. */
+export const DELETED_PLAYER_NAME = 'Player';
+
 /** End a session (sign out on this phone). */
 export async function endSession(db: Db, token: string): Promise<void> {
   await db.query('DELETE FROM sessions WHERE token_hash = $1', [await hashToken(token)]);
@@ -265,22 +281,29 @@ export async function recordGame(db: Db, game: GameRecord): Promise<Map<string, 
     );
     if (!row) return null;
     const humans = game.players.filter((p) => p.bot === null).length;
+    // Someone may have deleted their account during the game: record them as anonymous.
+    const ids = game.players.map((p) => p.userId).filter((id): id is string => id !== null);
+    const live = new Set(
+      ids.length ? (await tx.query<{ id: string }>('SELECT id FROM users WHERE id = ANY($1::uuid[])', [ids])).map((r) => r.id) : [],
+    );
     const paid = new Map<string, { coins: number; won: boolean }>();
     for (const p of game.players) {
+      const userId = p.userId && live.has(p.userId) ? p.userId : null;
+      const deleted = p.userId !== null && userId === null;
       // A player can't hold two seats, but never pay anyone twice.
-      const counted = p.userId !== null && !paid.has(p.userId);
+      const counted = userId !== null && !paid.has(userId);
       const coins = counted ? gameReward(p.won, humans - 1) : 0;
       await tx.query(
         'INSERT INTO game_players (game_id, seat, user_id, name, bot, won, coins) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [row.id, p.seat, p.userId, p.name, p.bot, p.won, coins],
+        [row.id, p.seat, userId, deleted ? DELETED_PLAYER_NAME : p.name, p.bot, p.won, coins],
       );
       if (!counted) continue;
-      paid.set(p.userId!, { coins, won: p.won });
+      paid.set(userId, { coins, won: p.won });
       await tx.query('UPDATE users SET games_played = games_played + 1, games_won = games_won + $2 WHERE id = $1', [
-        p.userId,
+        userId,
         p.won ? 1 : 0,
       ]);
-      await credit(tx, p.userId!, coins, p.won ? 'win' : 'played', game.key);
+      await credit(tx, userId, coins, p.won ? 'win' : 'played', game.key);
     }
     return paid;
   });
