@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -28,6 +29,7 @@ import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Cowrie } from '../components/Shells';
 import { STRINGS, useStrings, withDisplayNames } from '../i18n';
+import { PRIVACY_URL } from '../online/config';
 import { useOnlineStore } from '../online/store';
 import { useGameStore } from '../store/game';
 import { colors, radius, seatColors, space } from '../theme';
@@ -360,6 +362,9 @@ export default function HomeScreen() {
         >
           <Text style={styles.secondaryText}>{t.howToPlay}</Text>
         </Pressable>
+        <Pressable style={styles.secondary} onPress={() => void Linking.openURL(PRIVACY_URL)} accessibilityRole="link">
+          <Text style={[styles.secondaryText, styles.smallLink]}>{t.privacyPolicy}</Text>
+        </Pressable>
         <Pressable style={({ pressed }) => [styles.primary, pressed && styles.pressed]} onPress={() => setSettingsOpen(false)} accessibilityRole="button">
           <Text style={styles.primaryText}>{t.done}</Text>
         </Pressable>
@@ -546,4 +551,5 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.8 },
   secondary: { paddingVertical: 8, alignItems: 'center' },
   secondaryText: { color: colors.chalk, fontSize: 15, fontWeight: '600', textDecorationLine: 'underline' },
+  smallLink: { fontSize: 13, color: colors.textMuted },
 });

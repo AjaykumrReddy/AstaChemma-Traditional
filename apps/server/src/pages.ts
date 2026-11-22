@@ -3,7 +3,13 @@
  *
  *   GET /delete-account   How to delete your account and data (Google Play's
  *                         "account deletion" link).
+ *   GET /privacy          The privacy policy.
+ *
+ * Both name the contact address from SUPPORT_EMAIL (wrangler.jsonc).
  */
+
+/** When the privacy policy last changed (shown on the page; update with every change). */
+export const PRIVACY_UPDATED = '22 November 2026';
 
 const STYLE = `
   :root { color-scheme: dark; }
@@ -95,6 +101,111 @@ export function deleteAccountPage(supportEmail: string | undefined): Response {
   <ul>
     <li>ముగిసిన ఆన్‌లైన్ ఆటల ఫలితాలు – మీ పేరు, ఖాతా లేకుండా, మిమ్మల్ని గుర్తించలేని విధంగా.</li>
   </ul>
+</main>
+</body>
+</html>`;
+  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+}
+
+export function privacyPage(supportEmail: string | undefined): Response {
+  const email = supportEmail ? escapeHtml(supportEmail) : null;
+  const mail = email ? `<a href="mailto:${email}">${email}</a>` : 'the address in the app’s store listing';
+  const mailTe = email ? `<a href="mailto:${email}">${email}</a>` : 'యాప్ స్టోర్ పేజీలోని చిరునామా';
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asta Chemma – Privacy policy</title>
+<style>${STYLE}</style>
+</head>
+<body>
+<main>
+  <h1>Privacy policy</h1>
+  <p class="sub">Asta Chemma (అష్ట చెమ్మ) · Last updated ${PRIVACY_UPDATED} · <a href="#te">తెలుగు</a></p>
+
+  <div class="card">
+    <h2>In short</h2>
+    <ul>
+      <li>We keep only what the game needs: your player name, your coins and your online results – plus your email address if you sign in with Google.</li>
+      <li>No ads, no tracking, no analytics, and we never sell or share your data.</li>
+      <li>Coins are play money only: they can't be bought, sold or exchanged for money.</li>
+      <li>You can delete your account and data at any time, in the app.</li>
+    </ul>
+  </div>
+
+  <h2>What we collect, and why</h2>
+  <ul>
+    <li><b>Your account.</b> When you first open the app it creates a guest account for you: a random account number and the player name you choose (until then, "Player"). This is how your coins and stats are kept.</li>
+    <li><b>Google sign-in (optional).</b> If you sign in with Google, we receive your Google account ID, your email address (only if Google has verified it) and your first name, which we use as your starting player name. We use these only to sign you in and to keep your account across phones. We never receive your Google password.</li>
+    <li><b>Coins and shop.</b> Your coin balance, a record of each change (daily bonus, game rewards, shop purchases) and the looks you own and use.</li>
+    <li><b>Online games.</b> For each finished online game: the room code, when it was played, each player's name and seat, who won and the coins earned. While a game is in progress, the game server also keeps the room itself (seats, names and moves); it is removed shortly after the game ends or the room is left.</li>
+    <li><b>Activity dates.</b> When your account was created and, at most hourly, when it was last used – so inactive accounts could be tidied up in future.</li>
+    <li><b>Sign-in sessions.</b> Your phone holds a secret sign-in key in its secure storage. We store only a scrambled (hashed) form of it, so it is useless to anyone who sees our database.</li>
+  </ul>
+  <p>Other players in an online game see your player name and how you are playing. Choose a name you're happy for them to see.</p>
+
+  <h2>What stays on your phone</h2>
+  <p>Games against the computer or with friends on the same phone, your settings (language, speed, sound) and the guided game are stored only on your phone. We never receive them. Uninstalling the app removes them.</p>
+
+  <h2>What we don't collect</h2>
+  <p>We don't collect your location, contacts, photos, microphone, phone number, advertising ID or payment details, and the app contains no advertising or analytics tools.</p>
+
+  <h2>Who processes the data</h2>
+  <ul>
+    <li><b>Cloudflare</b> runs our game server. Like any website host, it processes your IP address to deliver the service and to stop abuse (for example, limiting how quickly new accounts can be made from one address). We don't store IP addresses; Cloudflare's technical logs are kept for a few days.</li>
+    <li><b>Neon</b> hosts our database (in Singapore).</li>
+    <li><b>Google</b> handles Google sign-in, under Google's own privacy policy.</li>
+  </ul>
+  <p>They act on our behalf only. We don't sell, rent or share your data with anyone else, and we don't use it for advertising.</p>
+
+  <h2>Security</h2>
+  <p>All traffic between the app and our server is encrypted (HTTPS). Coins and purchases are checked by the server, and sign-in keys are stored only in hashed form.</p>
+
+  <h2>How long we keep it</h2>
+  <p>Until you delete your account. When you do, your account, name, email, Google link, coins, coin history, purchases and sign-ins are deleted straight away. Results of finished online games stay so other players' history adds up, but with your name and account removed, so they no longer identify you. Short-term logs and backups expire on their own.</p>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li><b>See</b> your data: your name, coins, stats and purchases are on the Profile screen.</li>
+    <li><b>Change</b> your player name at any time on the Profile screen.</li>
+    <li><b>Delete</b> your account: Profile → Delete account. See <a href="/delete-account">how to delete your account</a>.</li>
+    <li><b>Questions or requests:</b> write to ${mail}.</li>
+  </ul>
+
+  <h2>Children</h2>
+  <p>Asta Chemma is a traditional family board game. It is not directed at children under 13, and online play shows only the player names people choose. If you believe a child has given us personal information, contact us and we will delete it.</p>
+
+  <h2>Changes</h2>
+  <p>If this policy changes, we will update this page and the date at the top.</p>
+
+  <hr>
+
+  <h1 id="te">గోప్యతా విధానం</h1>
+  <p class="sub">అష్ట చెమ్మ · చివరిగా మార్చింది ${PRIVACY_UPDATED}</p>
+  <div class="card">
+    <h2>క్లుప్తంగా</h2>
+    <ul>
+      <li>ఆటకు కావలసినవి మాత్రమే ఉంచుకుంటాం: మీ ఆటగాడి పేరు, నాణేలు, ఆన్‌లైన్ ఫలితాలు – Google తో సైన్ ఇన్ చేస్తే మీ ఈమెయిల్ కూడా.</li>
+      <li>ప్రకటనలు లేవు, ట్రాకింగ్ లేదు, మీ వివరాలను ఎవరికీ అమ్మం, పంచం.</li>
+      <li>నాణేలు సరదా కోసమే: వాటిని కొనలేరు, అమ్మలేరు, డబ్బుగా మార్చలేరు.</li>
+      <li>మీ ఖాతాను, వివరాలను ఎప్పుడైనా యాప్‌లోనే తొలగించవచ్చు.</li>
+    </ul>
+  </div>
+  <h2>ఏమి సేకరిస్తాం, ఎందుకు</h2>
+  <ul>
+    <li><b>మీ ఖాతా:</b> ఒక యాదృచ్ఛిక ఖాతా సంఖ్య, మీరు ఎంచుకున్న ఆటగాడి పేరు – మీ నాణేలు, వివరాలు ఉంచడానికి.</li>
+    <li><b>Google సైన్ ఇన్ (ఐచ్ఛికం):</b> మీ Google ఖాతా ID, ఈమెయిల్ (Google ధృవీకరించినది మాత్రమే), మొదటి పేరు – సైన్ ఇన్ చేయడానికి, ఫోన్ మారినా ఖాతా ఉండటానికి మాత్రమే. మీ Google పాస్‌వర్డ్ మాకు ఎప్పుడూ రాదు.</li>
+    <li><b>నాణేలు, దుకాణం:</b> నాణేల నిల్వ, ప్రతి మార్పు రికార్డు, మీరు కొన్నవి, వాడుతున్నవి.</li>
+    <li><b>ఆన్‌లైన్ ఆటలు:</b> గది కోడ్, సమయం, ఆటగాళ్ల పేర్లు, ఎవరు గెలిచారు, సంపాదించిన నాణేలు.</li>
+  </ul>
+  <p>కంప్యూటర్‌తో లేదా ఒకే ఫోన్‌లో ఆడే ఆటలు, సెట్టింగ్‌లు మీ ఫోన్‌లోనే ఉంటాయి – మాకు రావు. మీ లొకేషన్, కాంటాక్ట్‌లు, ఫోటోలు, ఫోన్ నంబర్, చెల్లింపు వివరాలు సేకరించం.</p>
+  <h2>ఎవరు నిర్వహిస్తారు</h2>
+  <p>మా సర్వర్‌ను Cloudflare, డేటాబేస్‌ను Neon (సింగపూర్), సైన్ ఇన్‌ను Google నిర్వహిస్తాయి – మా తరపున మాత్రమే. IP చిరునామాలను మేము నిల్వ చేయం.</p>
+  <h2>ఎంతకాలం ఉంచుతాం</h2>
+  <p>మీరు ఖాతాను తొలగించే వరకు. తొలగిస్తే మీ ఖాతా, పేరు, ఈమెయిల్, నాణేలు, కొనుగోళ్లు వెంటనే తొలగిపోతాయి. ముగిసిన ఆటల ఫలితాలు మీ పేరు లేకుండా ఉంటాయి.</p>
+  <h2>మీ ఎంపికలు</h2>
+  <p>ప్రొఫైల్‌లో మీ వివరాలు చూడండి, పేరు మార్చండి, లేదా ఖాతాను తొలగించండి (<a href="/delete-account">ఎలా తొలగించాలి</a>). ప్రశ్నలకు: ${mailTe}.</p>
 </main>
 </body>
 </html>`;

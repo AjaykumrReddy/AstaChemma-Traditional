@@ -1,7 +1,8 @@
 import { COINS, MAX_NAME_LENGTH, dailyBonus } from '@asta/protocol';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PRIVACY_URL } from '../online/config';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { googleSignInAvailable } from '../account/google';
 import { DEFAULT_GUEST_NAME, useAccountStore } from '../account/store';
@@ -185,9 +186,14 @@ export default function ProfileScreen() {
 
           {status === 'offline' && <Text style={[styles.hint, styles.center]}>{t.accountOffline}</Text>}
 
-          <Pressable onPress={() => setConfirmDelete(true)} style={styles.deleteLink} accessibilityRole="button">
-            <Text style={styles.deleteLinkText}>{t.deleteAccount}</Text>
-          </Pressable>
+          <View style={styles.footerLinks}>
+            <Pressable onPress={() => void Linking.openURL(PRIVACY_URL)} style={styles.deleteLink} accessibilityRole="link">
+              <Text style={styles.privacyText}>{t.privacyPolicy}</Text>
+            </Pressable>
+            <Pressable onPress={() => setConfirmDelete(true)} style={styles.deleteLink} accessibilityRole="button">
+              <Text style={styles.deleteLinkText}>{t.deleteAccount}</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       </SafeAreaView>
 
@@ -261,6 +267,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#B8913A',
   },
   shopButtonText: { color: '#2A2208', fontSize: 15, fontWeight: '900' },
+  footerLinks: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' },
+  privacyText: { color: colors.textMuted, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
   deleteLink: { alignSelf: 'center', paddingVertical: space.sm, paddingHorizontal: space.lg },
   deleteLinkText: { color: colors.danger, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
   deleteButton: {

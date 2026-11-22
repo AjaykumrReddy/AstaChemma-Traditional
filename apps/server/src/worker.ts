@@ -10,7 +10,7 @@ import {
   type ServerMessage,
 } from '@asta/protocol';
 import { handleApi, userIdForToken, type ApiEnv } from './api';
-import { deleteAccountPage } from './pages';
+import { deleteAccountPage, privacyPage } from './pages';
 import { recordGame } from './db/accounts';
 import { withDb } from './db/db';
 import { DEFAULT_TIMINGS, Room, RoomError, type RoomData, type RoomTimings } from './room';
@@ -58,6 +58,7 @@ export default {
     // Opening the address in a browser: say what this is rather than "not found".
     if (url.pathname === '/') return json({ service: 'Asta Chemma game server', ok: true, protocol: PROTOCOL_VERSION });
     if (url.pathname === '/delete-account') return deleteAccountPage(env.SUPPORT_EMAIL || undefined);
+    if (url.pathname === '/privacy') return privacyPage(env.SUPPORT_EMAIL || undefined);
     const api = await handleApi(request, env, url);
     if (api) return api;
 

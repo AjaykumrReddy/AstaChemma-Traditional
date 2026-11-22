@@ -30,3 +30,6 @@ export function serverUrl(): string {
 export function apiBaseUrl(): string {
   return serverUrl().replace(/^ws(s?):/, 'http$1:');
 }
+
+/** The privacy policy (always the live one, whichever server the app plays on). */
+export const PRIVACY_URL = `${LIVE_SERVER_URL.replace(/^wss:/, 'https:')}/privacy`;

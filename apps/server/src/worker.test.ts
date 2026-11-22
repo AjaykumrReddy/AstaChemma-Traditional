@@ -578,6 +578,16 @@ describe('accounts', () => {
     expect([...paid!.keys()]).toEqual([stays.profile.id]);
   });
 
+  it('publishes the privacy policy, in English and Telugu, linking to account deletion', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/privacy`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    const html = await res.text();
+    expect(html).toContain('Privacy policy');
+    expect(html).toContain('గోప్యతా విధానం');
+    expect(html).toContain('href="/delete-account"');
+  });
+
   it('publishes a page explaining how to delete an account', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/delete-account`);
     expect(res.status).toBe(200);

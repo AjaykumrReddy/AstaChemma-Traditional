@@ -18,7 +18,10 @@
   "ratelimits": [{ "name": "GUEST_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
   "vars": {
     // Google sign-in: ID tokens must be issued for our Web client (not secret).
-    "GOOGLE_CLIENT_IDS": "743187252908-gfthj90i9kealbdok71ub1bluqruiohe.apps.googleusercontent.com"
+    "GOOGLE_CLIENT_IDS": "743187252908-gfthj90i9kealbdok71ub1bluqruiohe.apps.googleusercontent.com",
+    // Public contact address on /privacy and /delete-account.
+    // TODO before the store launch: replace this placeholder with the real support address.
+    "SUPPORT_EMAIL": "support@astachemma.example"
   },
   "observability": { "enabled": true }
 }

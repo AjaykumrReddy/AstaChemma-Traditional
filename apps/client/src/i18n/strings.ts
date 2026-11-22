@@ -210,6 +210,7 @@ export interface Strings {
   cancel: string;
   deleted: string;
   deleteFailed: string;
+  privacyPolicy: string;
 
   // Shop
   shop: string;
@@ -444,6 +445,7 @@ const en: Strings = {
   cancel: 'Cancel',
   deleted: 'Your account was deleted. You’re now playing as a new guest.',
   deleteFailed: 'Couldn’t delete the account – check your internet connection and try again.',
+  privacyPolicy: 'Privacy policy',
   shop: 'Shop',
   shopKinds: { board: 'Boards', marbles: 'Marbles', shells: 'Cowries' },
   shopItems: {
@@ -763,6 +765,7 @@ const te: Strings = {
   cancel: 'రద్దు',
   deleted: 'మీ ఖాతా తొలగించబడింది. ఇప్పుడు మీరు కొత్త అతిథిగా ఆడుతున్నారు.',
   deleteFailed: 'ఖాతా తొలగించలేకపోయాం – ఇంటర్నెట్ కనెక్షన్ చూసి మళ్ళీ ప్రయత్నించండి.',
+  privacyPolicy: 'గోప్యతా విధానం',
   shop: 'దుకాణం',
   shopKinds: { board: 'బోర్డులు', marbles: 'గోళీలు', shells: 'గవ్వలు' },
   shopItems: {
