@@ -108,6 +108,8 @@ export type ServerMessage =
 //   POST  /v1/auth/google  { idToken }, Bearer (optional: this phone's guest)
 //                                             → { token, profile, outcome }
 //   POST  /v1/auth/signout Bearer             → { ok: true }
+//   POST  /v1/shop/buy     Bearer, { itemId } → { profile }   (409 not-enough-coins)
+//   POST  /v1/shop/use     Bearer, { itemId } → { profile }   (409 not-owned)
 //
 // Errors: { error: AccountErrorCode } with 400 / 401 / 429 / 503.
 // ---------------------------------------------------------------------------
@@ -126,9 +128,13 @@ export interface Profile {
   gamesPlayed: number;
   gamesWon: number;
   daily: DailyStatus;
+  /** Shop items bought (free defaults aren't listed). */
+  owned: string[];
+  /** The look in use, per kind. */
+  equipped: Record<ShopKind, string>;
 }
 
-export type AccountErrorCode = 'bad-request' | 'unauthorized' | 'too-many' | 'unavailable';
+export type AccountErrorCode = 'bad-request' | 'unauthorized' | 'too-many' | 'unavailable' | 'not-enough-coins' | 'not-owned';
 
 /** How a sign-in was matched up (see the server's signInWithGoogle). */
 export type SignInOutcome = 'upgraded' | 'existing' | 'created';
@@ -159,6 +165,38 @@ export function dailyBonus(streak: number): number {
 /** Coins for finishing an online game. */
 export function gameReward(won: boolean, otherHumans: number): number {
   return won ? COINS.winBase + COINS.winPerHuman * otherHumans : COINS.played;
+}
+
+// ---------------------------------------------------------------------------
+// The coin shop: looks only, bought once and kept. Prices in coins.
+// ---------------------------------------------------------------------------
+
+export type ShopKind = 'board' | 'marbles' | 'shells';
+
+export interface ShopItem {
+  id: string;
+  kind: ShopKind;
+  /** 0 = the free default everyone has. */
+  price: number;
+}
+
+export const SHOP_ITEMS: readonly ShopItem[] = [
+  { id: 'board.classic', kind: 'board', price: 0 },
+  { id: 'board.night', kind: 'board', price: 2000 },
+  { id: 'board.festive', kind: 'board', price: 3000 },
+  { id: 'marbles.glass', kind: 'marbles', price: 0 },
+  { id: 'marbles.pearl', kind: 'marbles', price: 1200 },
+  { id: 'marbles.metal', kind: 'marbles', price: 1800 },
+  { id: 'shells.natural', kind: 'shells', price: 0 },
+  { id: 'shells.golden', kind: 'shells', price: 800 },
+  { id: 'shells.painted', kind: 'shells', price: 1000 },
+];
+
+/** What everyone has (and uses) to start with. */
+export const DEFAULT_LOOK: Record<ShopKind, string> = { board: 'board.classic', marbles: 'marbles.glass', shells: 'shells.natural' };
+
+export function shopItem(id: string): ShopItem | undefined {
+  return SHOP_ITEMS.find((i) => i.id === id);
 }
 
 /** The daily bonus as the app shows it. */

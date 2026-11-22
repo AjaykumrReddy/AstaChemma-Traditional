@@ -2,6 +2,7 @@ import type { PieceKind, Seat } from '@asta/engine';
 import { memo, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, Stop } from 'react-native-svg';
+import { marbleFinish, useLook } from '../cosmetics';
 import { colors, seatColors, type SeatShape } from '../theme';
 import { shapePath } from './SeatMark';
 
@@ -154,6 +155,7 @@ function PieceViewImpl({ id, kind, seat, label, shape, x, y, radius, unit, home,
   }, [selected, bob]);
 
   const colour = seatColors[seat];
+  const finish = marbleFinish(useLook().marbles);
   const gradientId = `glass-${id}`;
   const marble = MAX_R * unit * 2; // diameter in the piece's own pixels
   const ring = marble * 1.24;
@@ -241,9 +243,9 @@ function PieceViewImpl({ id, kind, seat, label, shape, x, y, radius, unit, home,
           <Svg width={box} height={box} viewBox={`${-PAD} ${-PAD} ${PAD * 2} ${PAD * 2}`}>
             <Defs>
               <RadialGradient id={gradientId} cx="35%" cy="30%" r="75%">
-                <Stop offset="0" stopColor={colour.light} />
-                <Stop offset="0.45" stopColor={colour.fill} />
-                <Stop offset="1" stopColor={colour.dark} />
+                {finish.stops(colour).map((s) => (
+                  <Stop key={s.offset} offset={s.offset} stopColor={s.color} stopOpacity={s.opacity ?? 1} />
+                ))}
               </RadialGradient>
             </Defs>
             {movable && (
@@ -256,8 +258,18 @@ function PieceViewImpl({ id, kind, seat, label, shape, x, y, radius, unit, home,
               />
             )}
             <Circle r={1} fill={`url(#${gradientId})`} opacity={home ? 0.85 : 1} />
-            {/* Glassy highlight */}
-            <Ellipse cx={-0.32} cy={-0.42} rx={0.32} ry={0.2} fill="#FFFFFF" fillOpacity={0.55} />
+            {finish.rim && (
+              <Circle r={1 - finish.rim.width / 2} fill="none" stroke={finish.rim.color} strokeOpacity={finish.rim.opacity} strokeWidth={finish.rim.width} />
+            )}
+            {/* The shine */}
+            <Ellipse
+              cx={-0.32}
+              cy={-0.42}
+              rx={finish.highlight.rx}
+              ry={finish.highlight.ry}
+              fill="#FFFFFF"
+              fillOpacity={finish.highlight.opacity}
+            />
             {kind === 'mother' && <Circle r={0.45} fill="none" stroke="#FFFFFF" strokeOpacity={0.92} strokeWidth={0.18} />}
             {/* The player's shape: inside the Mother's ring, or centred on a Child. */}
             {shape && (

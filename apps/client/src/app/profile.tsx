@@ -149,10 +149,17 @@ export default function ProfileScreen() {
 
           <View style={[styles.card, styles.coinCard]} accessibilityLabel={t.coinsA11y(profile.coins)}>
             <CoinIcon size={44} />
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.coinValue}>{profile.coins.toLocaleString('en-IN')}</Text>
               <Text style={styles.label}>{t.coins}</Text>
             </View>
+            <Pressable
+              style={({ pressed }) => [styles.shopButton, pressed && styles.dim]}
+              onPress={() => router.push('/shop')}
+              accessibilityRole="button"
+            >
+              <Text style={styles.shopButtonText}>{t.shop} ›</Text>
+            </Pressable>
           </View>
 
           <View style={styles.stats}>
@@ -245,6 +252,15 @@ const styles = StyleSheet.create({
   coinValue: { color: '#F6D77B', fontSize: 30, fontWeight: '900', fontVariant: ['tabular-nums'] },
   earnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
   earnText: { flex: 1, color: colors.text, fontSize: 14, lineHeight: 20 },
+  shopButton: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.lg,
+    paddingVertical: 9,
+    borderBottomWidth: 3,
+    borderBottomColor: '#B8913A',
+  },
+  shopButtonText: { color: '#2A2208', fontSize: 15, fontWeight: '900' },
   deleteLink: { alignSelf: 'center', paddingVertical: space.sm, paddingHorizontal: space.lg },
   deleteLinkText: { color: colors.danger, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
   deleteButton: {

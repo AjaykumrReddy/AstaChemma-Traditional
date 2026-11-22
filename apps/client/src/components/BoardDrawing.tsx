@@ -1,7 +1,8 @@
 import { BOARD_SIZE, SAFE_CELLS, cellKey, isSafeCell, type Cell, type Player, type Seat } from '@asta/engine';
 import { memo } from 'react';
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import { boardColors as b, colors, seatColors } from '../theme';
+import { boardTheme, useLook, type BoardPalette } from '../cosmetics';
+import { colors, seatColors } from '../theme';
 import {
   GRID_END,
   MID,
@@ -59,7 +60,7 @@ function petal(c: Point, angle: number, r0: number, r1: number, width: number): 
 }
 
 /** The home square's lotus: two rings of petals around a golden centre. */
-function Lotus({ c, u }: { c: Point; u: string }) {
+function Lotus({ c, u, b }: { c: Point; u: string; b: BoardPalette }) {
   const outer = Array.from({ length: 8 }, (_, i) => (i * Math.PI) / 4);
   const inner = outer.map((a) => a + Math.PI / 8);
   return (
@@ -76,7 +77,7 @@ function Lotus({ c, u }: { c: Point; u: string }) {
 }
 
 /** A safe square: the traditional X, finished with a small gold rosette. */
-function SafeMark({ cell }: { cell: Cell }) {
+function SafeMark({ cell, b }: { cell: Cell; b: BoardPalette }) {
   const x = ORIGIN + cell.col;
   const y = ORIGIN + cell.row;
   const c = cellCentre(cell);
@@ -106,11 +107,15 @@ export interface BoardDrawingProps {
    * arrows and highlights turn.
    */
   view?: Seat;
+  /** A board theme to draw (the shop's previews); otherwise the player's own. */
+  theme?: string;
 }
 
 /** The static board artwork: frame, tiles, safe squares, home, starting areas and move highlights. */
-function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, view = 0 }: BoardDrawingProps) {
+function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, view = 0, theme }: BoardDrawingProps) {
   const u = useSvgId();
+  const look = useLook();
+  const b = boardTheme(theme ?? look.board);
   const tiles: Cell[] = [];
   for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) tiles.push({ row, col });
   const frameX = ORIGIN - FRAME;
@@ -137,16 +142,16 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
           <Stop offset="1" stopColor={b.innerTileDark} />
         </LinearGradient>
         <RadialGradient id={`tileHome${u}`} cx="50%" cy="50%" r="70%">
-          <Stop offset="0" stopColor="#4A2C4F" />
-          <Stop offset="1" stopColor="#2A1830" />
+          <Stop offset="0" stopColor={b.homeLight} />
+          <Stop offset="1" stopColor={b.homeDark} />
         </RadialGradient>
         <LinearGradient id={`petalOuter${u}`} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor={b.goldLight} />
           <Stop offset="1" stopColor={b.gold} />
         </LinearGradient>
         <LinearGradient id={`petalInner${u}`} x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor="#FFD9E4" />
-          <Stop offset="1" stopColor="#E89AB3" />
+          <Stop offset="0" stopColor={b.petalLight} />
+          <Stop offset="1" stopColor={b.petalDark} />
         </LinearGradient>
         <RadialGradient id={`goldDisc${u}`} cx="35%" cy="35%" r="70%">
           <Stop offset="0" stopColor={b.goldLight} />
@@ -234,9 +239,9 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
       ))}
 
       {SAFE_CELLS.filter((c) => ringOf(c) !== 2).map((cell) => (
-        <SafeMark key={`x${cellKey(cell)}`} cell={cell} />
+        <SafeMark key={`x${cellKey(cell)}`} cell={cell} b={b} />
       ))}
-      <Lotus c={{ x: MID, y: MID }} u={u} />
+      <Lotus c={{ x: MID, y: MID }} u={u} b={b} />
 
       {/* Legal destinations */}
       {destinations.map((real) => {

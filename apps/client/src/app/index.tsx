@@ -252,7 +252,7 @@ export default function HomeScreen() {
             </Pressable>
             {profile && (
               <Pressable
-                onPress={() => (profile.daily.available ? setDailyOpen(true) : router.push('/profile'))}
+                onPress={() => (profile.daily.available ? setDailyOpen(true) : router.push('/shop'))}
                 style={({ pressed }) => [styles.coinChip, pressed && styles.pressed]}
                 accessibilityRole="button"
                 accessibilityLabel={t.coinsA11y(profile.coins)}

@@ -81,6 +81,10 @@ interface AccountStore {
   signOut(): Promise<void>;
   /** Delete the account for good (server-side); a fresh guest account takes over. False if it couldn't be done. */
   deleteAccount(): Promise<boolean>;
+  /** Buy a shop item (and start using it). */
+  buy(itemId: string): Promise<'ok' | 'not-enough-coins' | 'failed'>;
+  /** Use an owned item (or a free default). */
+  use(itemId: string): Promise<boolean>;
 }
 
 let ensuring: Promise<void> | null = null;
@@ -185,6 +189,30 @@ export const useAccountStore = create<AccountStore>()(
         set({ token: null, profile: null, status: 'idle' });
         await get().ensure();
         return true;
+      },
+
+      async buy(itemId) {
+        const { token } = get();
+        if (!token) return 'failed';
+        try {
+          const { profile } = await call<{ profile: Profile }>('POST', '/v1/shop/buy', { token, body: { itemId } });
+          set({ profile, status: 'ready' });
+          return 'ok';
+        } catch (error) {
+          return error instanceof ApiError && error.code === 'not-enough-coins' ? 'not-enough-coins' : 'failed';
+        }
+      },
+
+      async use(itemId) {
+        const { token, profile } = get();
+        if (!token || !profile) return false;
+        try {
+          const result = await call<{ profile: Profile }>('POST', '/v1/shop/use', { token, body: { itemId } });
+          set({ profile: result.profile, status: 'ready' });
+          return true;
+        } catch {
+          return false;
+        }
       },
     }),
     {

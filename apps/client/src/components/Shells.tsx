@@ -1,32 +1,48 @@
 import { useEffect, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
-import Svg, { Ellipse, G, Line, Path } from 'react-native-svg';
+import Svg, { Circle, Ellipse, G, Line, Path } from 'react-native-svg';
+import { shellStyle, useLook } from '../cosmetics';
 import { useStrings } from '../i18n';
 import { colors } from '../theme';
 
 const useNativeDriver = Platform.OS !== 'web';
 
 /** One cowrie shell: the open side shows the toothed slit, the closed side the dome. */
-export function Cowrie({ open, size }: { open: boolean; size: number }) {
+/** Where the painted style's dots sit on the back of the shell. */
+const DOTS = [
+  { x: 0, y: -0.6, r: 0.13 },
+  { x: -0.38, y: -0.1, r: 0.11 },
+  { x: 0.38, y: -0.1, r: 0.11 },
+  { x: 0, y: 0.25, r: 0.15 },
+  { x: -0.3, y: 0.65, r: 0.1 },
+  { x: 0.3, y: 0.65, r: 0.1 },
+];
+
+/** `look`: a shell style to draw (the shop's previews); otherwise the player's own. */
+export function Cowrie({ open, size, look }: { open: boolean; size: number; look?: string }) {
+  const own = useLook().shells;
+  const s = shellStyle(look ?? own);
   const teeth = [-0.42, -0.25, -0.08, 0.08, 0.25, 0.42];
   return (
     <Svg width={size} height={size * 1.3} viewBox="-1 -1.3 2 2.6">
       <Ellipse cx={0.05} cy={0.08} rx={0.82} ry={1.12} fill="#000" fillOpacity={0.25} />
       {open ? (
         <>
-          <Ellipse cx={0} cy={0} rx={0.82} ry={1.12} fill={colors.shellOpen} stroke={colors.shellLine} strokeWidth={0.06} />
-          <Path d="M 0 -0.95 C 0.12 -0.4, -0.12 0.4, 0 0.95" stroke={colors.shellLine} strokeWidth={0.14} fill="none" strokeLinecap="round" />
+          <Ellipse cx={0} cy={0} rx={0.82} ry={1.12} fill={s.open} stroke={s.line} strokeWidth={0.06} />
+          <Path d="M 0 -0.95 C 0.12 -0.4, -0.12 0.4, 0 0.95" stroke={s.line} strokeWidth={0.14} fill="none" strokeLinecap="round" />
           {teeth.map((t) => (
             <G key={t}>
-              <Line x1={-0.04} y1={t * 1.8} x2={-0.2} y2={t * 1.8} stroke={colors.shellLine} strokeWidth={0.05} strokeLinecap="round" />
-              <Line x1={0.04} y1={t * 1.8} x2={0.2} y2={t * 1.8} stroke={colors.shellLine} strokeWidth={0.05} strokeLinecap="round" />
+              <Line x1={-0.04} y1={t * 1.8} x2={-0.2} y2={t * 1.8} stroke={s.line} strokeWidth={0.05} strokeLinecap="round" />
+              <Line x1={0.04} y1={t * 1.8} x2={0.2} y2={t * 1.8} stroke={s.line} strokeWidth={0.05} strokeLinecap="round" />
             </G>
           ))}
         </>
       ) : (
         <>
-          <Ellipse cx={0} cy={0} rx={0.82} ry={1.12} fill={colors.shellBack} stroke={colors.shellLine} strokeWidth={0.06} />
-          <Ellipse cx={-0.2} cy={-0.35} rx={0.3} ry={0.45} fill="#FFFFFF" fillOpacity={0.35} />
+          <Ellipse cx={0} cy={0} rx={0.82} ry={1.12} fill={s.back} stroke={s.line} strokeWidth={0.06} />
+          {s.dots &&
+            DOTS.map((d, i) => <Circle key={i} cx={d.x} cy={d.y} r={d.r} fill={s.dots![i % s.dots!.length]} stroke={s.line} strokeWidth={0.03} />)}
+          <Ellipse cx={-0.2} cy={-0.35} rx={0.3} ry={0.45} fill="#FFFFFF" fillOpacity={s.shine} />
         </>
       )}
     </Svg>

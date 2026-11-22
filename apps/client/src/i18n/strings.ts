@@ -1,5 +1,5 @@
 import type { BotLevel, PieceKind, Seat } from '@asta/engine';
-import type { ErrorCode } from '@asta/protocol';
+import type { ErrorCode, ShopKind } from '@asta/protocol';
 import type { TutorialKey } from '../tutorial/steps';
 
 export type Lang = 'en' | 'te';
@@ -210,6 +210,21 @@ export interface Strings {
   cancel: string;
   deleted: string;
   deleteFailed: string;
+
+  // Shop
+  shop: string;
+  shopKinds: Record<ShopKind, string>;
+  shopItems: Record<string, { name: string; hint: string }>;
+  shopFree: string;
+  shopOwned: string;
+  shopInUse: string;
+  shopUse: string;
+  shopBuyTitle: (name: string) => string;
+  shopBuyBody: (price: string, left: string) => string;
+  shopBuy: string;
+  shopNeedMore: (n: string) => string;
+  shopFailed: string;
+  shopBought: (name: string) => string;
 
   // Coins
   coins: string;
@@ -429,6 +444,29 @@ const en: Strings = {
   cancel: 'Cancel',
   deleted: 'Your account was deleted. You’re now playing as a new guest.',
   deleteFailed: 'Couldn’t delete the account – check your internet connection and try again.',
+  shop: 'Shop',
+  shopKinds: { board: 'Boards', marbles: 'Marbles', shells: 'Cowries' },
+  shopItems: {
+    'board.classic': { name: 'Classic', hint: 'Wood and green tiles' },
+    'board.night': { name: 'Night', hint: 'Slate and silver' },
+    'board.festive': { name: 'Festive', hint: 'Red lacquer and rangoli' },
+    'marbles.glass': { name: 'Glass', hint: 'Clear and bright' },
+    'marbles.pearl': { name: 'Pearl', hint: 'Soft and lustrous' },
+    'marbles.metal': { name: 'Metal', hint: 'Polished shine' },
+    'shells.natural': { name: 'Natural', hint: 'As found on the shore' },
+    'shells.golden': { name: 'Golden', hint: 'Gilded cowries' },
+    'shells.painted': { name: 'Painted', hint: 'Festive dots' },
+  },
+  shopFree: 'Free',
+  shopOwned: 'Owned',
+  shopInUse: 'In use',
+  shopUse: 'Use',
+  shopBuyTitle: (name) => `Buy ${name}?`,
+  shopBuyBody: (price, left) => `It costs ${price} coins. You’ll have ${left} left. It’s yours to keep.`,
+  shopBuy: 'Buy',
+  shopNeedMore: (n) => `${n} more coins needed`,
+  shopFailed: 'Couldn’t reach the shop – check your internet connection.',
+  shopBought: (name) => `${name} is yours!`,
   coins: 'Coins',
   coinsA11y: (n) => `${n.toLocaleString('en-IN')} coins`,
   dailyTitle: 'Daily bonus',
@@ -725,6 +763,29 @@ const te: Strings = {
   cancel: 'రద్దు',
   deleted: 'మీ ఖాతా తొలగించబడింది. ఇప్పుడు మీరు కొత్త అతిథిగా ఆడుతున్నారు.',
   deleteFailed: 'ఖాతా తొలగించలేకపోయాం – ఇంటర్నెట్ కనెక్షన్ చూసి మళ్ళీ ప్రయత్నించండి.',
+  shop: 'దుకాణం',
+  shopKinds: { board: 'బోర్డులు', marbles: 'గోళీలు', shells: 'గవ్వలు' },
+  shopItems: {
+    'board.classic': { name: 'సాంప్రదాయ', hint: 'చెక్క, ఆకుపచ్చ పెంకులు' },
+    'board.night': { name: 'రాత్రి', hint: 'నల్లరాయి, వెండి' },
+    'board.festive': { name: 'పండుగ', hint: 'ఎరుపు లక్క, ముగ్గు' },
+    'marbles.glass': { name: 'గాజు', hint: 'స్వచ్ఛమైన మెరుపు' },
+    'marbles.pearl': { name: 'ముత్యం', hint: 'మెత్తని మెరుపు' },
+    'marbles.metal': { name: 'లోహం', hint: 'మెరుగుపెట్టిన మెరుపు' },
+    'shells.natural': { name: 'సహజ', hint: 'సముద్ర తీరంలో దొరికినట్లు' },
+    'shells.golden': { name: 'బంగారు', hint: 'బంగారు పూత గవ్వలు' },
+    'shells.painted': { name: 'రంగుల', hint: 'పండుగ చుక్కలు' },
+  },
+  shopFree: 'ఉచితం',
+  shopOwned: 'మీదే',
+  shopInUse: 'వాడుతున్నారు',
+  shopUse: 'వాడండి',
+  shopBuyTitle: (name) => `${name} కొనాలా?`,
+  shopBuyBody: (price, left) => `దీని ధర ${price} నాణేలు. మీకు ${left} మిగులుతాయి. ఇది ఎప్పటికీ మీదే.`,
+  shopBuy: 'కొనండి',
+  shopNeedMore: (n) => `ఇంకా ${n} నాణేలు కావాలి`,
+  shopFailed: 'దుకాణం అందుబాటులో లేదు – ఇంటర్నెట్ కనెక్షన్ చూడండి.',
+  shopBought: (name) => `${name} ఇప్పుడు మీదే!`,
   coins: 'నాణేలు',
   coinsA11y: (n) => `${n.toLocaleString('en-IN')} నాణేలు`,
   dailyTitle: 'రోజువారీ బోనస్',

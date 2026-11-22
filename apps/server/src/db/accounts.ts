@@ -1,5 +1,16 @@
 import type { GameMode, Seat } from '@asta/engine';
-import { COINS, dailyBonus, gameReward, type DailyStatus, type Profile, type SignInOutcome } from '@asta/protocol';
+import {
+  COINS,
+  DEFAULT_LOOK,
+  dailyBonus,
+  gameReward,
+  shopItem,
+  type AccountErrorCode,
+  type DailyStatus,
+  type Profile,
+  type ShopKind,
+  type SignInOutcome,
+} from '@asta/protocol';
 import type { Db } from './db';
 
 /**
@@ -25,10 +36,18 @@ interface UserRow {
   /** 'YYYY-MM-DD' or null. */
   last_daily: string | null;
   daily_streak: number;
+  use_board: string | null;
+  use_marbles: string | null;
+  use_shells: string | null;
+  owned: string[] | null;
 }
 
 const USER_COLUMNS =
-  "u.id, u.name, u.google_sub, u.apple_sub, u.email, u.coins, u.games_played, u.games_won, to_char(u.last_daily, 'YYYY-MM-DD') AS last_daily, u.daily_streak";
+  "u.id, u.name, u.google_sub, u.apple_sub, u.email, u.coins, u.games_played, u.games_won, to_char(u.last_daily, 'YYYY-MM-DD') AS last_daily, u.daily_streak, " +
+  'u.use_board, u.use_marbles, u.use_shells, ARRAY(SELECT oi.item_id FROM owned_items oi WHERE oi.user_id = u.id ORDER BY oi.item_id) AS owned';
+
+/** The users column holding the look in use for each kind of shop item. */
+const USE_COLUMN: Record<ShopKind, string> = { board: 'use_board', marbles: 'use_marbles', shells: 'use_shells' };
 
 // ---------------------------------------------------------------------------
 // Days (the daily bonus follows India time, where the players are)
@@ -63,6 +82,12 @@ function toProfile(row: UserRow, today: string): Profile {
     gamesPlayed: row.games_played,
     gamesWon: row.games_won,
     daily: dailyStatus(row, today),
+    owned: row.owned ?? [],
+    equipped: {
+      board: row.use_board ?? DEFAULT_LOOK.board,
+      marbles: row.use_marbles ?? DEFAULT_LOOK.marbles,
+      shells: row.use_shells ?? DEFAULT_LOOK.shells,
+    },
   };
 }
 
@@ -251,6 +276,54 @@ export async function claimDaily(
     const paid = await credit(tx, userId, status.amount, 'daily', today);
     await tx.query('UPDATE users SET last_daily = $2::date, daily_streak = $3 WHERE id = $1', [userId, today, streak]);
     return { claimed: paid, coins: paid ? status.amount : 0, profile: await loadUser(tx, userId, today) };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The coin shop
+// ---------------------------------------------------------------------------
+
+/** A shop request the player can't make (shown to them, not a server fault). */
+export class ShopError extends Error {
+  constructor(readonly code: AccountErrorCode) {
+    super(code);
+  }
+}
+
+/**
+ * Buy a shop item and start using it. Buying something already owned just
+ * returns the profile (a retried request never charges twice).
+ */
+export async function buyItem(db: Db, userId: string, itemId: string, today: string): Promise<Profile> {
+  const item = shopItem(itemId);
+  if (!item || item.price === 0) throw new ShopError('bad-request');
+  return db.tx(async (tx) => {
+    // Lock the player's row: two purchases at once can't both spend the same coins.
+    const [user] = await tx.query<{ coins: string }>('SELECT coins FROM users WHERE id = $1 FOR UPDATE', [userId]);
+    if (!user) throw new Error('no such user');
+    const [owned] = await tx.query('SELECT 1 FROM owned_items WHERE user_id = $1 AND item_id = $2', [userId, itemId]);
+    if (!owned) {
+      if (Number(user.coins) < item.price) throw new ShopError('not-enough-coins');
+      await credit(tx, userId, -item.price, 'buy', itemId);
+      await tx.query('INSERT INTO owned_items (user_id, item_id) VALUES ($1, $2)', [userId, itemId]);
+      await tx.query(`UPDATE users SET ${USE_COLUMN[item.kind]} = $2 WHERE id = $1`, [userId, itemId]);
+    }
+    return loadUser(tx, userId, today);
+  });
+}
+
+/** Start using an item the player owns (or a free default). */
+export async function useItem(db: Db, userId: string, itemId: string, today: string): Promise<Profile> {
+  const item = shopItem(itemId);
+  if (!item) throw new ShopError('bad-request');
+  return db.tx(async (tx) => {
+    if (item.price > 0) {
+      const [owned] = await tx.query('SELECT 1 FROM owned_items WHERE user_id = $1 AND item_id = $2', [userId, itemId]);
+      if (!owned) throw new ShopError('not-owned');
+    }
+    // The free default is stored as null.
+    await tx.query(`UPDATE users SET ${USE_COLUMN[item.kind]} = $2 WHERE id = $1`, [userId, item.price === 0 ? null : itemId]);
+    return loadUser(tx, userId, today);
   });
 }
 

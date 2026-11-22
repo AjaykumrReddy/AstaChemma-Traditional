@@ -1,5 +1,7 @@
 import { cleanName, MAX_TOKEN_LENGTH, type AccountErrorCode, type Profile } from '@asta/protocol';
 import {
+  ShopError,
+  buyItem,
   claimDaily,
   createGuest,
   deleteAccount,
@@ -8,6 +10,7 @@ import {
   profileForToken,
   renameUser,
   signInWithGoogle,
+  useItem,
 } from './db/accounts';
 import { verifyGoogleIdToken } from './google';
 import { withDb, type Db } from './db/db';
@@ -22,6 +25,8 @@ import { withDb, type Db } from './db/db';
  *   POST  /v1/auth/google  { idToken }, Bearer (optional) → { token, profile, outcome }
  *   POST  /v1/auth/signout Bearer             → { ok: true }
  *   DELETE /v1/me          Bearer             → { ok: true }   (deletes the account for good)
+ *   POST  /v1/shop/buy     Bearer, { itemId } → { profile }    (409 not-enough-coins)
+ *   POST  /v1/shop/use     Bearer, { itemId } → { profile }    (409 not-owned)
  */
 
 export interface ApiEnv {
@@ -123,6 +128,26 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
         return me ? claimDaily(d, me.id, today) : null;
       });
       return result ? json(result) : fail('unauthorized', 401);
+    }
+
+    if ((url.pathname === '/v1/shop/buy' || url.pathname === '/v1/shop/use') && request.method === 'POST') {
+      const token = bearer(request);
+      if (!token) return fail('unauthorized', 401);
+      const body = await readJson(request);
+      if (!body || typeof body.itemId !== 'string') return fail('bad-request', 400);
+      const itemId = body.itemId;
+      const buying = url.pathname === '/v1/shop/buy';
+      try {
+        const profile = await db(async (d) => {
+          const me = await profileForToken(d, token, today);
+          if (!me) return null;
+          return buying ? buyItem(d, me.id, itemId, today) : useItem(d, me.id, itemId, today);
+        });
+        return profile ? json({ profile }) : fail('unauthorized', 401);
+      } catch (error) {
+        if (error instanceof ShopError) return fail(error.code, error.code === 'bad-request' ? 400 : 409);
+        throw error;
+      }
     }
 
     if (url.pathname === '/v1/me' && request.method === 'DELETE') {

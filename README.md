@@ -72,6 +72,16 @@ Every install gets a **guest account** automatically (no sign-up screen); its se
 | Finish an online game | 10 |
 | Win an online game | 30, +70 per other human player (wins against computers only pay 30) |
 
+**Coin shop** (`/shop`; the coin balance on the start screen or *Shop* on the profile): looks only, bought once and kept, used everywhere (computer, pass-and-play and online games). Catalogue and prices in `SHOP_ITEMS` (`packages/protocol`); the looks themselves in `apps/client/src/cosmetics.ts`.
+
+| | Free | For sale |
+|---|---|---|
+| Boards | Classic | Night 2,000 · Festive 3,000 |
+| Marbles | Glass | Pearl 1,200 · Metal 1,800 |
+| Cowries | Natural | Golden 800 · Painted 1,000 |
+
+`POST /v1/shop/buy { itemId }` checks the balance with the player's row locked (two purchases at once can't spend the same coins), pays through the ledger (`buy` + item id, so never twice), records it in `owned_items` and starts using it; `POST /v1/shop/use { itemId }` switches between owned looks and the free defaults. What a player owns and uses is part of their profile, so it follows their account to a new phone.
+
 Every change is a `coin_ledger` row; (user, reason, ref) is unique, so the same reward can't be paid twice, even if a request is retried. A finished online game pays each signed-in player and tells them (`{ t: 'reward', coins, won }`), shown in the results. The start screen shows the balance next to the avatar and offers the daily bonus in a popup.
 
 **Database:** Postgres on [Neon](https://neon.tech), reached through Cloudflare **Hyperdrive** (pooling close to the database; binding `HYPERDRIVE` in `apps/server/wrangler.jsonc`). The server creates and updates the tables itself the first time it connects (`apps/server/src/db/migrations.ts`: numbered steps, never edited once deployed). Tables: `users`, `sessions` (only a SHA-256 hash of each token), `coin_ledger` (every coin change with its reason; a reward can't be paid twice), `games`, `game_players`.

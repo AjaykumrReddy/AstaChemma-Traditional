@@ -1,8 +1,10 @@
 import {
   COINS,
+  DEFAULT_LOOK,
   PROTOCOL_VERSION,
   dailyBonus,
   gameReward,
+  shopItem,
   type ClientMessage,
   type Profile,
   type RoomView,
@@ -583,6 +585,56 @@ describe('accounts', () => {
     const html = await res.text();
     expect(html).toContain('Delete your Asta Chemma account');
     expect(html).toContain('ఖాతాను తొలగించండి');
+  });
+
+  it('sells shop items: checks coins, charges once, and switches to the new look', async () => {
+    const { token, profile } = (await api('POST', '/v1/auth/google', { ip: nextIp(), body: { idToken: googleToken({ sub: `shop-${Date.now()}` }) } }))
+      .body as { token: string; profile: Profile };
+    expect(profile).toMatchObject({ owned: [], equipped: DEFAULT_LOOK });
+    const buy = (itemId: string) => api('POST', '/v1/shop/buy', { token, body: { itemId } });
+    const use = (itemId: string) => api('POST', '/v1/shop/use', { token, body: { itemId } });
+    const price = shopItem('shells.golden')!.price;
+
+    // A new player can't afford it yet.
+    const poor = await buy('shells.golden');
+    expect(poor).toMatchObject({ status: 409, body: { error: 'not-enough-coins' } });
+
+    await withDb(dbUrl, (db) => db.tx((tx) => credit(tx, profile.id, 2000, 'test', 'shop')));
+    const bought = await buy('shells.golden');
+    expect(bought.status).toBe(200);
+    expect(bought.body.profile).toMatchObject({
+      coins: COINS.welcome + 2000 - price,
+      owned: ['shells.golden'],
+      equipped: { ...DEFAULT_LOOK, shells: 'shells.golden' },
+    });
+    // Buying again (a retried request) doesn't charge again.
+    expect((await buy('shells.golden')).body.profile.coins).toBe(COINS.welcome + 2000 - price);
+
+    // Using: only what you own, and the free defaults.
+    expect(await use('marbles.pearl')).toMatchObject({ status: 409, body: { error: 'not-owned' } });
+    expect((await use('shells.natural')).body.profile.equipped.shells).toBe('shells.natural');
+    expect((await use('shells.golden')).body.profile.equipped.shells).toBe('shells.golden');
+
+    expect((await buy('nonsense')).status).toBe(400);
+    expect((await buy('board.classic')).status).toBe(400); // free: nothing to buy
+    expect((await api('POST', '/v1/shop/buy', { body: { itemId: 'shells.golden' } })).status).toBe(401);
+  });
+
+  it('never lets two purchases at once spend the same coins', async () => {
+    const { token, profile } = (await api('POST', '/v1/auth/google', { ip: nextIp(), body: { idToken: googleToken({ sub: `race-${Date.now()}` }) } }))
+      .body as { token: string; profile: Profile };
+    // Enough for either the pearl or the metal marbles, not both.
+    const pearl = shopItem('marbles.pearl')!.price;
+    const metal = shopItem('marbles.metal')!.price;
+    await withDb(dbUrl, (db) => db.tx((tx) => credit(tx, profile.id, metal - COINS.welcome, 'test', 'race')));
+    const results = await Promise.all(
+      ['marbles.pearl', 'marbles.metal'].map((itemId) => api('POST', '/v1/shop/buy', { token, body: { itemId } })),
+    );
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    const me = (await api('GET', '/v1/me', { token })).body.profile as Profile;
+    expect(me.owned).toHaveLength(1);
+    expect(me.coins).toBe(metal - (me.owned[0] === 'marbles.pearl' ? pearl : metal));
+    expect(me.coins).toBeGreaterThanOrEqual(0);
   });
 
   // Last: it uses up this address's allowance of new guests for the minute.

@@ -74,4 +74,19 @@ export const MIGRATIONS: { version: number; sql: string }[] = [
       ALTER TABLE game_players ADD COLUMN coins integer NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 3,
+    sql: `
+      -- The coin shop: what each player bought, and the look they use (null = the free default).
+      CREATE TABLE owned_items (
+        user_id   uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        item_id   text NOT NULL,
+        bought_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, item_id)
+      );
+      ALTER TABLE users ADD COLUMN use_board text;
+      ALTER TABLE users ADD COLUMN use_marbles text;
+      ALTER TABLE users ADD COLUMN use_shells text;
+    `,
+  },
 ];
