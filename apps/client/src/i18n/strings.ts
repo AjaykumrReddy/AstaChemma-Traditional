@@ -374,7 +374,7 @@ const en: Strings = {
     computer: 'A 1, 2 or 3 ends your turn. Watch the computer play…',
     throwEight: 'The computer’s Child has stopped near yours. Throw!',
     capture: 'All five open counts as 8! Your Child can move 8 and land on their Child – that captures it. Tap your glowing Child twice.',
-    safe: 'Captured! Their Child goes back to start. Only a Child captures a Child, and only a Mother a Mother. Nobody can be captured on an X, and two pieces never share a plain square.',
+    safe: 'Captured! Their Child goes back to start, and a capture earns you another throw. Only a Child captures a Child, and only a Mother a Mother. Nobody can be captured on an X, and two pieces never share a plain square.',
     finish:
       'That’s the game: bring all three pieces to the lotus, with the exact count, before anyone else. Keep playing this game, or go back and start your own.',
   },
@@ -565,6 +565,7 @@ const en: Strings = {
       bullets: [
         'A 4 or an 8 gives you another throw.',
         'Bringing a piece home also gives you another throw.',
+        'So does capturing an opponent’s piece.',
         'If no piece can move, the turn is simply lost.',
       ],
     },
@@ -572,7 +573,7 @@ const en: Strings = {
       title: 'Capturing and safe squares',
       bullets: [
         'Captures are like for like: only a Child captures a Child, and only a Mother captures a Mother.',
-        'Land on an opponent piece of the same kind to send it back to its starting area. Every such piece on that square goes back.',
+        'Land on an opponent piece of the same kind to send it back to its starting area. Every such piece on that square goes back – and you get another throw.',
         'No two pieces ever share a plain square – not even your own. You can land there only by capturing what is there.',
         'So you cannot land on your own piece, your partner’s, or an opponent of the other kind on a plain square.',
         'X squares and home can hold any number of pieces, yours and opponents’, and nobody can be captured there.',
@@ -706,7 +707,7 @@ const te: Strings = {
     computer: '1, 2 లేదా 3 పడితే మీ వంతు ముగుస్తుంది. కంప్యూటర్ ఆడటం చూడండి…',
     throwEight: 'కంప్యూటర్ పిల్ల మీ పిల్లకు దగ్గరలో ఆగింది. వేయండి!',
     capture: 'ఐదూ తెరుచుకుంటే 8! మీ పిల్ల 8 అడుగులు కదిలి వారి పిల్ల మీద దిగుతుంది – దాన్ని కొడుతుంది. మెరుస్తున్న పిల్లను రెండుసార్లు నొక్కండి.',
-    safe: 'కొట్టారు! వారి పిల్ల మొదటికి వెళ్ళింది. పిల్ల పిల్లను, తల్లి తల్లిని మాత్రమే కొట్టగలవు. X గడిలో ఎవరినీ కొట్టలేరు, సాధారణ గడిలో రెండు కాయలు ఎప్పుడూ కలిసి ఉండవు.',
+    safe: 'కొట్టారు! వారి పిల్ల మొదటికి వెళ్ళింది, కొట్టినందుకు మీకు మరో వేటు వస్తుంది. పిల్ల పిల్లను, తల్లి తల్లిని మాత్రమే కొట్టగలవు. X గడిలో ఎవరినీ కొట్టలేరు, సాధారణ గడిలో రెండు కాయలు ఎప్పుడూ కలిసి ఉండవు.',
     finish:
       'ఇదే ఆట: మీ మూడు కాయలనూ సరిగ్గా సరిపడే సంఖ్యతో అందరికంటే ముందు పద్మం దగ్గరకు చేర్చండి. ఈ ఆటను కొనసాగించండి, లేదా వెనక్కి వెళ్ళి మీ సొంత ఆట మొదలుపెట్టండి.',
   },
@@ -897,6 +898,7 @@ const te: Strings = {
       bullets: [
         '4 లేదా 8 పడితే మరో వేటు వస్తుంది.',
         'కాయను ఇంటికి చేర్చినా మరో వేటు వస్తుంది.',
+        'ప్రత్యర్థి కాయను కొట్టినా మరో వేటు వస్తుంది.',
         'ఏ కాయా కదలలేకపోతే ఆ వంతు పోతుంది.',
       ],
     },
@@ -904,7 +906,7 @@ const te: Strings = {
       title: 'కొట్టడం, సురక్షిత గడులు',
       bullets: [
         'ఒకే రకం కాయలనే కొట్టగలరు: పిల్ల పిల్లను, తల్లి తల్లిని మాత్రమే.',
-        'ఎదుటివారి అదే రకం కాయ ఉన్న గడిలో దిగితే, ఆ కాయ మొదటికి వెళ్తుంది. ఆ గడిలో అలాంటి కాయలన్నీ వెనక్కి వెళ్తాయి.',
+        'ఎదుటివారి అదే రకం కాయ ఉన్న గడిలో దిగితే, ఆ కాయ మొదటికి వెళ్తుంది. ఆ గడిలో అలాంటి కాయలన్నీ వెనక్కి వెళ్తాయి – మీకు మరో వేటు కూడా వస్తుంది.',
         'సాధారణ గడిలో రెండు కాయలు ఎప్పుడూ కలిసి ఉండవు – మీ సొంత కాయలు కూడా. అక్కడ ఉన్నదాన్ని కొట్టగలిగితేనే దిగవచ్చు.',
         'అంటే సాధారణ గడిలో మీ కాయ, మీ భాగస్వామి కాయ, లేదా ఎదుటివారి వేరే రకం కాయ ఉంటే అక్కడ దిగలేరు.',
         'X గడుల్లో, ఇంట్లో ఎన్ని కాయలైనా ఉండవచ్చు; అక్కడ ఎవరినీ కొట్టలేరు.',

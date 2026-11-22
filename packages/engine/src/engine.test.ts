@@ -299,6 +299,28 @@ describe('captures and safe squares', () => {
     expect(g.events.some((e) => e.type === 'capture')).toBe(true);
   });
 
+  it('gives another throw after a capture', () => {
+    // A 1 normally ends the turn; a capture with it earns another throw.
+    let g = place(createGame(twoPlayers, 1), { '0-C1': 0, '1-C1': 9 });
+    g = applyMove(applyThrow(g, open(1)), '0-C1');
+    expect(g.current).toBe(0);
+    expect(g.phase).toBe('awaitingThrow');
+    expect(g.events.map((e) => e.type)).toEqual(['throw', 'move', 'capture', 'extraTurn']);
+  });
+
+  it('gives just one extra throw for a capture with throws still to use, after they are used', () => {
+    // Kept 4 plus a 1: capture with the 1, then use the 4, then the bonus throw.
+    let g = place(createGame(twoPlayers, 1), { '0-C1': 0, '0-C2': 5, '1-C1': 9 });
+    g = applyThrow(g, open(4));
+    g = applyThrow(g, open(1)); // keep the 4, throw a 1
+    g = applyMove(g, '0-C1:1'); // the 1 captures
+    expect(g.phase).toBe('awaitingMove'); // the kept 4 is still to use
+    const four = g.legalMoves.find((m) => m.pieceId === '0-C2')!;
+    g = applyMove(g, four.id);
+    expect(g.current).toBe(0);
+    expect(g.phase).toBe('awaitingThrow');
+  });
+
   it('captures every opponent piece on that square', () => {
     let g = place(createGame(twoPlayers, 1), { '0-C1': 0, '1-C1': 9, '1-C2': 9 });
     g = applyMove(applyThrow(g, open(1)), '0-C1');

@@ -138,6 +138,7 @@ export default function HomeScreen() {
   const tutorialDone = useGameStore((s) => s.tutorialDone);
   const hydrated = useGameStore((s) => s.hydrated);
   const profile = useAccountStore((s) => s.profile);
+  const resumeDismissed = useGameStore((s) => s.resumeDismissed);
   const session = useOnlineStore((s) => s.session);
   const onlineRoom = useOnlineStore((s) => s.room);
   const onlineStatus = useOnlineStore((s) => s.status);
@@ -175,8 +176,13 @@ export default function HomeScreen() {
   const rejoinOpen = focused && !!session && (rejoinChoice === 'open' || rejoinChoice === 'auto');
   const dailyOpen =
     focused && !rejoinOpen && (dailyChoice === 'open' || (dailyChoice === 'auto' && !!profile?.daily.available));
+  // Once closed with ✕, the saved game isn't offered by itself again until a new game starts.
   const resumeOpen =
-    focused && !!saved && !rejoinOpen && !dailyOpen && (resumeChoice === 'open' || (resumeChoice === 'auto' && !session));
+    focused &&
+    !!saved &&
+    !rejoinOpen &&
+    !dailyOpen &&
+    (resumeChoice === 'open' || (resumeChoice === 'auto' && !session && !resumeDismissed));
   const setDailyOpen = (open: boolean) => {
     if (!open) {
       dailyOffered = true;
@@ -200,6 +206,11 @@ export default function HomeScreen() {
   const setResumeOpen = (open: boolean) => {
     if (!open) resumeOffered = true;
     setResumeChoice(open ? 'open' : 'closed');
+  };
+  /** Closed with ✕ (or a tap outside): remember it for this saved game. */
+  const dismissResume = () => {
+    setResumeOpen(false);
+    useGameStore.getState().dismissResume();
   };
 
   const continueSaved = () => {
@@ -406,7 +417,7 @@ export default function HomeScreen() {
       </Popup>
 
       {/* Continue the saved game */}
-      <Popup visible={resumeOpen} onClose={() => setResumeOpen(false)} closeLabel={t.close} title={t.continueTitle}>
+      <Popup visible={resumeOpen} onClose={dismissResume} closeLabel={t.close} title={t.continueTitle}>
         {saved && (
           <>
             <View style={styles.resumePlayers}>

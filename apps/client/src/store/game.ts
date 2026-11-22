@@ -72,6 +72,11 @@ interface GameStore {
   language: Lang;
   /** Show a shape per player on marbles and markers, for colour-blind players. */
   markers: boolean;
+  /**
+   * The player closed the "Continue your game" popup for the saved game: don't
+   * offer it by itself again (it stays one tap away) until a new game starts.
+   */
+  resumeDismissed: boolean;
   /** Short-lived effects on the board (bursts, shockwaves). */
   effects: BoardEffect[];
   /** Bumped to shake the board. */
@@ -129,6 +134,7 @@ interface GameStore {
   setSound(on: boolean): void;
   setLanguage(language: Lang): void;
   setMarkers(on: boolean): void;
+  dismissResume(): void;
 }
 
 // Incremented on every new game so stale timers from an old game do nothing.
@@ -154,7 +160,10 @@ let rollStartedAt = 0;
 const UNDO_LIMIT = 30;
 
 /** What is saved on the device: enough to resume exactly where the game stopped. */
-type SavedGame = Pick<GameStore, 'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language' | 'markers' | 'tutorialDone'>;
+type SavedGame = Pick<
+  GameStore,
+  'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language' | 'markers' | 'tutorialDone' | 'resumeDismissed'
+>;
 
 /** Bump when the saved shape changes in a way old saves can't be read. */
 const SAVE_VERSION = 1;
@@ -305,6 +314,7 @@ export const useGameStore = create<GameStore>()(
         sound: true,
         language: 'en',
         markers: false,
+        resumeDismissed: false,
         effects: [],
         shakeKey: 0,
         hydrated: false,
@@ -386,6 +396,8 @@ export const useGameStore = create<GameStore>()(
             tutorial: null,
             stash: null,
             undoStack: [],
+            // A new game: offer to continue it next time.
+            resumeDismissed: false,
           });
         },
 
@@ -549,6 +561,10 @@ export const useGameStore = create<GameStore>()(
         setMarkers(on) {
           set({ markers: on });
         },
+
+        dismissResume() {
+          set({ resumeDismissed: true });
+        },
       };
     },
     {
@@ -566,6 +582,7 @@ export const useGameStore = create<GameStore>()(
         sound: s.sound,
         language: s.language,
         markers: s.markers,
+        resumeDismissed: s.resumeDismissed,
       }),
       // A save from an incompatible version is dropped rather than risking a crash.
       migrate: (): SavedGame => ({
@@ -577,6 +594,7 @@ export const useGameStore = create<GameStore>()(
         language: 'en',
         markers: false,
         tutorialDone: false,
+        resumeDismissed: false,
       }),
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<SavedGame>;
@@ -593,6 +611,7 @@ export const useGameStore = create<GameStore>()(
           language: saved.language === 'te' || saved.language === 'en' ? saved.language : current.language,
           tutorialDone: saved.tutorialDone === true,
           markers: saved.markers === true,
+          resumeDismissed: saved.resumeDismissed === true,
           note: game ? 'welcome' : current.note,
         };
       },

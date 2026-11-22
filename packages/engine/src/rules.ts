@@ -385,8 +385,8 @@ export function applyMove(state: GameState, moveId: string): GameState {
     ...state,
     pieces,
     pending: state.pending.filter((_, i) => !used.has(i)),
-    // Reaching home earns another throw.
-    bonusThrow: state.bonusThrow || chosen.finishes,
+    // Reaching home, or capturing an opponent's piece, earns another throw.
+    bonusThrow: state.bonusThrow || chosen.finishes || chosen.captures.length > 0,
     legalMoves: [],
     canHold: false,
     events,
