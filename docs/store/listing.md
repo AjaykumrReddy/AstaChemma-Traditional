@@ -16,26 +16,30 @@ Images in this folder:
 
 The screenshots come from the real app, with sample players and coins.
 
+**Name:** the store title is "Asta Chemma Traditional" (in the app's logo, "Traditional" is a small
+ribbon on the name). The name under the icon on the phone stays "Asta Chemma" (`name` in
+`apps/client/app.json`), because Android cuts launcher names at about 12 characters.
+
 ---
 
 ## App details
 
 | Field | English | Telugu |
 |---|---|---|
-| App name (max 30) | Asta Chemma: Cowrie Board Game | అష్ట చెమ్మ: గవ్వల ఆట |
+| App name (max 30) | Asta Chemma Traditional | అష్ట చెమ్మ – సాంప్రదాయ |
 | Short description (max 80) | Traditional cowrie board game. Play family, friends online & the computer. | గవ్వలతో ఆడే సాంప్రదాయ ఆట. కుటుంబం, స్నేహితులు, కంప్యూటర్‌తో ఆడండి. |
 
 - **App or game:** Game
 - **Category:** Board
 - **Tags:** Board, Classic, Multiplayer, Casual, Family (pick the closest the Console offers)
-- **Contact email:** *the support address – still the placeholder `support@astachemma.example`*
+- **Contact email:** `mail.businessworks@gmail.com` (also shown on the privacy and account-deletion pages)
 - **Website:** none needed
 - **Privacy policy:** `https://asta-chemma-server.asta-server.workers.dev/privacy`
 
 ## Full description – English (max 4000)
 
 ```
-Asta Chemma (అష్ట చెమ్మ) is the traditional board game played in Telugu homes with cowrie shells and a chalk-drawn 5×5 board – now made for your phone, with the true house rules.
+Asta Chemma Traditional (అష్ట చెమ్మ) is the traditional board game played in Telugu homes with cowrie shells and a chalk-drawn 5×5 board – now made for your phone, with the true house rules.
 
 HOW IT PLAYS
 • Throw five cowrie shells and count how many land open: 1, 2, 3, 4 or 8.
@@ -144,7 +148,6 @@ notice.
 
 ## Still to do before submitting
 
-1. Replace the placeholder contact email (here, and `SUPPORT_EMAIL` in `apps/server/wrangler.jsonc`).
-2. Switch the Google sign-in screen (OAuth consent) from "Testing" to "In production".
-3. After the first upload, add the Play App Signing SHA-1 as another Android OAuth client.
-4. Personal developer accounts: run the closed test (12 testers, 14 days) before production.
+1. Switch the Google sign-in screen (OAuth consent) from "Testing" to "In production".
+2. After the first upload, add the Play App Signing SHA-1 as another Android OAuth client.
+3. Personal developer accounts: run the closed test (12 testers, 14 days) before production.

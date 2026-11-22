@@ -298,9 +298,15 @@ export default function HomeScreen() {
 
           {/* Title and board art */}
           <View style={styles.hero}>
-            <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
-              {t.appTitle}
-            </Text>
+            {/* The logo: the name, with "Traditional" as a small tilted ribbon on its top-right. */}
+            <View style={styles.logo} accessibilityLabel={`${t.appTitle} ${t.titleCaption}`}>
+              <Text style={styles.title} numberOfLines={1}>
+                {t.appTitle}
+              </Text>
+              <View style={styles.ribbon}>
+                <Text style={styles.ribbonText}>{t.titleCaption}</Text>
+              </View>
+            </View>
             <Text style={styles.subtitle}>{otherTitle}</Text>
             <View style={[styles.boardArt, { width: heroSize, height: heroSize }]}>
               <BoardDrawing players={HERO_PLAYERS} currentSeat={null} destinations={[]} strong={false} size={heroSize} />
@@ -538,6 +544,25 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 6,
   },
+  logo: { alignSelf: 'center', paddingTop: 14, paddingRight: 6 },
+  ribbon: {
+    position: 'absolute',
+    top: 0,
+    right: -18,
+    transform: [{ rotate: '-7deg' }],
+    backgroundColor: '#8E1F14',
+    borderWidth: 1.5,
+    borderColor: '#F6D77B',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  ribbonText: { color: '#FFE9A8', fontSize: 11.5, fontWeight: '900', letterSpacing: 1.8, textTransform: 'uppercase' },
   subtitle: { color: colors.chalkDim, fontSize: 15, fontWeight: '700', letterSpacing: 1, marginBottom: space.sm },
   boardArt: { position: 'relative' },
   shells: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },

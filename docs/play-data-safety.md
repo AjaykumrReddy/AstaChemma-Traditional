@@ -5,10 +5,8 @@ server actually do (v4). Check them again if features change, and keep them cons
 the privacy policy (`/privacy` on the game server).
 
 - Privacy policy URL: `https://asta-chemma-server.asta-server.workers.dev/privacy`
-  (move to your own domain before launch)
 - Account deletion URL: `https://asta-chemma-server.asta-server.workers.dev/delete-account`
-- Contact email: **placeholder** `support@astachemma.example` – set `SUPPORT_EMAIL` in
-  `apps/server/wrangler.jsonc` to the real address and redeploy before submitting.
+- Contact email: `mail.businessworks@gmail.com` (`SUPPORT_EMAIL` in `apps/server/wrangler.jsonc`)
 
 ## Data collection and security
 
