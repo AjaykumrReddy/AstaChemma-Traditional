@@ -110,6 +110,7 @@ export type ServerMessage =
 //   POST  /v1/auth/signout Bearer             → { ok: true }
 //   POST  /v1/shop/buy     Bearer, { itemId } → { profile }   (409 not-enough-coins)
 //   POST  /v1/shop/use     Bearer, { itemId } → { profile }   (409 not-owned)
+//   GET   /v1/leaderboard?period=week|all  (Bearer optional, for `me`) → Leaderboard
 //
 // Errors: { error: AccountErrorCode } with 400 / 401 / 429 / 503.
 // ---------------------------------------------------------------------------
@@ -198,6 +199,34 @@ export const DEFAULT_LOOK: Record<ShopKind, string> = { board: 'board.classic', 
 export function shopItem(id: string): ShopItem | undefined {
   return SHOP_ITEMS.find((i) => i.id === id);
 }
+
+// ---------------------------------------------------------------------------
+// Leaderboard: wins in online games against other people (not just computers).
+// ---------------------------------------------------------------------------
+
+export type LeaderboardPeriod = 'week' | 'all';
+
+export interface LeaderboardEntry {
+  /** 1 = first; players with the same wins share a rank. */
+  rank: number;
+  id: string;
+  name: string;
+  wins: number;
+  played: number;
+}
+
+export interface Leaderboard {
+  period: LeaderboardPeriod;
+  /** Start of the week (India time), for 'week'. */
+  since: string | null;
+  /** The top players. */
+  entries: LeaderboardEntry[];
+  /** You (when signed in and on the board at all), even if outside the top. */
+  me: LeaderboardEntry | null;
+}
+
+/** How many players the board lists. */
+export const LEADERBOARD_SIZE = 50;
 
 /** The daily bonus as the app shows it. */
 export interface DailyStatus {

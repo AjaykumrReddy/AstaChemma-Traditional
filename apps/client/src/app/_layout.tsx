@@ -41,6 +41,7 @@ export default function RootLayout() {
         <Stack.Screen name="lobby" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
         <Stack.Screen name="shop" options={{ headerShown: false }} />
+        <Stack.Screen name="leaderboard" options={{ headerShown: false }} />
       </Stack>
     </>
   );

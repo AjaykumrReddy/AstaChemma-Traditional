@@ -49,4 +49,5 @@ Other" or "Approximate location" as *processed ephemerally* for *Fraud preventio
 - **Target audience:** 13 and over is the simplest choice (selecting under-13 brings Google's
   Families policy requirements).
 - **User-generated content / interaction:** players choose a display name that others see in
-  online games; there is no chat.
+  online games and, after a win against another person, on the public leaderboard (name and
+  win count only); there is no chat.

@@ -65,7 +65,7 @@ export function deleteAccountPage(supportEmail: string | undefined): Response {
   <ul>
     <li>Your account and name</li>
     <li>Your coins and coin history</li>
-    <li>Your online stats (games and wins)</li>
+    <li>Your online stats (games and wins), and your place on the leaderboard</li>
     <li>Your Google sign-in link and email address</li>
     <li>All sign-ins on all your phones</li>
   </ul>
@@ -143,7 +143,7 @@ export function privacyPage(supportEmail: string | undefined): Response {
     <li><b>Activity dates.</b> When your account was created and, at most hourly, when it was last used – so inactive accounts could be tidied up in future.</li>
     <li><b>Sign-in sessions.</b> Your phone holds a secret sign-in key in its secure storage. We store only a scrambled (hashed) form of it, so it is useless to anyone who sees our database.</li>
   </ul>
-  <p>Other players in an online game see your player name and how you are playing. Choose a name you're happy for them to see.</p>
+  <p>Other players in an online game see your player name and how you are playing. Once you have won an online game against another person, your player name and your number of online wins and games also appear on the leaderboard, which every player can see. Choose a name you're happy for others to see.</p>
 
   <h2>What stays on your phone</h2>
   <p>Games against the computer or with friends on the same phone, your settings (language, speed, sound) and the guided game are stored only on your phone. We never receive them. Uninstalling the app removes them.</p>
@@ -199,6 +199,7 @@ export function privacyPage(supportEmail: string | undefined): Response {
     <li><b>నాణేలు, దుకాణం:</b> నాణేల నిల్వ, ప్రతి మార్పు రికార్డు, మీరు కొన్నవి, వాడుతున్నవి.</li>
     <li><b>ఆన్‌లైన్ ఆటలు:</b> గది కోడ్, సమయం, ఆటగాళ్ల పేర్లు, ఎవరు గెలిచారు, సంపాదించిన నాణేలు.</li>
   </ul>
+  <p>ఆన్‌లైన్ ఆటలో ఇతరులు మీ ఆటగాడి పేరు చూస్తారు. మరొక వ్యక్తితో ఆన్‌లైన్ ఆట గెలిచాక, మీ పేరు, గెలుపుల సంఖ్య అందరూ చూసే లీడర్‌బోర్డ్‌లో కనిపిస్తాయి.</p>
   <p>కంప్యూటర్‌తో లేదా ఒకే ఫోన్‌లో ఆడే ఆటలు, సెట్టింగ్‌లు మీ ఫోన్‌లోనే ఉంటాయి – మాకు రావు. మీ లొకేషన్, కాంటాక్ట్‌లు, ఫోటోలు, ఫోన్ నంబర్, చెల్లింపు వివరాలు సేకరించం.</p>
   <h2>ఎవరు నిర్వహిస్తారు</h2>
   <p>మా సర్వర్‌ను Cloudflare, డేటాబేస్‌ను Neon (సింగపూర్), సైన్ ఇన్‌ను Google నిర్వహిస్తాయి – మా తరపున మాత్రమే. IP చిరునామాలను మేము నిల్వ చేయం.</p>

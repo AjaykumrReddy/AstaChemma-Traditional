@@ -1,4 +1,4 @@
-import type { AccountErrorCode, Profile, SignInOutcome } from '@asta/protocol';
+import type { AccountErrorCode, Leaderboard, LeaderboardPeriod, Profile, SignInOutcome } from '@asta/protocol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -62,6 +62,17 @@ async function call<T>(method: string, path: string, opts: { token?: string; bod
 }
 
 export type AccountStatus = 'idle' | 'loading' | 'ready' | 'offline';
+
+/** The leaderboard (with your own rank when signed in). Null when offline. */
+export async function loadLeaderboard(period: LeaderboardPeriod): Promise<Leaderboard | null> {
+  try {
+    return await call<Leaderboard>('GET', `/v1/leaderboard?period=${period}`, {
+      token: useAccountStore.getState().token ?? undefined,
+    });
+  } catch {
+    return null;
+  }
+}
 
 interface AccountStore {
   /** Kept in memory once loaded (the saved copy is in secure storage). */

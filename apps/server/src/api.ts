@@ -7,6 +7,7 @@ import {
   deleteAccount,
   endSession,
   indiaDate,
+  leaderboard,
   profileForToken,
   renameUser,
   signInWithGoogle,
@@ -27,6 +28,7 @@ import { withDb, type Db } from './db/db';
  *   DELETE /v1/me          Bearer             → { ok: true }   (deletes the account for good)
  *   POST  /v1/shop/buy     Bearer, { itemId } → { profile }    (409 not-enough-coins)
  *   POST  /v1/shop/use     Bearer, { itemId } → { profile }    (409 not-owned)
+ *   GET   /v1/leaderboard?period=week|all   (Bearer optional) → Leaderboard
  */
 
 export interface ApiEnv {
@@ -148,6 +150,16 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
         if (error instanceof ShopError) return fail(error.code, error.code === 'bad-request' ? 400 : 409);
         throw error;
       }
+    }
+
+    if (url.pathname === '/v1/leaderboard' && request.method === 'GET') {
+      const period = url.searchParams.get('period') === 'all' ? 'all' : 'week';
+      const token = bearer(request);
+      const board = await db(async (d) => {
+        const me = token ? await profileForToken(d, token, today) : null;
+        return leaderboard(d, period, me?.id ?? null, Date.now());
+      });
+      return json(board);
     }
 
     if (url.pathname === '/v1/me' && request.method === 'DELETE') {

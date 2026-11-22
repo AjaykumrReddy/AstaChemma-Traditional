@@ -212,6 +212,20 @@ export interface Strings {
   deleteFailed: string;
   privacyPolicy: string;
 
+  // Leaderboard
+  leaderboard: string;
+  lbWeek: string;
+  lbAll: string;
+  lbWins: (n: number) => string;
+  lbPlayed: (n: number) => string;
+  lbYou: string;
+  lbYourRank: (rank: number) => string;
+  lbNotOnBoard: string;
+  lbEmptyWeek: string;
+  lbEmptyAll: string;
+  lbRule: string;
+  lbFailed: string;
+
   // Shop
   shop: string;
   shopKinds: Record<ShopKind, string>;
@@ -446,6 +460,18 @@ const en: Strings = {
   deleted: 'Your account was deleted. You’re now playing as a new guest.',
   deleteFailed: 'Couldn’t delete the account – check your internet connection and try again.',
   privacyPolicy: 'Privacy policy',
+  leaderboard: 'Leaderboard',
+  lbWeek: 'This week',
+  lbAll: 'All time',
+  lbWins: (n) => (n === 1 ? '1 win' : `${n} wins`),
+  lbPlayed: (n) => (n === 1 ? '1 game' : `${n} games`),
+  lbYou: 'You',
+  lbYourRank: (rank) => `Your rank: #${rank}`,
+  lbNotOnBoard: 'Win an online game against a friend to get on the board.',
+  lbEmptyWeek: 'No wins yet this week – be the first!',
+  lbEmptyAll: 'No wins yet – be the first!',
+  lbRule: 'Only wins in online games against other people count. The week starts on Monday.',
+  lbFailed: 'Couldn’t load the leaderboard – check your internet connection.',
   shop: 'Shop',
   shopKinds: { board: 'Boards', marbles: 'Marbles', shells: 'Cowries' },
   shopItems: {
@@ -766,6 +792,18 @@ const te: Strings = {
   deleted: 'మీ ఖాతా తొలగించబడింది. ఇప్పుడు మీరు కొత్త అతిథిగా ఆడుతున్నారు.',
   deleteFailed: 'ఖాతా తొలగించలేకపోయాం – ఇంటర్నెట్ కనెక్షన్ చూసి మళ్ళీ ప్రయత్నించండి.',
   privacyPolicy: 'గోప్యతా విధానం',
+  leaderboard: 'లీడర్‌బోర్డ్',
+  lbWeek: 'ఈ వారం',
+  lbAll: 'ఎప్పటికీ',
+  lbWins: (n) => (n === 1 ? '1 గెలుపు' : `${n} గెలుపులు`),
+  lbPlayed: (n) => (n === 1 ? '1 ఆట' : `${n} ఆటలు`),
+  lbYou: 'మీరు',
+  lbYourRank: (rank) => `మీ స్థానం: #${rank}`,
+  lbNotOnBoard: 'బోర్డులో చేరడానికి ఒక స్నేహితునితో ఆన్‌లైన్ ఆట గెలవండి.',
+  lbEmptyWeek: 'ఈ వారం ఇంకా ఎవరూ గెలవలేదు – మీరే మొదటివారు కండి!',
+  lbEmptyAll: 'ఇంకా ఎవరూ గెలవలేదు – మీరే మొదటివారు కండి!',
+  lbRule: 'ఇతర వ్యక్తులతో ఆడిన ఆన్‌లైన్ ఆటల గెలుపులే లెక్కలోకి వస్తాయి. వారం సోమవారం మొదలవుతుంది.',
+  lbFailed: 'లీడర్‌బోర్డ్ రాలేదు – ఇంటర్నెట్ కనెక్షన్ చూడండి.',
   shop: 'దుకాణం',
   shopKinds: { board: 'బోర్డులు', marbles: 'గోళీలు', shells: 'గవ్వలు' },
   shopItems: {

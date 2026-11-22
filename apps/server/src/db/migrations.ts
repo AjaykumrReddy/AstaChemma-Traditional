@@ -89,4 +89,12 @@ export const MIGRATIONS: { version: number; sql: string }[] = [
       ALTER TABLE users ADD COLUMN use_shells text;
     `,
   },
+  {
+    version: 4,
+    sql: `
+      -- The leaderboard: this week's games, and each game's players.
+      CREATE INDEX games_finished_idx ON games(finished_at);
+      CREATE INDEX game_players_game_idx ON game_players(game_id);
+    `,
+  },
 ];

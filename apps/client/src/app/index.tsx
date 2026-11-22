@@ -19,6 +19,7 @@ import Svg, { Circle, Defs, Ellipse, RadialGradient, Stop } from 'react-native-s
 import { useAccountStore } from '../account/store';
 import { Avatar } from '../components/Avatar';
 import { CoinIcon } from '../components/CoinIcon';
+import { TrophyIcon } from '../components/TrophyIcon';
 import { Backdrop } from '../components/Backdrop';
 import { BoardDrawing } from '../components/BoardDrawing';
 import { GRID_END, MID, VIEW_PAD, VIEW_TOTAL, cellCentre, rotateToSeat } from '../components/boardGeometry';
@@ -133,7 +134,6 @@ export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const language = useGameStore((s) => s.language);
-  const setLanguage = useGameStore((s) => s.setLanguage);
   const startTutorial = useGameStore((s) => s.startTutorial);
   const tutorialDone = useGameStore((s) => s.tutorialDone);
   const hydrated = useGameStore((s) => s.hydrated);
@@ -277,8 +277,8 @@ export default function HomeScreen() {
                 </Pressable>
               ) : null}
             </View>
-            <IconButton label={language === 'te' ? 'English' : 'తెలుగు'} onPress={() => setLanguage(language === 'te' ? 'en' : 'te')}>
-              <Text style={styles.langGlyph}>{language === 'te' ? 'EN' : 'తె'}</Text>
+            <IconButton label={t.leaderboard} onPress={() => router.push('/leaderboard')}>
+              <TrophyIcon size={26} />
             </IconButton>
             <IconButton label={t.settings} onPress={() => setSettingsOpen(true)}>
               <Text style={styles.gearGlyph}>⚙</Text>
@@ -471,7 +471,6 @@ const styles = StyleSheet.create({
     borderBottomColor: '#B8913A',
   },
   pillText: { color: '#2A2208', fontSize: 14, fontWeight: '900' },
-  langGlyph: { color: colors.chalk, fontSize: 15, fontWeight: '800' },
   coinChip: {
     flexDirection: 'row',
     alignItems: 'center',

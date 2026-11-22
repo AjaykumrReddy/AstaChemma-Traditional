@@ -6,13 +6,14 @@ import {
   gameReward,
   shopItem,
   type ClientMessage,
+  type Leaderboard,
   type Profile,
   type RoomView,
   type ServerMessage,
 } from '@asta/protocol';
 import { createPrivateKey, sign } from 'node:crypto';
 import pg from 'pg';
-import { claimDaily, credit, recordGame } from './db/accounts';
+import { claimDaily, credit, recordGame, weekStart } from './db/accounts';
 import { withDb } from './db/db';
 import { describe, expect, inject, it } from 'vitest';
 import { WebSocket } from 'ws';
@@ -576,6 +577,57 @@ describe('accounts', () => {
     // A game that ends after someone deleted their account mid-game is still recorded for the others.
     const paid = await withDb(dbUrl, (db) => recordGame(db, game(`after-${Date.now()}`)));
     expect([...paid!.keys()]).toEqual([stays.profile.id]);
+  });
+
+  it('ranks players by wins against other people, this week and all time', async () => {
+    const tag = Date.now();
+    const player = async (name: string) =>
+      (await api('POST', '/v1/auth/google', { ip: nextIp(), body: { idToken: googleToken({ sub: `lb-${name}-${tag}`, given_name: name }) } }))
+        .body as { token: string; profile: Profile };
+    const [a, b, c] = [await player('Arjun'), await player('Bhanu'), await player('Chitra')];
+    let n = 0;
+    const game = (winner: Profile, loser: Profile | 'computer') => ({
+      key: `lb-${tag}-${n++}`,
+      code: 'LEAD',
+      mode: 'individual' as const,
+      startedAt: Date.now(),
+      players: [
+        { seat: 0 as const, userId: winner.id, name: winner.name, bot: null, won: true },
+        loser === 'computer'
+          ? { seat: 2 as const, userId: null, name: 'Computer', bot: 'easy', won: false }
+          : { seat: 2 as const, userId: loser.id, name: loser.name, bot: null, won: false },
+      ],
+    });
+    await withDb(dbUrl, async (db) => {
+      for (let i = 0; i < 3; i++) await recordGame(db, game(a.profile, b.profile)); // Arjun: 3 wins against Bhanu
+      await recordGame(db, game(b.profile, a.profile)); // Bhanu: 1 win against Arjun
+      for (let i = 0; i < 5; i++) await recordGame(db, game(c.profile, 'computer')); // Chitra: wins against computers only
+      // An old win for Bhanu: counts all-time, not this week.
+      await recordGame(db, game(b.profile, a.profile));
+      await db.query(`UPDATE games SET finished_at = now() - interval '14 days' WHERE game_key = $1`, [`lb-${tag}-${n - 1}`]);
+    });
+
+    const board = async (period: string, token?: string) => (await api('GET', `/v1/leaderboard?period=${period}`, { token })).body as Leaderboard;
+    const week = await board('week', b.token);
+    const find = (l: Leaderboard, p: { profile: Profile }) => l.entries.find((e) => e.id === p.profile.id);
+    expect(find(week, a)).toMatchObject({ name: 'Arjun', wins: 3, played: 4 });
+    expect(find(week, b)).toMatchObject({ name: 'Bhanu', wins: 1, played: 4 });
+    expect(find(week, a)!.rank).toBeLessThan(find(week, b)!.rank);
+    expect(find(week, c)).toBeUndefined(); // computers only
+    expect(week.me).toMatchObject({ id: b.profile.id, wins: 1 });
+    expect(week.since).toBe(weekStart(Date.now()).toISOString());
+
+    const all = await board('all');
+    expect(find(all, b)).toMatchObject({ wins: 2, played: 5 });
+    expect(all.me).toBeNull(); // not signed in
+    expect(all.entries.map((e) => e.rank)).toEqual([...all.entries.map((e) => e.rank)].sort((x, y) => x - y));
+  });
+
+  it('starts the leaderboard week on Monday, India time', () => {
+    const monday = '2026-11-15T18:30:00.000Z'; // Monday 16 Nov 2026, 00:00 in India
+    expect(weekStart(Date.parse('2026-11-22T12:00:00+05:30')).toISOString()).toBe(monday); // Sunday
+    expect(weekStart(Date.parse('2026-11-16T00:05:00+05:30')).toISOString()).toBe(monday); // Monday just after midnight
+    expect(weekStart(Date.parse('2026-11-15T23:55:00+05:30')).toISOString()).toBe('2026-11-08T18:30:00.000Z'); // Sunday before
   });
 
   it('publishes the privacy policy, in English and Telugu, linking to account deletion', async () => {

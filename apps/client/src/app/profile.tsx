@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { googleSignInAvailable } from '../account/google';
 import { DEFAULT_GUEST_NAME, useAccountStore } from '../account/store';
 import { GoogleButton } from '../components/GoogleButton';
+import { TrophyIcon } from '../components/TrophyIcon';
 import { Avatar } from '../components/Avatar';
 import { Backdrop } from '../components/Backdrop';
 import { CoinIcon } from '../components/CoinIcon';
@@ -168,6 +169,15 @@ export default function ProfileScreen() {
             <Stat label={t.statsWins} value={String(profile.gamesWon)} />
             <Stat label={t.statsWinRate} value={winRate} />
           </View>
+          <Pressable
+            style={({ pressed }) => [styles.card, styles.lbLink, pressed && styles.dim]}
+            onPress={() => router.push('/leaderboard')}
+            accessibilityRole="button"
+          >
+            <TrophyIcon size={30} />
+            <Text style={styles.lbLinkText}>{t.leaderboard}</Text>
+            <Text style={styles.lbChevron}>›</Text>
+          </Pressable>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t.howToEarn}</Text>
@@ -267,6 +277,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#B8913A',
   },
   shopButtonText: { color: '#2A2208', fontSize: 15, fontWeight: '900' },
+  lbLink: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md },
+  lbLinkText: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '800' },
+  lbChevron: { color: '#F6D77B', fontSize: 26, fontWeight: '700', marginTop: -2 },
   footerLinks: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' },
   privacyText: { color: colors.textMuted, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
   deleteLink: { alignSelf: 'center', paddingVertical: space.sm, paddingHorizontal: space.lg },

@@ -5,8 +5,12 @@ import {
   dailyBonus,
   gameReward,
   shopItem,
+  LEADERBOARD_SIZE,
   type AccountErrorCode,
   type DailyStatus,
+  type Leaderboard,
+  type LeaderboardEntry,
+  type LeaderboardPeriod,
   type Profile,
   type ShopKind,
   type SignInOutcome,
@@ -325,6 +329,70 @@ export async function useItem(db: Db, userId: string, itemId: string, today: str
     await tx.query(`UPDATE users SET ${USE_COLUMN[item.kind]} = $2 WHERE id = $1`, [userId, item.price === 0 ? null : itemId]);
     return loadUser(tx, userId, today);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboard
+// ---------------------------------------------------------------------------
+
+/** Monday 00:00 India time of the week containing `now`, as an instant. */
+export function weekStart(now: number): Date {
+  const today = indiaDate(now);
+  const day = new Date(`${today}T00:00:00Z`).getUTCDay(); // 0 = Sunday
+  const back = (day + 6) % 7; // days since Monday
+  const monday = new Date(Date.parse(`${today}T00:00:00Z`) - back * 86_400_000).toISOString().slice(0, 10);
+  return new Date(`${monday}T00:00:00+05:30`);
+}
+
+/**
+ * Players ranked by wins in online games that had at least one other person
+ * in them (wins against computers only don't count). Ties share a rank;
+ * among equals, fewer games played comes first.
+ */
+export async function leaderboard(
+  db: Db,
+  period: LeaderboardPeriod,
+  meId: string | null,
+  now: number,
+): Promise<Leaderboard> {
+  const since = period === 'week' ? weekStart(now) : null;
+  const rows = await db.query<{ rank: string; id: string; name: string; wins: string; played: string; pos: string }>(
+    `WITH people_games AS (
+       SELECT gp.game_id FROM game_players gp
+       JOIN games g ON g.id = gp.game_id
+       WHERE gp.bot IS NULL AND ($1::timestamptz IS NULL OR g.finished_at >= $1)
+       GROUP BY gp.game_id HAVING count(*) >= 2
+     ),
+     totals AS (
+       SELECT gp.user_id, count(*) FILTER (WHERE gp.won) AS wins, count(*) AS played
+       FROM game_players gp JOIN people_games pg ON pg.game_id = gp.game_id
+       WHERE gp.user_id IS NOT NULL
+       GROUP BY gp.user_id
+       HAVING count(*) FILTER (WHERE gp.won) > 0
+     ),
+     ranked AS (
+       SELECT u.id, u.name, t.wins, t.played,
+              rank() OVER (ORDER BY t.wins DESC) AS rank,
+              row_number() OVER (ORDER BY t.wins DESC, t.played ASC, u.created_at ASC) AS pos
+       FROM totals t JOIN users u ON u.id = t.user_id
+     )
+     SELECT * FROM ranked WHERE pos <= $2 OR id = $3 ORDER BY pos`,
+    [since?.toISOString() ?? null, LEADERBOARD_SIZE, meId],
+  );
+  const toEntry = (r: (typeof rows)[number]): LeaderboardEntry => ({
+    rank: Number(r.rank),
+    id: r.id,
+    name: r.name,
+    wins: Number(r.wins),
+    played: Number(r.played),
+  });
+  const mine = meId ? rows.find((r) => r.id === meId) : undefined;
+  return {
+    period,
+    since: since?.toISOString() ?? null,
+    entries: rows.filter((r) => Number(r.pos) <= LEADERBOARD_SIZE).map(toEntry),
+    me: mine ? toEntry(mine) : null,
+  };
 }
 
 // ---------------------------------------------------------------------------
