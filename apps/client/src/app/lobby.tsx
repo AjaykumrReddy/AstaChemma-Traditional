@@ -22,7 +22,8 @@ function SeatRow({ seat, mine, isHost, t }: { seat: SeatView; mine: boolean; isH
 
   let title: string;
   if (seat.kind === 'open') title = t.openSeat;
-  else if (seat.kind === 'bot') title = seat.name ?? t.cpuTag(seat.level ?? 'medium');
+  // A computer's name; its level is shown in the badge beside it.
+  else if (seat.kind === 'bot') title = seat.name ?? t.computer(seat.seat);
   else title = seat.name ?? '';
 
   return (

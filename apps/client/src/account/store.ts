@@ -66,9 +66,9 @@ export type AccountStatus = 'idle' | 'loading' | 'ready' | 'offline';
 /** The leaderboard (with your own rank when signed in). Null when offline. */
 export async function loadLeaderboard(period: LeaderboardPeriod): Promise<Leaderboard | null> {
   try {
-    return await call<Leaderboard>('GET', `/v1/leaderboard?period=${period}`, {
-      token: useAccountStore.getState().token ?? undefined,
-    });
+    // Right after launch the token may not be in memory yet: read it from storage, so `me` comes back.
+    const token = useAccountStore.getState().token ?? (await tokenStorage.get());
+    return await call<Leaderboard>('GET', `/v1/leaderboard?period=${period}`, { token: token ?? undefined });
   } catch {
     return null;
   }

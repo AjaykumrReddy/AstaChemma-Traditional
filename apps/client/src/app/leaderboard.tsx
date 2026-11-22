@@ -69,7 +69,8 @@ export default function LeaderboardScreen() {
   );
 
   const board = boards[period];
-  const meListed = !!board?.me && board.entries.some((e) => e.id === board.me!.id);
+  const meId = board?.me?.id ?? myId;
+  const meListed = !!meId && !!board?.entries.some((e) => e.id === meId);
 
   return (
     <View style={styles.screen}>
