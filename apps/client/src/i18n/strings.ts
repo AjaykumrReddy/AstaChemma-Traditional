@@ -384,11 +384,11 @@ const en: Strings = {
     pieces: 'Your three pieces wait in your yellow starting area: one Mother (the marble with the white ring) and two Children.',
     route:
       'Pieces come in on the X in the middle of your side, go round the outer ring following the arrows, then round the inner ring, and finish on the lotus in the centre.',
-    throwFirst: 'Tap “Throw shells”. You count how many of the five cowries land open.',
+    throwFirst: 'Tap the mat below to throw the shells. You count how many of the five cowries land open – the number shows in the corner.',
     enterChild: '4 open! On a 4, a Child can come onto the board. Tap a glowing Child, then tap it again to bring it in.',
     throwAgain: 'A 4 always earns another throw. Throw again.',
-    keep: 'Another 4. You don’t have to use it now – tap “Keep 4 · Throw again”.',
-    join: '4 + 4! Two kept 4s can join into an 8, but only to release the Mother. Tap “Join 4 + 4”.',
+    keep: 'Another 4. You don’t have to use it now – tap the mat to keep it and throw again.',
+    join: '4 + 4! Two kept 4s can join into an 8, but only to release the Mother. Tap your glowing Mother twice.',
     throwThree: 'Your Mother is out! The 4 still earns you another throw. Throw.',
     moveChild: '3 open: your Child moves 3. The Mother can’t move on a 1 or a 3. Tap the glowing Child twice.',
     computer: 'A 1, 2 or 3 ends your turn. Watch the computer play…',
@@ -636,8 +636,9 @@ const en: Strings = {
     {
       title: 'Playing in the app',
       bullets: [
+        'Tap the mat to throw the shells; the number in its corner is your throw.',
         'Tap a glowing piece to see where it will land, then tap it again (or the highlighted square) to move.',
-        'After a 4 or 8, use “Keep · Throw again” to hold it; “Join 4 + 4” appears when you can release the Mother.',
+        'After a 4 or 8 you may keep it: just tap the mat to throw again. With two 4s kept, tap your Mother to join them into an 8 and bring her out.',
         'The Mother is the marble with the white ring.',
       ],
     },
@@ -746,11 +747,11 @@ const te: Strings = {
     pieces: 'మీ మూడు కాయలు పసుపు రంగు ప్రారంభ స్థానంలో ఉన్నాయి: ఒక తల్లి (తెల్లని ఉంగరం ఉన్న గోళీ), రెండు పిల్లలు.',
     route:
       'కాయలు మీ వైపు మధ్యలో ఉన్న X గడిలో దిగి, బాణాల దిశలో బయటి వరుస చుట్టూ, తర్వాత లోపలి వరుస చుట్టూ తిరిగి, మధ్యలోని పద్మం దగ్గర ఇంటికి చేరతాయి.',
-    throwFirst: '“గవ్వలు వేయండి” నొక్కండి. ఐదు గవ్వల్లో ఎన్ని తెరుచుకుని పడ్డాయో లెక్కిస్తారు.',
+    throwFirst: 'గవ్వలు వేయడానికి కింది చాపను నొక్కండి. ఐదు గవ్వల్లో ఎన్ని తెరుచుకుని పడ్డాయో లెక్కిస్తారు – ఆ సంఖ్య మూలలో కనిపిస్తుంది.',
     enterChild: '4 తెరుచుకున్నాయి! 4 పడితే పిల్ల బోర్డు మీదకు దిగవచ్చు. మెరుస్తున్న పిల్లను నొక్కి, మళ్ళీ నొక్కండి.',
     throwAgain: '4 పడితే ఎప్పుడూ మరో వేటు వస్తుంది. మళ్ళీ వేయండి.',
-    keep: 'మళ్ళీ 4. దాన్ని ఇప్పుడే వాడనవసరం లేదు – “4 ఉంచండి · మళ్ళీ వేయండి” నొక్కండి.',
-    join: '4 + 4! ఉంచుకున్న రెండు 4లను కలిపి 8 చేయవచ్చు – తల్లిని దించడానికి మాత్రమే. “4 + 4 కలపండి” నొక్కండి.',
+    keep: 'మళ్ళీ 4. దాన్ని ఇప్పుడే వాడనవసరం లేదు – ఉంచుకుని మళ్ళీ వేయడానికి చాపను నొక్కండి.',
+    join: '4 + 4! ఉంచుకున్న రెండు 4లను కలిపి 8 చేయవచ్చు – తల్లిని దించడానికి మాత్రమే. మెరుస్తున్న తల్లిని రెండుసార్లు నొక్కండి.',
     throwThree: 'తల్లి దిగింది! ఆ 4 వల్ల మీకు ఇంకో వేటు ఉంది. వేయండి.',
     moveChild: '3 తెరుచుకున్నాయి: మీ పిల్ల 3 అడుగులు కదులుతుంది. 1 లేదా 3 పడితే తల్లి కదలదు. మెరుస్తున్న పిల్లను రెండుసార్లు నొక్కండి.',
     computer: '1, 2 లేదా 3 పడితే మీ వంతు ముగుస్తుంది. కంప్యూటర్ ఆడటం చూడండి…',
@@ -998,8 +999,9 @@ const te: Strings = {
     {
       title: 'యాప్‌లో ఆడడం',
       bullets: [
+        'గవ్వలు వేయడానికి చాపను నొక్కండి; దాని మూలలోని సంఖ్యే మీ వేటు.',
         'మెరుస్తున్న కాయను నొక్కితే అది ఎక్కడ దిగుతుందో కనిపిస్తుంది; మళ్ళీ నొక్కితే (లేదా వెలుగుతున్న గడిని నొక్కితే) కదులుతుంది.',
-        '4 లేదా 8 పడ్డాక “ఉంచండి · మళ్ళీ వేయండి” తో దాన్ని ఉంచుకోవచ్చు; తల్లిని దించగలిగినప్పుడు “4 + 4 కలపండి” కనిపిస్తుంది.',
+        '4 లేదా 8 పడ్డాక దాన్ని ఉంచుకోవచ్చు: మళ్ళీ వేయడానికి చాపను నొక్కండి. రెండు 4లు ఉంచుకుంటే, వాటిని 8గా కలిపి తల్లిని దించడానికి తల్లిని నొక్కండి.',
         'తెల్లని ఉంగరం ఉన్న గోళీ తల్లి.',
       ],
     },

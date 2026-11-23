@@ -292,7 +292,8 @@ export function Shells({ shells, rolling, size = 34, rollMs = 650, seed = 1, hei
   // Fly them (and flip their faces in the air) once the new throw is drawn.
   useEffect(() => {
     if (!rolling) return;
-    const air = Math.max(220, rollMs * 0.82);
+    // Touch down just before the result (and its landing clatter) arrives.
+    const air = Math.max(220, rollMs - 40);
     progress.forEach((p) => p.setValue(0));
     const anim = Animated.parallel(
       progress.map((p, i) =>

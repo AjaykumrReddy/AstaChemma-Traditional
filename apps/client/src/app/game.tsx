@@ -21,14 +21,13 @@ import { Confetti } from '../components/Effects';
 import { CoachCard } from '../components/CoachCard';
 import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
-import { Shells } from '../components/Shells';
 import { ThrowMat } from '../components/ThrowMat';
 import { useStrings, withDisplayNames, type Strings } from '../i18n';
 import { haptic } from '../feedback/haptics';
 import { useOnlineStore } from '../online/store';
 import { displayState, useGameStore, useTimings } from '../store/game';
 import { TUTORIAL_STEPS } from '../tutorial/steps';
-import { describeEvents, describeOpen, describeScore, throwValue } from '../store/messages';
+import { throwValue } from '../store/messages';
 import { colors, radius, seatColors, space } from '../theme';
 
 /** Wide screens put the board on the left and the controls on the right. */
@@ -194,7 +193,6 @@ export default function GameScreen() {
   const rolling = useGameStore((s) => s.rolling);
   const animation = useGameStore((s) => s.animation);
   const selected = useGameStore((s) => s.selected);
-  const note = useGameStore((s) => s.note);
   const autoMove = useGameStore((s) => s.autoMove);
   const throwShells = useGameStore((s) => s.throwShells);
   const move = useGameStore((s) => s.move);
@@ -354,13 +352,10 @@ export default function GameScreen() {
 
   // Player names for display: default names ("You", "Computer 2") follow the language.
   const named = withDisplayNames(t, game);
-  const currentName = named.players[game.current]!.name;
 
   const wide = width >= WIDE_BREAKPOINT;
   const twoSided = twoSidedGame && !wide;
   const available = height - HEADER_ALLOWANCE - insets.top - insets.bottom;
-  // The throwing mat (every mode except the guided game, which keeps its worded panel).
-  const useMat = !tutorial;
   const singleMatHeight = Math.round(Math.min(wide ? 220 : 190, Math.max(130, (height - insets.top - insets.bottom) * 0.22)));
   const boardSize = Math.floor(
     twoSided
@@ -371,34 +366,13 @@ export default function GameScreen() {
       : wide
         ? Math.min(available - space.lg, width - SIDE_WIDTH - space.xl * 3, 820)
         : // Phones: the board takes what the chip row (~60) and the panel (~250) leave.
-          Math.max(230, Math.min(width - space.md * 2, available - (useMat ? singleMatHeight + 90 : 330), 620)),
+          Math.max(230, Math.min(width - space.md * 2, available - (singleMatHeight + 90 + (tutorial ? 140 : 0)), 620)),
   );
   // Two-sided: the top panel is for the top player's turns, the bottom one for everyone else's.
   const topActive = current.seat === 2 && !current.bot;
 
   const shown = displayState(game, animation);
-  const seat = seatColors[current.seat];
-  /** The throws being kept, e.g. "4", "8" or "4 + 4". */
-  const keptLabel = game.pending.map((t) => throwValue(t.open)).join(' + ');
-
-  let status: string;
-  if (game.phase === 'finished') status = t.gameOver;
-  else if (!humanTurn) status = t.isPlaying(currentName);
-  else if (rolling) status = t.throwing;
-  else if (animation) status = t.moving;
-  else if (game.phase === 'awaitingThrow' && game.pending.length > 0) status = t.keptThrowAgain(keptLabel);
-  else if (game.phase === 'awaitingThrow') status = online ? t.yourTurn : t.throwPrompt(currentName);
-  else if (selected) {
-    const options = movable.filter((m) => m.pieceId === selected).length;
-    status = options > 1 ? t.tapSquare : t.tapAgain;
-  } else if (game.canHold && (!step || step.allowHold)) status = t.useOrKeep(keptLabel, game.pending.length > 1);
-  else status = t.tapGlowing;
-
-  // Built at display time from the game's events, so it follows the language.
-  const messages = note === 'start' ? [t.startHint] : note === 'welcome' ? [t.welcomeBack] : describeEvents(t, named, game.events);
-
   const winners = game.winners.map((i) => named.players[i]!.name);
-  const joinMove = humanTurn && !busy ? movable.find((m) => m.join) : undefined;
   // Undo: not mid-roll or mid-move, not in the guided game, and not once the game is won.
   // Never online: the dice are the server's.
   const canUndo = !online && undoCount > 0 && !busy && !tutorial && game.phase !== 'finished';
@@ -432,109 +406,6 @@ export default function GameScreen() {
       {game.players.map((p) => (
         <PlayerChip key={p.index} state={named} index={p.index} t={t} presence={presenceOf(p.seat)} compact={!wide} />
       ))}
-    </View>
-  );
-
-  // Chunky buttons in the current player's colour; dark text on yellow, white on the others.
-  const seatButton = { backgroundColor: seat.fill, borderBottomColor: seat.dark };
-  const seatButtonText = current.seat === 0 ? styles.darkText : styles.lightText;
-
-  /**
-   * The throw panel. In the two-sided layout there are two: the one on the
-   * side whose turn it is is `active`; the other shows the same throw, faded.
-   */
-  const renderPanel = (active = true) => (
-    <View
-      style={[
-        styles.panel,
-        ((height < 700 && !wide) || twoSided) && styles.panelTight,
-        { borderColor: game.phase === 'finished' ? colors.accent : seat.fill },
-        !active && styles.panelIdle,
-        { pointerEvents: active ? 'auto' : 'none' },
-      ]}
-      accessibilityElementsHidden={!active}
-      importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
-    >
-      <View style={styles.statusRow}>
-        <SeatMark seat={current.seat} size={16} />
-        <Text style={styles.status} numberOfLines={2}>
-          {status}
-        </Text>
-        {online && quick && game.phase !== 'finished' && <TurnTimer mine={humanTurn} label={t.turnSecondsLeft} />}
-        {canUndo && (
-          <Pressable
-            onPress={undo}
-            hitSlop={8}
-            style={({ pressed }) => [styles.undo, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={t.undoA11y}
-          >
-            <Text style={styles.undoText}>↶ {t.undo}</Text>
-          </Pressable>
-        )}
-      </View>
-      <Shells
-        shells={game.lastThrow?.shells ?? null}
-        rolling={rolling}
-        rollMs={timings.roll}
-        size={twoSided ? (height < 700 ? 22 : 28) : wide ? 40 : height < 700 ? 28 : 34}
-        // Different for every throw (the game moves on between throws), the same for both panels.
-        seed={game.rng ^ (game.turn * 131 + game.events.length * 17 + game.pending.length)}
-      />
-      {/* Two-sided: one line of news instead of two, to leave the board room. */}
-      {!twoSided && (
-        <Text style={styles.score}>
-          {rolling
-            ? ' '
-            : game.lastThrow
-              ? `${describeOpen(t, game.lastThrow.open)} · ${describeScore(t, game.lastThrow.open)}`
-              : t.countOpenHint}
-        </Text>
-      )}
-      {game.pending.length > 1 && !rolling && (
-        <View style={styles.pendingRow} accessibilityLabel={t.throwsToUseA11y}>
-          <Text style={styles.pendingLabel}>{t.toUse}</Text>
-          {game.pending.map((t, i) => (
-            <View key={i} style={[styles.pendingChip, { borderColor: seat.fill }]}>
-              <Text style={styles.pendingText}>{throwValue(t.open)}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-      <Text style={styles.message} numberOfLines={twoSided ? 2 : 3}>
-        {twoSided && game.lastThrow && !rolling
-          ? [`${describeOpen(t, game.lastThrow.open)} · ${describeScore(t, game.lastThrow.open)}`, ...messages].join(' · ')
-          : messages.join(' · ')}
-      </Text>
-      {joinMove && (
-        <Pressable
-          onPress={() => move(joinMove.id)}
-          style={({ pressed }) => [styles.bigButton, seatButton, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <Text style={[styles.bigButtonText, seatButtonText]}>{t.joinFours}</Text>
-        </Pressable>
-      )}
-      {showHold && (
-        <Pressable
-          onPress={throwShells}
-          style={({ pressed }) => [styles.secondaryButton, { borderColor: seat.fill }, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <Text style={styles.secondaryText}>{t.keepThrow(keptLabel)}</Text>
-        </Pressable>
-      )}
-      {showThrow && (
-        <Pressable
-          onPress={throwShells}
-          disabled={busy}
-          style={({ pressed }) => [styles.bigButton, seatButton, (pressed || busy) && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <View style={styles.gloss} />
-          <Text style={[styles.bigButtonText, seatButtonText]}>{rolling ? t.throwing : t.throwShells}</Text>
-        </Pressable>
-      )}
     </View>
   );
 
@@ -687,13 +558,13 @@ export default function GameScreen() {
           <View style={styles.side}>
             {coach}
             {players}
-            {useMat ? renderMat(current.seat, true, singleMatHeight) : renderPanel()}
+            {renderMat(current.seat, true, singleMatHeight)}
           </View>
         ) : (
           <>
             {/* The panel sits at the bottom, near the thumb; spare height goes above it. */}
             <View style={styles.spacer} />
-            {useMat ? renderMat(current.seat, true, singleMatHeight) : renderPanel()}
+            {renderMat(current.seat, true, singleMatHeight)}
           </>
         )}
       </ScrollView>

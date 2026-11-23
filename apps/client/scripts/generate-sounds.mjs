@@ -13,6 +13,10 @@ const RATE = 22050;
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'sounds');
 
 let seed = 20261121;
+/** Start a sound's random grains from its own number, so editing one sound never changes another. */
+const reseed = (n) => {
+  seed = n;
+};
 const rand = () => {
   seed = (seed * 1103515245 + 12345) % 2147483648;
   return seed / 2147483648;
@@ -84,30 +88,56 @@ const note = (semitonesFromA4) => 440 * 2 ** (semitonesFromA4 / 12);
 
 mkdirSync(OUT, { recursive: true });
 
-// Shells rattling in cupped hands while they tumble.
-{
-  const b = buffer(0.6);
-  for (let i = 0; i < 26; i++) {
-    const at = rand() * 0.55;
-    click(b, { at, length: 0.02, gain: 0.25 + rand() * 0.35, brightness: 0.35 + rand() * 0.4, decay: 180 + rand() * 200 });
-    tone(b, { at, freq: 1800 + rand() * 1600, length: 0.03, gain: 0.08, decay: 120, harmonics: WOOD });
+/** Air rushing past: noise that swells and fades, darker as it goes. */
+function whoosh(buf, { at = 0, length = 0.3, gain = 0.3, brightness = 0.25 }) {
+  const start = Math.floor(at * RATE);
+  const n = Math.floor(length * RATE);
+  let lp = 0;
+  for (let i = 0; i < n && start + i < buf.length; i++) {
+    const x = i / n;
+    const env = Math.sin(Math.PI * x) ** 2;
+    lp += brightness * (1 - 0.6 * x) * ((rand() * 2 - 1) - lp);
+    buf[start + i] += lp * env * gain;
   }
+}
+
+// The toss: a quick rattle in the cupped hand, then the shells whoosh through the air.
+{
+  reseed(101);
+  const b = buffer(0.5);
+  for (let i = 0; i < 14; i++) {
+    const at = rand() * 0.16;
+    click(b, { at, length: 0.018, gain: 0.25 + rand() * 0.3, brightness: 0.35 + rand() * 0.4, decay: 200 + rand() * 200 });
+    tone(b, { at, freq: 1800 + rand() * 1600, length: 0.025, gain: 0.07, decay: 130, harmonics: WOOD });
+  }
+  whoosh(b, { at: 0.12, length: 0.36, gain: 0.5, brightness: 0.22 });
   writeWav('shake', b, 0.6);
 }
 
-// Shells landing: a quick cluster of clatters.
+// Shells landing on a cloth mat, one after another: a soft thud and a bright
+// shell click each, a little bounce, and a short slide as they settle.
 {
-  const b = buffer(0.32);
+  reseed(202);
+  const b = buffer(0.55);
+  let at = 0.005;
   for (let i = 0; i < 5; i++) {
-    const at = 0.01 + i * 0.035 + rand() * 0.03;
-    click(b, { at, length: 0.03, gain: 0.6, brightness: 0.5, decay: 140 });
-    tone(b, { at, freq: 1400 + rand() * 900, length: 0.06, gain: 0.18, decay: 70, harmonics: WOOD });
+    const g = 0.75 + rand() * 0.25;
+    click(b, { at, length: 0.035, gain: 0.55 * g, brightness: 0.12, decay: 90 }); // the thud on cloth
+    tone(b, { at, freq: 210 + rand() * 70, endFreq: 150, length: 0.07, gain: 0.35 * g, decay: 45, harmonics: [[1, 1], [2, 0.25]] });
+    click(b, { at: at + 0.002, length: 0.012, gain: 0.4 * g, brightness: 0.75, decay: 420 }); // the shell itself
+    tone(b, { at, freq: 1500 + rand() * 1100, length: 0.05, gain: 0.14 * g, decay: 90, harmonics: WOOD });
+    // A small hop, then it slides to rest.
+    const hop = at + 0.05 + rand() * 0.03;
+    click(b, { at: hop, length: 0.01, gain: 0.18 * g, brightness: 0.6, decay: 500 });
+    click(b, { at: hop + 0.01, length: 0.06 + rand() * 0.05, gain: 0.07 * g, brightness: 0.4, decay: 35 });
+    at += 0.025 + rand() * 0.045;
   }
   writeWav('land', b, 0.75);
 }
 
 // A piece tapping onto a square: a small wooden knock.
 {
+  reseed(303);
   const b = buffer(0.09);
   click(b, { length: 0.01, gain: 0.5, brightness: 0.7, decay: 500 });
   tone(b, { freq: 820, endFreq: 760, length: 0.08, gain: 0.6, decay: 55, harmonics: WOOD });
@@ -123,6 +153,7 @@ mkdirSync(OUT, { recursive: true });
 
 // Capture: a heavy thud with a falling tone.
 {
+  reseed(404);
   const b = buffer(0.5);
   click(b, { length: 0.08, gain: 0.9, brightness: 0.18, decay: 40 });
   tone(b, { freq: 180, endFreq: 60, length: 0.45, gain: 0.9, decay: 7, harmonics: [[1, 1], [2, 0.3]] });
@@ -163,6 +194,7 @@ mkdirSync(OUT, { recursive: true });
 
 // Winning: an arpeggio fanfare ending on a held chord.
 {
+  reseed(505);
   const b = buffer(1.9);
   [3, 7, 10, 15].forEach((s, i) => tone(b, { at: i * 0.13, freq: note(s), length: 0.4, gain: 0.45, decay: 5, harmonics: BELL }));
   [15, 19, 22, 27].forEach((s) => tone(b, { at: 0.55, freq: note(s), length: 1.3, gain: 0.3, decay: 2.2, harmonics: BELL }));
