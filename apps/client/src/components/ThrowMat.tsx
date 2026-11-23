@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius } from '../theme';
 import { Shells } from './Shells';
@@ -29,11 +29,13 @@ export interface ThrowMatProps {
   throwLabel: string;
   /** Text-free a11y description of the throw, e.g. "2 shells open". */
   resultLabel: string;
+  /** Something small for the top-left corner instead of Undo (e.g. a turn timer). */
+  corner?: ReactNode;
 }
 
 /**
- * Pass & Play, players facing each other: each one's own throwing mat, in
- * their colour, with no words. Tap the mat to throw; the shells scatter
+ * The throwing mat: in the throwing player's colour, with no words (in Pass &
+ * Play with players facing each other, each side has its own). Tap the mat to throw; the shells scatter
  * across it, and the throw's value shows as a big number.
  */
 export function ThrowMat({
@@ -54,6 +56,7 @@ export function ThrowMat({
   undoLabel,
   throwLabel,
   resultLabel,
+  corner,
 }: ThrowMatProps) {
   const [pulse] = useState(() => new Animated.Value(0));
   const inviting = active && canThrow && !rolling;
@@ -76,14 +79,16 @@ export function ThrowMat({
 
   const shellSize = Math.round(Math.min(34, Math.max(22, height * 0.2)));
   return (
-    <Pressable
-      onPress={inviting ? onThrow : undefined}
-      disabled={!inviting}
-      accessibilityRole="button"
-      accessibilityLabel={inviting ? throwLabel : resultLabel}
-      accessibilityState={{ disabled: !inviting }}
-      style={[styles.mat, { height, backgroundColor: `${dark}D9`, borderColor: fill }, !active && styles.idle]}
-    >
+    <View style={[styles.mat, { height, backgroundColor: `${dark}D9`, borderColor: fill }, !active && styles.idle]}>
+      {/* The whole mat is the throw button (under everything drawn on it). */}
+      <Pressable
+        onPress={inviting ? onThrow : undefined}
+        disabled={!inviting}
+        accessibilityRole="button"
+        accessibilityLabel={inviting ? throwLabel : resultLabel}
+        accessibilityState={{ disabled: !inviting }}
+        style={StyleSheet.absoluteFill}
+      />
       {/* Breathing outer glow while it's waiting for a throw. */}
       <Animated.View
         style={[
@@ -95,7 +100,9 @@ export function ThrowMat({
       />
       {/* A woven inner border, like a cloth spread for the shells. */}
       <View style={[StyleSheet.absoluteFill, styles.weave, styles.passThrough]} />
-      <Shells shells={shells} rolling={rolling} rollMs={rollMs} seed={seed} size={shellSize} height={height - 16} bare />
+      <View style={styles.passThrough}>
+        <Shells shells={shells} rolling={rolling} rollMs={rollMs} seed={seed} size={shellSize} height={height - 16} bare />
+      </View>
 
       {/* The throw's value, big; kept throws as small numbers beside it. */}
       {value !== null && !rolling && (
@@ -111,12 +118,13 @@ export function ThrowMat({
         </View>
       )}
 
+      {corner && <View style={styles.corner}>{corner}</View>}
       {onUndo && (
         <Pressable onPress={onUndo} hitSlop={8} style={styles.undo} accessibilityRole="button" accessibilityLabel={undoLabel}>
           <Text style={styles.undoText}>↶</Text>
         </Pressable>
       )}
-    </Pressable>
+    </View>
   );
 }
 
@@ -164,6 +172,7 @@ const styles = StyleSheet.create({
   valueText: { fontSize: 24, fontWeight: '900' },
   kept: { minWidth: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)' },
   keptText: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  corner: { position: 'absolute', left: 10, top: 10 },
   undo: {
     position: 'absolute',
     left: 10,

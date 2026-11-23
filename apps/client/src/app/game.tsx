@@ -359,6 +359,9 @@ export default function GameScreen() {
   const wide = width >= WIDE_BREAKPOINT;
   const twoSided = twoSidedGame && !wide;
   const available = height - HEADER_ALLOWANCE - insets.top - insets.bottom;
+  // The throwing mat (every mode except the guided game, which keeps its worded panel).
+  const useMat = !tutorial;
+  const singleMatHeight = Math.round(Math.min(wide ? 220 : 190, Math.max(130, (height - insets.top - insets.bottom) * 0.22)));
   const boardSize = Math.floor(
     twoSided
       ? // Whatever the two panels leave (measured), before that a fair guess.
@@ -368,7 +371,7 @@ export default function GameScreen() {
       : wide
         ? Math.min(available - space.lg, width - SIDE_WIDTH - space.xl * 3, 820)
         : // Phones: the board takes what the chip row (~60) and the panel (~250) leave.
-          Math.max(230, Math.min(width - space.md * 2, available - 330, 620)),
+          Math.max(230, Math.min(width - space.md * 2, available - (useMat ? singleMatHeight + 90 : 330), 620)),
   );
   // Two-sided: the top panel is for the top player's turns, the bottom one for everyone else's.
   const topActive = current.seat === 2 && !current.bot;
@@ -569,7 +572,7 @@ export default function GameScreen() {
 
   // Pass & Play with players facing each other: a word-free throwing mat each.
   const matHeight = Math.round(Math.min(175, Math.max(120, (height - insets.top - insets.bottom) * 0.2)));
-  const renderMat = (matSeat: Seat, active: boolean) => {
+  const renderMat = (matSeat: Seat, active: boolean, height = matHeight) => {
     const colours = seatColors[matSeat];
     return (
       <ThrowMat
@@ -585,8 +588,9 @@ export default function GameScreen() {
         rolling={rolling}
         rollMs={timings.roll}
         seed={game.rng ^ (game.turn * 131 + game.events.length * 17 + game.pending.length)}
-        height={matHeight}
+        height={height}
         onUndo={active && canUndo ? undo : undefined}
+        corner={online && quick && game.phase !== 'finished' ? <TurnTimer mine={humanTurn} label={t.turnSecondsLeft} /> : undefined}
         undoLabel={t.undoA11y}
         throwLabel={t.throwShells}
         resultLabel={game.lastThrow ? t.shellsOpenA11y(game.lastThrow.open) : t.shellsA11y}
@@ -683,13 +687,13 @@ export default function GameScreen() {
           <View style={styles.side}>
             {coach}
             {players}
-            {renderPanel()}
+            {useMat ? renderMat(current.seat, true, singleMatHeight) : renderPanel()}
           </View>
         ) : (
           <>
             {/* The panel sits at the bottom, near the thumb; spare height goes above it. */}
             <View style={styles.spacer} />
-            {renderPanel()}
+            {useMat ? renderMat(current.seat, true, singleMatHeight) : renderPanel()}
           </>
         )}
       </ScrollView>
