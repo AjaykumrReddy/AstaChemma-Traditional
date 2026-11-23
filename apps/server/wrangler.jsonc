@@ -5,10 +5,15 @@
   // On or after 2026-08-04: nodejs_compat is on by default and closes are auto-replied.
   "compatibility_date": "2026-10-01",
   "durable_objects": {
-    "bindings": [{ "name": "GAME_ROOM", "class_name": "GameRoom" }]
+    "bindings": [
+      { "name": "GAME_ROOM", "class_name": "GameRoom" },
+      // Quick match: the waiting line(s).
+      { "name": "MATCHMAKER", "class_name": "Matchmaker" }
+    ]
   },
   "exports": {
-    "GameRoom": { "type": "durable-object", "storage": "sqlite" }
+    "GameRoom": { "type": "durable-object", "storage": "sqlite" },
+    "Matchmaker": { "type": "durable-object", "storage": "sqlite" }
   },
   // Postgres (Neon) through Hyperdrive. Locally and in tests the connection
   // string comes from CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE

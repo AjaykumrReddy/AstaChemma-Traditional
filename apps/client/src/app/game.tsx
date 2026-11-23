@@ -159,6 +159,29 @@ function BouncingTrophy() {
   );
 }
 
+/** Quick match: seconds left in the current turn (the server acts when it runs out). */
+function TurnTimer({ mine, label }: { mine: boolean; label: (s: number) => string }) {
+  const deadline = useOnlineStore((s) => s.turnDeadline);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (deadline === null) return;
+    const timer = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(timer);
+  }, [deadline]);
+  const left = deadline === null ? null : Math.max(0, Math.ceil((deadline - now) / 1000));
+  const urgent = left !== null && left <= 5;
+  // A nudge when your own time is nearly up.
+  useEffect(() => {
+    if (mine && urgent && left === 5) haptic('big');
+  }, [mine, urgent, left]);
+  if (left === null) return null;
+  return (
+    <View style={[styles.timer, urgent && styles.timerUrgent]} accessibilityLabel={label(left)}>
+      <Text style={[styles.timerText, urgent && styles.timerTextUrgent]}>⏱ {label(left)}</Text>
+    </View>
+  );
+}
+
 export default function GameScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -189,6 +212,7 @@ export default function GameScreen() {
   const onlineSeats = useOnlineStore((s) => s.room?.seats);
   const onlineStatus = useOnlineStore((s) => s.status);
   const roomCode = useOnlineStore((s) => s.room?.code ?? null);
+  const quick = useOnlineStore((s) => !!s.room?.quick);
   /** Coins this online game paid (arrives just after it ends). */
   const reward = useOnlineStore((s) => s.reward);
   const leaveOnline = useOnlineStore((s) => s.leave);
@@ -399,6 +423,7 @@ export default function GameScreen() {
         <Text style={styles.status} numberOfLines={2}>
           {status}
         </Text>
+        {online && quick && game.phase !== 'finished' && <TurnTimer mine={humanTurn} label={t.turnSecondsLeft} />}
         {canUndo && (
           <Pressable
             onPress={undo}
@@ -470,7 +495,7 @@ export default function GameScreen() {
       <View style={{ paddingTop: insets.top }}>
         <TopBar
           // Online, the room code stays in view so it can be told to a friend who dropped out.
-          title={online && roomCode ? t.rejoinHint(roomCode) : t.appTitle}
+          title={online && quick ? t.quickMatchTag : online && roomCode ? t.rejoinHint(roomCode) : t.appTitle}
           onBack={goBack}
           backLabel={t.back}
           right={
@@ -653,6 +678,10 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   undoText: { color: colors.chalk, fontSize: 13.5, fontWeight: '700' },
+  timer: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(0,0,0,0.3)' },
+  timerUrgent: { backgroundColor: colors.danger },
+  timerText: { color: colors.chalk, fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  timerTextUrgent: { color: '#fff' },
   status: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1 },
   score: { color: colors.chalk, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   message: { color: colors.textMuted, fontSize: 13, textAlign: 'center', minHeight: 18 },

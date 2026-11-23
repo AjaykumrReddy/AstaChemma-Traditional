@@ -1,4 +1,4 @@
-import { cleanName, MAX_TOKEN_LENGTH, type AccountErrorCode, type Profile } from '@asta/protocol';
+import { cleanName, isAcceptableName, MAX_TOKEN_LENGTH, type AccountErrorCode, type Profile } from '@asta/protocol';
 import {
   ShopError,
   buyItem,
@@ -96,6 +96,7 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
       if (!body) return fail('bad-request', 400);
       const name = body.name === undefined ? DEFAULT_GUEST_NAME : cleanName(body.name);
       if (!name) return fail('bad-request', 400);
+      if (!isAcceptableName(name)) return fail('bad-name', 400);
       const { token, profile } = await db((d) => createGuest(d, name, today));
       return json({ token, profile }, 201);
     }
@@ -181,6 +182,7 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
       if (request.method === 'PATCH' && !body) return fail('bad-request', 400);
       const name = body ? cleanName(body.name) : null;
       if (body && !name) return fail('bad-request', 400);
+      if (name && !isAcceptableName(name)) return fail('bad-name', 400);
 
       const profile = await db(async (d): Promise<Profile | null> => {
         const me = await profileForToken(d, token, today);

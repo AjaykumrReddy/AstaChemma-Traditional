@@ -1,4 +1,4 @@
-import type { AccountErrorCode, Leaderboard, LeaderboardPeriod, Profile, SignInOutcome } from '@asta/protocol';
+import { isAcceptableName, type AccountErrorCode, type Leaderboard, type LeaderboardPeriod, type Profile, type SignInOutcome } from '@asta/protocol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -123,7 +123,9 @@ export const useAccountStore = create<AccountStore>()(
                 if (!(error instanceof ApiError) || error.code !== 'unauthorized') throw error;
               }
             }
-            const name = defaultName?.trim() || get().profile?.name || undefined;
+            const wanted = defaultName?.trim() || get().profile?.name || undefined;
+            // The server refuses offensive names: start as the default guest name instead.
+            const name = wanted && isAcceptableName(wanted) ? wanted : undefined;
             const created = await call<{ token: string; profile: Profile }>('POST', '/v1/auth/guest', {
               body: name ? { name } : {},
             });

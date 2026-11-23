@@ -1,16 +1,23 @@
+import type { Seat } from '@asta/engine';
 import { DurableObject } from 'cloudflare:workers';
 import {
   CODE_ALPHABET,
   CODE_LENGTH,
   MAX_MESSAGE_BYTES,
   PROTOCOL_VERSION,
+  isAcceptableName,
   isValidCode,
   normaliseCode,
   parseClientMessage,
   type ServerMessage,
 } from '@asta/protocol';
 import { handleApi, userIdForToken, type ApiEnv } from './api';
+import { freshCode } from './codes';
+import { Matchmaker } from './matchmaker';
 import { deleteAccountPage, privacyPage } from './pages';
+
+// Durable Object classes must be exported from the Worker's main module.
+export { Matchmaker };
 import { recordGame } from './db/accounts';
 import { withDb } from './db/db';
 import { DEFAULT_TIMINGS, Room, RoomError, type RoomData, type RoomTimings } from './room';
@@ -29,6 +36,10 @@ import { DEFAULT_TIMINGS, Room, RoomError, type RoomData, type RoomTimings } fro
 
 export interface Env extends ApiEnv {
   GAME_ROOM: DurableObjectNamespace<GameRoom>;
+  MATCHMAKER: DurableObjectNamespace<Matchmaker>;
+  /** Quick match: time per throw or move, and for matched players to arrive (tests use small values). */
+  TURN_MS?: string;
+  JOIN_MS?: string;
   /** Optional overrides (tests use tiny values). */
   BOT_THROW_MS?: string;
   BOT_MOVE_MS?: string;
@@ -45,11 +56,6 @@ export interface Env extends ApiEnv {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-function randomCode(): string {
-  const bytes = new Uint8Array(CODE_LENGTH);
-  crypto.getRandomValues(bytes);
-  return [...bytes].map((b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
-}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -62,20 +68,21 @@ export default {
     const api = await handleApi(request, env, url);
     if (api) return api;
 
+    // Quick match: one matchmaker (waiting line) per kind of game.
+    if (url.pathname === '/match') {
+      if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'expected a WebSocket' }, 426);
+      return env.MATCHMAKER.getByName('quick-2p').fetch(request);
+    }
+
     const match = url.pathname.match(/^\/rooms\/([^/]+)$/);
     if (!match) return json({ error: 'not found' }, 404);
     if (request.headers.get('Upgrade') !== 'websocket') return json({ error: 'expected a WebSocket' }, 426);
 
     let code = normaliseCode(decodeURIComponent(match[1]!));
     if (code === 'NEW') {
-      // Find a code that isn't in use. With 32^4 codes and short-lived rooms,
-      // a clash is rare; a few tries is plenty.
-      for (let attempt = 0; ; attempt++) {
-        code = randomCode();
-        const inUse = await env.GAME_ROOM.getByName(code).exists();
-        if (!inUse) break;
-        if (attempt >= 8) return json({ error: 'busy, try again' }, 503);
-      }
+      const fresh = await freshCode(env.GAME_ROOM);
+      if (!fresh) return json({ error: 'busy, try again' }, 503);
+      code = fresh;
       url.searchParams.set('create', '1');
     } else if (!isValidCode(code)) {
       return json({ error: 'bad room code' }, 400);
@@ -121,6 +128,8 @@ export class GameRoom extends DurableObject<Env> {
       botMoveMs: n(env.BOT_MOVE_MS, DEFAULT_TIMINGS.botMoveMs),
       awayMs: n(env.AWAY_MS, DEFAULT_TIMINGS.awayMs),
       abandonedMs: n(env.ABANDONED_MS, DEFAULT_TIMINGS.abandonedMs),
+      turnMs: n(env.TURN_MS, DEFAULT_TIMINGS.turnMs),
+      joinMs: n(env.JOIN_MS, DEFAULT_TIMINGS.joinMs),
     };
     this.rateMax = n(env.RATE_MAX_MESSAGES, DEFAULT_RATE_MAX_MESSAGES);
     this.silentMs = n(env.SILENT_MS, DEFAULT_SILENT_MS);
@@ -131,6 +140,20 @@ export class GameRoom extends DurableObject<Env> {
   /** Whether a room lives here (used by the Worker when picking a new code). */
   async exists(): Promise<boolean> {
     return this.load() !== null;
+  }
+
+  /**
+   * Called by the matchmaker: start a quick-match game for these players with
+   * their seats reserved. Returns how each one joins (like rejoining).
+   */
+  async createQuickMatch(
+    code: string,
+    players: { name: string; userId: string | null }[],
+  ): Promise<{ playerId: string; token: string; seat: Seat }[] | null> {
+    if (this.load()) return null; // the code is taken after all
+    const room = (this.room = this.makeRoom(Room.createQuick(code, players, Date.now(), this.timings)));
+    await this.persist();
+    return room.data.members.map((m) => ({ playerId: m.id, token: m.token, seat: m.seat }));
   }
 
   private load(): Room | null {
@@ -271,6 +294,7 @@ export class GameRoom extends DurableObject<Env> {
       if (message.t === 'create' || message.t === 'join' || message.t === 'rejoin') {
         if (message.protocol !== PROTOCOL_VERSION) return fail('version', 'Please update the app to play online.');
         if (att.memberId) return fail('illegal', 'You are already in this room.');
+        if (message.t !== 'rejoin' && !isAcceptableName(message.name)) return fail('bad-name', 'Please choose a different name.');
         const attach = (memberId: string, seat: number, token: string) => {
           ws.serializeAttachment({ ...att, memberId } satisfies Attachment);
           safeSend(ws, JSON.stringify({ t: 'welcome', code: att.code, playerId: memberId, token, seat } as ServerMessage));

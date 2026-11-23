@@ -58,6 +58,76 @@ export interface RoomView {
   /** Increases by one with every change; apps use it to spot missed updates. */
   version: number;
   lastAction: LastAction | null;
+  /** A quick-match room (strangers, matched by the server): no host, turn timer. */
+  quick?: boolean;
+  /** Milliseconds left for the current player's throw or move (rooms with a turn timer). */
+  turnEndsIn?: number | null;
+}
+
+// ---------------------------------------------------------------------------
+// Quick match: WebSocket /match. Players wait in line and are paired in
+// arrival order; each is then sent to a fresh room with their seat reserved.
+// ---------------------------------------------------------------------------
+
+/** The only queue for now: two players. */
+export type QuickMode = '2p';
+
+export type MatchClientMessage =
+  | { t: 'queue'; protocol: number; mode: QuickMode; name: string; account?: string }
+  | { t: 'cancel' }
+  | { t: 'ping' };
+
+export type MatchServerMessage =
+  /** You are in line; `waiting` counts everyone in line, you included. */
+  | { t: 'queued'; waiting: number }
+  /** Matched: join the room with these (exactly like rejoining after a dropped connection). */
+  | { t: 'matched'; code: string; playerId: string; token: string; seat: Seat }
+  | { t: 'error'; code: ErrorCode; message: string }
+  | { t: 'pong' };
+
+export function parseMatchMessage(raw: string): MatchClientMessage | null {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isObject(data) || typeof data.t !== 'string') return null;
+  if (data.t === 'cancel' || data.t === 'ping') return { t: data.t };
+  if (data.t !== 'queue' || data.mode !== '2p') return null;
+  const name = cleanName(data.name);
+  if (!name) return null;
+  const protocol = typeof data.protocol === 'number' ? data.protocol : -1;
+  const account = typeof data.account === 'string' && data.account.length <= MAX_TOKEN_LENGTH ? data.account : undefined;
+  return { t: 'queue', protocol, mode: '2p', name, ...(account ? { account } : {}) };
+}
+
+// ---------------------------------------------------------------------------
+// Names other players see: a light filter for obvious abuse (English and
+// Telugu, including common transliterations). Not exhaustive; reporting comes later.
+// ---------------------------------------------------------------------------
+
+// Only fragments that don't occur inside ordinary names (so not "nazi" – Nazia –
+// or "rape" – Grapes); a name that slips through can be changed after a report.
+const BLOCKED_NAME_PARTS = [
+  'fuck', 'shit', 'bitch', 'bastard', 'asshole', 'cunt', 'pussy', 'whore', 'slut', 'nigger', 'nigga', 'porn', 'hitler',
+  'lanja', 'lanjha', 'dengu', 'dengey', 'pooku', 'modda', 'kojja', 'madarchod', 'behenchod', 'bhenchod', 'chutiya',
+  'chutia', 'bhosdi',
+  'లంజ', 'దెంగు', 'దెంగ', 'పూకు', 'మొడ్డ', 'గుద్ద', 'కొజ్జ', 'సుల్లి',
+];
+
+/** Whether a (cleaned) name is fine to show other players. */
+export function isAcceptableName(name: string): boolean {
+  // Ignore case, spaces, punctuation and digits used as letters ("f.u.c.k", "5ex").
+  const flat = name
+    .toLowerCase()
+    .replace(/0/g, 'o')
+    .replace(/1/g, 'i')
+    .replace(/3/g, 'e')
+    .replace(/4/g, 'a')
+    .replace(/5/g, 's')
+    .replace(/[\s\p{P}\p{S}]/gu, '');
+  return !BLOCKED_NAME_PARTS.some((part) => flat.includes(part));
 }
 
 export type ClientMessage =
@@ -86,7 +156,9 @@ export type ErrorCode =
   | 'not-ready'
   | 'not-your-turn'
   | 'illegal'
-  | 'bad-token';
+  | 'bad-token'
+  /** The name isn't allowed (offensive); choose another. */
+  | 'bad-name';
 
 export type ServerMessage =
   /** You are in a room: keep playerId and token to rejoin after a disconnect. */
@@ -135,7 +207,14 @@ export interface Profile {
   equipped: Record<ShopKind, string>;
 }
 
-export type AccountErrorCode = 'bad-request' | 'unauthorized' | 'too-many' | 'unavailable' | 'not-enough-coins' | 'not-owned';
+export type AccountErrorCode =
+  | 'bad-request'
+  | 'unauthorized'
+  | 'too-many'
+  | 'unavailable'
+  | 'not-enough-coins'
+  | 'not-owned'
+  | 'bad-name';
 
 /** How a sign-in was matched up (see the server's signInWithGoogle). */
 export type SignInOutcome = 'upgraded' | 'existing' | 'created';

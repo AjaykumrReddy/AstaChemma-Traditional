@@ -2,7 +2,14 @@ import type { ServerMessage } from '@asta/protocol';
 import { describe, expect, it } from 'vitest';
 import { Room, RoomError, type MemberData, type RoomData, type RoomTimings } from './room';
 
-const TIMINGS: RoomTimings = { botThrowMs: 1000, botMoveMs: 800, awayMs: 30_000, abandonedMs: 600_000 };
+const TIMINGS: RoomTimings = {
+  botThrowMs: 1000,
+  botMoveMs: 800,
+  awayMs: 30_000,
+  abandonedMs: 600_000,
+  turnMs: 20_000,
+  joinMs: 15_000,
+};
 
 /** A room with a fake clock and an inbox per member. */
 function setup(players = 2, mode: 'individual' | 'team' = 'individual') {
@@ -127,16 +134,101 @@ describe('play', () => {
     expect(room.view().seats[1]).toMatchObject({ kind: 'bot', name: 'B', level: 'medium' });
   });
 
-  it('plays a whole game to the end with only wake-ups (everyone away)', () => {
+  it('pauses the computers while nobody is connected, and carries on when someone is back', () => {
     const { join, room, tick } = setup(2);
     const a = join('A');
     room.setSeat(a.id, 2, 'bot', 'easy');
     room.start(a.id);
     room.disconnected(a.id);
-    for (let i = 0; i < 5000 && room.data.status === 'playing'; i++) tick();
-    expect(room.data.status).toBe('finished');
-    expect(room.view().game!.winners).toHaveLength(1);
+    tick(); // the grace period ends: away, but nobody is watching
+    expect(room.view().seats[0]).toMatchObject({ away: true });
     expect(room.data.botAt).toBeNull();
+    expect(room.wakeAt()).toBe(room.data.lastActivity + TIMINGS.abandonedMs); // only the clean-up is planned
+    // Back again: hand the turn to the computer, and it plays on.
+    room.rejoin(a.id, a.token, () => {});
+    while (room.data.game!.players[room.data.game!.current]!.seat === 0) {
+      const g = room.data.game!;
+      if (g.phase === 'awaitingThrow') room.throw(a.id);
+      else room.move(a.id, g.legalMoves[0]!.id);
+    }
+    expect(room.data.botAt).not.toBeNull();
+  });
+});
+
+/** A quick-match room for two players, with a fake clock. */
+function quick() {
+  let now = 1_000_000;
+  const io = { now: () => now, send: () => {} };
+  const room = new Room(
+    Room.createQuick('QK7M', [
+      { name: 'Asha', userId: 'user-a' },
+      { name: 'Ravi', userId: 'user-r' },
+    ], now, TIMINGS),
+    io,
+    TIMINGS,
+  );
+  const [a, r] = room.data.members as [MemberData, MemberData];
+  const tick = () => {
+    const at = room.wakeAt();
+    if (at === null) return false;
+    now = Math.max(now, at);
+    room.wake();
+    return true;
+  };
+  const current = () => room.data.members.find((m) => m.seat === room.data.game!.players[room.data.game!.current]!.seat)!;
+  return { room, a, r, tick, current, now: () => now };
+}
+
+describe('quick match', () => {
+  it('starts at once, with both seats reserved for the matched players', () => {
+    const { room, a, r } = quick();
+    expect(room.data.status).toBe('playing');
+    expect(room.view().seats.map((s) => [s.kind, s.name, s.connected])).toEqual([
+      ['human', 'Asha', false],
+      ['human', 'Ravi', false],
+    ]);
+    expect(room.view()).toMatchObject({ quick: true, turnEndsIn: TIMINGS.joinMs + TIMINGS.turnMs });
+    // Each joins with their ticket, exactly like rejoining.
+    room.rejoin(a.id, a.token, () => {});
+    room.rejoin(r.id, r.token, () => {});
+    expect(room.view().seats.every((s) => s.connected)).toBe(true);
+  });
+
+  it('plays a turn for a player whose time runs out, and hands over to the computer after three in a row', () => {
+    const { room, a, r, tick, current } = quick();
+    room.rejoin(a.id, a.token, () => {});
+    room.rejoin(r.id, r.token, () => {});
+    const slow = current();
+    const version = room.data.version;
+    tick(); // the first turn's time runs out
+    expect(room.data.version).toBeGreaterThan(version); // the server acted for them
+    expect(slow.missed).toBe(1);
+    // Keep letting every turn time out: soon both are away and the computer plays on.
+    for (let i = 0; i < 40 && !(a.away && r.away); i++) tick();
+    expect(a.away && r.away).toBe(true);
+    expect(room.view().seats.every((s) => s.away)).toBe(true);
+  });
+
+  it('hands back control as soon as an away player acts again', () => {
+    const { room, a, r, tick, current } = quick();
+    room.rejoin(a.id, a.token, () => {});
+    room.rejoin(r.id, r.token, () => {});
+    for (let i = 0; i < 60 && !(current().away && room.data.game!.phase === 'awaitingThrow'); i++) tick();
+    const p = current();
+    expect(p.away).toBe(true);
+    room.throw(p.id); // they're back
+    expect(p.away).toBe(false);
+    expect(p.missed).toBe(0);
+  });
+
+  it('plays on with the computer for a matched player who never arrives, and gives them no credit', () => {
+    const { room, a, tick } = quick();
+    room.rejoin(a.id, a.token, () => {});
+    // Asha stops playing too; the game plays out on the timer and the computer.
+    for (let i = 0; i < 20_000 && room.data.status === 'playing'; i++) tick();
+    expect(room.data.status).toBe('finished');
+    const result = room.result()!;
+    expect(result.players.map((p) => p.userId)).toEqual(['user-a', null]); // Ravi never came
   });
 });
 

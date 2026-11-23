@@ -7,6 +7,7 @@ import {
   shopItem,
   type ClientMessage,
   type Leaderboard,
+  type MatchServerMessage,
   type Profile,
   type RoomView,
   type ServerMessage,
@@ -706,5 +707,107 @@ describe('accounts', () => {
       limited = (await api('POST', '/v1/auth/guest', { body: { name: `G${i}` } })).status === 429;
     }
     expect(limited).toBe(true);
+  });
+});
+
+/** A player in the quick-match line. */
+async function queueUp() {
+  const socket = new WebSocket(`ws://127.0.0.1:${port}/match`);
+  const inbox: MatchServerMessage[] = [];
+  const waiters: { match: (m: MatchServerMessage) => boolean; resolve: (m: MatchServerMessage) => void }[] = [];
+  socket.on('message', (data) => {
+    const message = JSON.parse(data.toString()) as MatchServerMessage;
+    const i = waiters.findIndex((w) => w.match(message));
+    if (i >= 0) waiters.splice(i, 1)[0]!.resolve(message);
+    else inbox.push(message);
+  });
+  const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+  await new Promise<void>((resolve, reject) => {
+    socket.once('open', () => resolve());
+    socket.once('error', reject);
+  });
+  const next = <T extends MatchServerMessage>(match: (m: MatchServerMessage) => m is T, timeoutMs = 5000): Promise<T> => {
+    const i = inbox.findIndex(match);
+    if (i >= 0) return Promise.resolve(inbox.splice(i, 1)[0] as T);
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timed out waiting for a match message')), timeoutMs);
+      waiters.push({ match, resolve: (m) => (clearTimeout(timer), resolve(m as T)) });
+    });
+  };
+  return {
+    send: (message: Record<string, unknown>) => socket.send(JSON.stringify(message)),
+    queue: (name: string, extra: Record<string, unknown> = {}) =>
+      socket.send(JSON.stringify({ t: 'queue', protocol: P, mode: '2p', name, ...extra })),
+    queued: () => next((m): m is Extract<MatchServerMessage, { t: 'queued' }> => m.t === 'queued'),
+    matched: () => next((m): m is Extract<MatchServerMessage, { t: 'matched' }> => m.t === 'matched'),
+    error: () => next((m): m is Extract<MatchServerMessage, { t: 'error' }> => m.t === 'error'),
+    closed,
+    close: () => socket.close(),
+  };
+}
+
+describe('quick match', () => {
+  it('pairs two waiting players into a new room that is already playing', async () => {
+    const asha = await queueUp();
+    asha.queue('Asha');
+    expect(await asha.queued()).toEqual({ t: 'queued', waiting: 1 });
+    const ravi = await queueUp();
+    ravi.queue('Ravi');
+    const [m1, m2] = await Promise.all([asha.matched(), ravi.matched()]);
+    expect(m1.code).toBe(m2.code);
+    expect([m1.seat, m2.seat].sort()).toEqual([0, 2]);
+    await Promise.all([asha.closed, ravi.closed]); // the line is done with them
+
+    // Each joins with their ticket, as if rejoining.
+    const players = await Promise.all(
+      [m1, m2].map(async (m) => {
+        const c = await connect(m.code);
+        c.send({ t: 'rejoin', protocol: P, code: m.code, playerId: m.playerId, token: m.token });
+        expect((await c.welcome()).seat).toBe(m.seat);
+        return c;
+      }),
+    );
+    const room = await players[0]!.room((r) => r.seats.every((s) => s.connected));
+    expect(room).toMatchObject({ status: 'playing', quick: true });
+    expect(room.seats.map((s) => s.name).sort()).toEqual(['Asha', 'Ravi']);
+    expect(room.turnEndsIn).toBeGreaterThan(0);
+    for (const p of players) p.close();
+  });
+
+  it('lets a player leave the line', async () => {
+    const early = await queueUp();
+    early.queue('Early');
+    await early.queued();
+    early.send({ t: 'cancel' });
+    await early.closed;
+    // The next player waits alone instead of being matched with someone who left.
+    const later = await queueUp();
+    later.queue('Later');
+    expect(await later.queued()).toEqual({ t: 'queued', waiting: 1 });
+    later.send({ t: 'cancel' });
+    await later.closed;
+  });
+
+  it('turns away offensive names and old app versions', async () => {
+    const rude = await queueUp();
+    rude.queue('F.u.c.k you');
+    expect((await rude.error()).code).toBe('bad-name');
+    rude.queue('Fine', { protocol: P + 1 });
+    expect((await rude.error()).code).toBe('version');
+    rude.close();
+  });
+
+  it('refuses offensive names in rooms and accounts too', async () => {
+    const host = await connect('new');
+    host.send({ t: 'create', protocol: P, name: 'lanja', mode: 'individual', players: 2 });
+    expect((await host.error()).code).toBe('bad-name');
+    host.close();
+    const res = await api('POST', '/v1/auth/google', { ip: nextIp(), body: { idToken: googleToken({ sub: `nm-${Date.now()}` }) } });
+    const renamed = await api('PATCH', '/v1/me', { token: res.body.token, body: { name: 'Sh1t' } });
+    expect(renamed).toMatchObject({ status: 400, body: { error: 'bad-name' } });
+    // Ordinary names that merely contain a blocked-looking fragment are fine.
+    for (const name of ['Nazia', 'Grapes', 'Sullivan']) {
+      expect((await api('PATCH', '/v1/me', { token: res.body.token, body: { name } })).status).toBe(200);
+    }
   });
 });

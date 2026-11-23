@@ -39,6 +39,7 @@ export default function RootLayout() {
         <Stack.Screen name="setup" options={{ headerShown: false }} />
         <Stack.Screen name="online" options={{ headerShown: false }} />
         <Stack.Screen name="lobby" options={{ headerShown: false }} />
+        <Stack.Screen name="match" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
         <Stack.Screen name="shop" options={{ headerShown: false }} />
         <Stack.Screen name="leaderboard" options={{ headerShown: false }} />

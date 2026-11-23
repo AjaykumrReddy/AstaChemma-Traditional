@@ -166,6 +166,19 @@ export interface Strings {
   rejoin: string;
   /** Online: the prompt when it becomes this player's turn. */
   yourTurn: string;
+  // Quick match
+  quickMatch: string;
+  quickMatchHint: string;
+  findPlayer: string;
+  searching: string;
+  searchingCount: (n: number) => string;
+  noOneYet: string;
+  keepWaiting: string;
+  playComputerInstead: string;
+  matchFound: string;
+  /** Seconds left in a quick-match turn. */
+  turnSecondsLeft: (s: number) => string;
+  quickMatchTag: string;
 
   // Start screen tiles and menus
   modeOnline: string;
@@ -421,6 +434,17 @@ const en: Strings = {
   rejoinHint: (code) => `Room ${code}`,
   rejoin: 'Rejoin',
   yourTurn: 'Your turn – throw the shells',
+  quickMatch: 'Quick match',
+  quickMatchHint: 'Play someone online right now – no code needed. 20 seconds a turn.',
+  findPlayer: 'Find a player',
+  searching: 'Looking for a player…',
+  searchingCount: (n) => (n <= 1 ? 'You’re first in line' : `${n} players looking`),
+  noOneYet: 'Nobody else is looking right now. Keep waiting, or play the computer meanwhile.',
+  keepWaiting: 'Keep waiting',
+  playComputerInstead: 'Play the computer',
+  matchFound: 'Player found!',
+  turnSecondsLeft: (s) => `${s}s`,
+  quickMatchTag: 'Quick match',
   modeOnline: 'Play Online',
   modeOnlineSub: 'Friends anywhere',
   modeComputer: 'vs Computer',
@@ -523,6 +547,7 @@ const en: Strings = {
     illegal: 'That isn’t allowed right now.',
     'bad-token': 'Couldn’t rejoin – that game may have ended.',
     network: 'Couldn’t reach the game server. Check your internet connection.',
+    'bad-name': 'Please choose a different name.',
   },
 
   rulesTitle: 'How to play',
@@ -755,6 +780,17 @@ const te: Strings = {
   rejoinHint: (code) => `గది ${code}`,
   rejoin: 'మళ్ళీ చేరండి',
   yourTurn: 'మీ వంతు – గవ్వలు వేయండి',
+  quickMatch: 'త్వరిత ఆట',
+  quickMatchHint: 'ఇప్పుడే ఆన్‌లైన్‌లో ఎవరితోనైనా ఆడండి – కోడ్ అవసరం లేదు. ఒక్కో వంతుకు 20 సెకన్లు.',
+  findPlayer: 'ఆటగాడిని వెతకండి',
+  searching: 'ఆటగాడి కోసం వెతుకుతోంది…',
+  searchingCount: (n) => (n <= 1 ? 'వరుసలో మీరే మొదటివారు' : `${n} మంది వెతుకుతున్నారు`),
+  noOneYet: 'ప్రస్తుతం ఇంకెవరూ వెతకడం లేదు. ఎదురుచూడండి, లేదా ఈలోగా కంప్యూటర్‌తో ఆడండి.',
+  keepWaiting: 'ఎదురుచూస్తాను',
+  playComputerInstead: 'కంప్యూటర్‌తో ఆడండి',
+  matchFound: 'ఆటగాడు దొరికారు!',
+  turnSecondsLeft: (s) => `${s} సె`,
+  quickMatchTag: 'త్వరిత ఆట',
   modeOnline: 'ఆన్‌లైన్ ఆట',
   modeOnlineSub: 'దూరపు స్నేహితులతో',
   modeComputer: 'కంప్యూటర్‌తో',
@@ -857,6 +893,7 @@ const te: Strings = {
     illegal: 'ఇప్పుడు అది కుదరదు.',
     'bad-token': 'మళ్ళీ చేరలేకపోయారు – ఆ ఆట ముగిసి ఉండవచ్చు.',
     network: 'గేమ్ సర్వర్‌ను చేరలేకపోయింది. ఇంటర్నెట్ కనెక్షన్ చూడండి.',
+    'bad-name': 'దయచేసి వేరే పేరు ఎంచుకోండి.',
   },
 
   rulesTitle: 'ఎలా ఆడాలి',

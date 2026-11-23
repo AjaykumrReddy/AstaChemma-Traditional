@@ -1,4 +1,4 @@
-import { COINS, MAX_NAME_LENGTH, dailyBonus } from '@asta/protocol';
+import { COINS, MAX_NAME_LENGTH, dailyBonus, isAcceptableName } from '@asta/protocol';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -25,7 +25,7 @@ export default function ProfileScreen() {
 
   /** What's typed; null shows the saved name. */
   const [draft, setDraft] = useState<string | null>(null);
-  const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'bad-name'>('idle');
   const [signing, setSigning] = useState(false);
   const [signInMessage, setSignInMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -78,6 +78,10 @@ export default function ProfileScreen() {
   const trimmed = value.trim();
   const canSave = trimmed.length > 0 && trimmed !== profile.name && saving !== 'saving';
   const save = async () => {
+    if (!isAcceptableName(trimmed)) {
+      setSaving('bad-name');
+      return;
+    }
     setSaving('saving');
     const ok = await rename(trimmed);
     setSaving(ok ? 'saved' : 'failed');
@@ -124,6 +128,7 @@ export default function ProfileScreen() {
             </View>
             {saving === 'saved' && <Text style={styles.ok}>✓ {t.saved}</Text>}
             {saving === 'failed' && <Text style={styles.error}>{t.saveFailed}</Text>}
+            {saving === 'bad-name' && <Text style={styles.error}>{t.onlineError['bad-name']}</Text>}
           </View>
 
           {/* Sign-in: keeps the account when changing phones. */}

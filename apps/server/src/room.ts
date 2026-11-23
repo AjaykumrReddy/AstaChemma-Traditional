@@ -40,6 +40,10 @@ export interface RoomTimings {
   awayMs: number;
   /** A room with nobody connected is removed after this long. */
   abandonedMs: number;
+  /** Quick match: time for each throw or move before the server plays it for you. */
+  turnMs: number;
+  /** Quick match: time for matched players to connect before the computer stands in. */
+  joinMs: number;
 }
 
 export const DEFAULT_TIMINGS: RoomTimings = {
@@ -47,7 +51,12 @@ export const DEFAULT_TIMINGS: RoomTimings = {
   botMoveMs: 900,
   awayMs: 30_000,
   abandonedMs: 10 * 60_000,
+  turnMs: 20_000,
+  joinMs: 15_000,
 };
+
+/** Quick match: this many turns in a row left to the timer and the computer takes over (until you act again). */
+const MISSED_TURNS_AWAY = 3;
 
 /** The computer that plays for a human who is away or has left. */
 const STAND_IN_LEVEL: BotLevel = 'medium';
@@ -72,6 +81,10 @@ export interface MemberData {
   away: boolean;
   /** When an unanswered disconnect becomes "away" (or frees a lobby seat). */
   awayAt: number | null;
+  /** Has connected at least once (quick-match seats are reserved before their players arrive). */
+  joined?: boolean;
+  /** Quick match: turns in a row the timer had to play. */
+  missed?: number;
 }
 
 /** Everything about a room, as plain JSON-safe data the host saves after every change. */
@@ -95,6 +108,10 @@ export interface RoomData {
   startedAt?: number;
   /** The finished game's result has been saved to players' accounts. */
   recorded?: boolean;
+  /** A quick-match room: strangers paired by the server; no host, and a turn timer. */
+  quick?: boolean;
+  /** Quick match: when the current player's throw or move is due. */
+  turnAt?: number | null;
 }
 
 /** How the room reaches players and reads the time. */
@@ -148,6 +165,43 @@ export class Room {
     };
   }
 
+  /**
+   * A quick-match room: the matched players' seats are reserved (each gets a
+   * token to join with, exactly like rejoining) and the game starts at once.
+   * Anyone who doesn't connect within `joinMs` is played by the computer.
+   */
+  static createQuick(
+    code: string,
+    players: { name: string; userId: string | null }[],
+    now: number,
+    timings: Pick<RoomTimings, 'joinMs' | 'turnMs'> = DEFAULT_TIMINGS,
+  ): RoomData {
+    const d = Room.create(code, 'individual', players.length, now);
+    d.quick = true;
+    d.seatsInPlay.forEach((seat, i) => {
+      const p = players[i]!;
+      const member: MemberData = {
+        id: crypto.randomUUID(),
+        token: crypto.randomUUID(),
+        name: p.name,
+        seat,
+        connected: false,
+        away: false,
+        awayAt: now + timings.joinMs,
+        // Not here yet: no result or coins unless they arrive.
+        joined: false,
+      };
+      d.members.push(member);
+      d.seats[seat] = { kind: 'human', name: p.name, memberId: member.id, ...(p.userId ? { userId: p.userId } : {}) };
+    });
+    d.game = createGame({ mode: 'individual', players: d.seatsInPlay.map((seat) => ({ name: d.seats[seat]!.name!, seat })) }, randomSeed());
+    d.status = 'playing';
+    d.startedAt = now;
+    // The first player also gets the time to arrive.
+    d.turnAt = now + timings.joinMs + timings.turnMs;
+    return d;
+  }
+
   // -------------------------------------------------------------------------
   // Membership
   // -------------------------------------------------------------------------
@@ -170,6 +224,7 @@ export class Room {
       connected: true,
       away: false,
       awayAt: null,
+      joined: true,
     };
     d.members.push(member);
     d.seats[seat] = { kind: 'human', name, memberId: member.id, ...(userId ? { userId } : {}) };
@@ -186,6 +241,8 @@ export class Room {
     member.connected = true;
     member.away = false;
     member.awayAt = null;
+    member.joined = true;
+    member.missed = 0;
     attach(member);
     // If the stand-in computer was about to play their turn, that's cancelled.
     this.changed(null);
@@ -274,9 +331,12 @@ export class Room {
     const players = d.seatsInPlay.map((seat) => {
       const slot = d.seats[seat];
       const player = game.players.find((p) => p.seat === seat)!;
+      // Only players who actually joined: a matched player who never arrived gets nothing.
+      const member = slot?.memberId ? this.member(slot.memberId) : undefined;
+      const joined = member?.joined !== false;
       return {
         seat,
-        userId: slot?.kind === 'human' ? (slot.userId ?? null) : null,
+        userId: slot?.kind === 'human' && joined ? (slot.userId ?? null) : null,
         name: player.name,
         bot: slot?.kind === 'bot' ? (slot.level ?? 'medium') : null,
         won: game.winners.includes(player.index),
@@ -316,6 +376,9 @@ export class Room {
     if (!member) throw new RoomError('not-in-room', 'You are not in this room.');
     if (this.data.status !== 'playing' || !this.data.game) throw new RoomError('illegal', 'The game is not being played.');
     if (this.currentSeat() !== member.seat) throw new RoomError('not-your-turn', 'It is not your turn.');
+    // Playing again: the timer's count starts over, and the computer stops standing in.
+    member.missed = 0;
+    if (member.away && member.connected) member.away = false;
     return member.seat;
   }
 
@@ -353,6 +416,7 @@ export class Room {
   wakeAt(): number | null {
     const times: number[] = [];
     if (this.data.botAt !== null) times.push(this.data.botAt);
+    if (this.data.turnAt != null) times.push(this.data.turnAt);
     for (const m of this.data.members) if (m.awayAt !== null) times.push(m.awayAt);
     if (this.isAbandoned()) times.push(this.data.lastActivity + this.timings.abandonedMs);
     return times.length ? Math.min(...times) : null;
@@ -381,6 +445,21 @@ export class Room {
         else this.applyMoveFor(seat, action.move.id);
       }
     }
+    // Quick match: the current player ran out of time – play it for them.
+    const d = this.data;
+    if (d.turnAt != null && d.turnAt <= now) {
+      d.turnAt = null;
+      const seat = this.currentSeat();
+      const slot = seat !== null ? d.seats[seat] : undefined;
+      const member = slot?.memberId ? this.member(slot.memberId) : undefined;
+      if (member && seat !== null && d.status === 'playing' && !this.computerLevelForTurn()) {
+        member.missed = (member.missed ?? 0) + 1;
+        if (member.missed >= MISSED_TURNS_AWAY) member.away = true;
+        const action = chooseBotAction(d.game!, STAND_IN_LEVEL);
+        if (action.type === 'throw') this.applyThrow(seat);
+        else this.applyMoveFor(seat, action.move.id);
+      }
+    }
   }
 
   /** Nobody connected: nobody is playing here. */
@@ -402,13 +481,20 @@ export class Room {
     const d = this.data;
     d.version++;
     d.lastActivity = this.io.now();
-    const level = d.status === 'playing' ? this.computerLevelForTurn() : null;
+    // With nobody connected, nobody is watching: computers wait until someone is back.
+    const active = d.status === 'playing' && !this.isAbandoned();
+    const level = active ? this.computerLevelForTurn() : null;
     if (!level) d.botAt = null;
     else if (action || d.botAt === null) {
       // Pause like a person would: longer before throwing than before moving.
       const game = d.game!;
       const throwing = game.phase === 'awaitingThrow';
       d.botAt = this.io.now() + (throwing ? this.timings.botThrowMs : this.timings.botMoveMs);
+    }
+    // Quick match: each throw or move by a person has a time limit.
+    if (d.quick) {
+      if (!active || level) d.turnAt = null;
+      else if (action || d.turnAt == null) d.turnAt = this.io.now() + this.timings.turnMs;
     }
     const message: ServerMessage = { t: 'room', room: this.view(action) };
     for (const m of d.members) if (m.connected) this.io.send(m.id, message);
@@ -438,6 +524,7 @@ export class Room {
       game: d.game ? { ...d.game, rng: 0 } : null,
       version: d.version,
       lastAction: action,
+      ...(d.quick ? { quick: true, turnEndsIn: d.turnAt != null ? Math.max(0, d.turnAt - this.io.now()) : null } : {}),
     };
   }
 }

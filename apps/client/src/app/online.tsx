@@ -1,6 +1,6 @@
 import type { GameMode } from '@asta/engine';
-import { CODE_LENGTH, MAX_NAME_LENGTH } from '@asta/protocol';
-import { useRouter } from 'expo-router';
+import { CODE_LENGTH, MAX_NAME_LENGTH, isAcceptableName } from '@asta/protocol';
+import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ export default function OnlineScreen() {
   const setName = useOnlineStore((s) => s.setName);
   const create = useOnlineStore((s) => s.create);
   const join = useOnlineStore((s) => s.join);
+  const findMatch = useOnlineStore((s) => s.findMatch);
   const status = useOnlineStore((s) => s.status);
   const error = useOnlineStore((s) => s.error);
   const clearError = useOnlineStore((s) => s.clearError);
@@ -39,9 +40,11 @@ export default function OnlineScreen() {
   }, [profileName, setName]);
 
   // In a room: go to the lobby (it moves on to the game once it starts).
+  // (Only while this screen is showing: a quick match handles its own way in.)
+  const navigation = useNavigation();
   useEffect(() => {
-    if (session && room) router.replace('/lobby');
-  }, [session, room, router]);
+    if (session && room && navigation.isFocused()) router.replace('/lobby');
+  }, [session, room, router, navigation]);
 
   const busy = status === 'connecting';
   const withName = (action: () => void) => {
@@ -50,6 +53,10 @@ export default function OnlineScreen() {
       return;
     }
     setNameMissing(false);
+    if (!isAcceptableName(name.trim())) {
+      useOnlineStore.setState({ error: 'bad-name' });
+      return;
+    }
     action();
   };
 
@@ -75,6 +82,24 @@ export default function OnlineScreen() {
             accessibilityLabel={t.yourName}
           />
           {nameMissing && <Text style={styles.errorText}>{t.nameNeeded}</Text>}
+        </View>
+
+        <View style={[styles.card, styles.quickCard]}>
+          <Text style={styles.cardTitle}>{t.quickMatch}</Text>
+          <Text style={styles.hint}>{t.quickMatchHint}</Text>
+          <Pressable
+            style={({ pressed }) => [styles.primary, (pressed || busy) && styles.pressed]}
+            disabled={busy}
+            onPress={() =>
+              withName(() => {
+                findMatch();
+                router.push('/match');
+              })
+            }
+            accessibilityRole="button"
+          >
+            <Text style={styles.primaryText}>{t.findPlayer}</Text>
+          </Pressable>
         </View>
 
         <View style={styles.card}>
@@ -158,6 +183,7 @@ const styles = StyleSheet.create({
     padding: space.lg,
     gap: space.md,
   },
+  quickCard: { borderWidth: 2, borderColor: colors.accent },
   cardTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
   hint: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   input: {
