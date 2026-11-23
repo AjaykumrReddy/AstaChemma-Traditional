@@ -57,7 +57,14 @@
         }
       ],
       "expo-secure-store",
-      "@sentry/react-native"
+      [
+        "@sentry/react-native",
+        {
+          "url": "https://sentry.io/",
+          "organization": "ajay-dw",
+          "project": "astachemma-traditional"
+        }
+      ]
     ],
     "extra": {
       "router": {

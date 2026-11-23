@@ -2,6 +2,8 @@ import { COINS, MAX_NAME_LENGTH, dailyBonus, isAcceptableName } from '@asta/prot
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Constants from 'expo-constants';
+import { sendTestReport } from '../crash';
 import { PRIVACY_URL } from '../online/config';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { googleSignInAvailable } from '../account/google';
@@ -25,6 +27,8 @@ export default function ProfileScreen() {
 
   /** What's typed; null shows the saved name. */
   const [draft, setDraft] = useState<string | null>(null);
+  const [versionTaps, setVersionTaps] = useState(0);
+  const [testSent, setTestSent] = useState<'sent' | 'off' | null>(null);
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'bad-name'>('idle');
   const [signing, setSigning] = useState(false);
   const [signInMessage, setSignInMessage] = useState<{ text: string; ok: boolean } | null>(null);
@@ -209,6 +213,19 @@ export default function ProfileScreen() {
               <Text style={styles.deleteLinkText}>{t.deleteAccount}</Text>
             </Pressable>
           </View>
+          <Pressable
+            onPress={() => {
+              const n = versionTaps + 1;
+              setVersionTaps(n);
+              if (n === 7) setTestSent(sendTestReport() ? 'sent' : 'off');
+            }}
+            accessibilityRole="text"
+          >
+            <Text style={styles.version}>
+              {t.version(Constants.expoConfig?.version ?? '')}
+              {testSent === 'sent' ? ' · ✓ test report sent' : testSent === 'off' ? ' · reports off' : ''}
+            </Text>
+          </Pressable>
         </ScrollView>
       </SafeAreaView>
 
@@ -286,6 +303,7 @@ const styles = StyleSheet.create({
   lbLinkText: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '800' },
   lbChevron: { color: '#F6D77B', fontSize: 26, fontWeight: '700', marginTop: -2 },
   footerLinks: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' },
+  version: { color: colors.textMuted, fontSize: 12, textAlign: 'center', opacity: 0.7, paddingVertical: space.sm },
   privacyText: { color: colors.textMuted, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
   deleteLink: { alignSelf: 'center', paddingVertical: space.sm, paddingHorizontal: space.lg },
   deleteLinkText: { color: colors.danger, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },

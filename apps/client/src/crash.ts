@@ -36,6 +36,13 @@ if (crashReportingEnabled) {
   });
 }
 
+/** A harmless test report, to check reports arrive (Profile → tap the version 7 times). */
+export function sendTestReport(): boolean {
+  if (!crashReportingEnabled) return false;
+  Sentry.captureMessage('Test report from the Profile screen', 'info');
+  return true;
+}
+
 /** Wraps the root layout so render errors are reported (a no-op when off). */
 export const withCrashReporting = (component: () => React.JSX.Element): React.ComponentType =>
   crashReportingEnabled ? Sentry.wrap(component) : component;

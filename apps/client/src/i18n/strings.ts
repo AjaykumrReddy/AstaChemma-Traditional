@@ -224,6 +224,7 @@ export interface Strings {
   deleted: string;
   deleteFailed: string;
   privacyPolicy: string;
+  version: (v: string) => string;
   /** The small caption on the logo ("Traditional"), as in the store name "Asta Chemma Traditional". */
   titleCaption: string;
 
@@ -486,6 +487,7 @@ const en: Strings = {
   deleted: 'Your account was deleted. You’re now playing as a new guest.',
   deleteFailed: 'Couldn’t delete the account – check your internet connection and try again.',
   privacyPolicy: 'Privacy policy',
+  version: (v) => `Version ${v}`,
   titleCaption: 'Traditional',
   leaderboard: 'Leaderboard',
   lbWeek: 'This week',
@@ -832,6 +834,7 @@ const te: Strings = {
   deleted: 'మీ ఖాతా తొలగించబడింది. ఇప్పుడు మీరు కొత్త అతిథిగా ఆడుతున్నారు.',
   deleteFailed: 'ఖాతా తొలగించలేకపోయాం – ఇంటర్నెట్ కనెక్షన్ చూసి మళ్ళీ ప్రయత్నించండి.',
   privacyPolicy: 'గోప్యతా విధానం',
+  version: (v) => `వెర్షన్ ${v}`,
   titleCaption: 'సాంప్రదాయ',
   leaderboard: 'లీడర్‌బోర్డ్',
   lbWeek: 'ఈ వారం',
