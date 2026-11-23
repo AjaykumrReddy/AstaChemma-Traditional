@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Easing,
   Platform,
   Pressable,
   ScrollView,
@@ -230,6 +231,24 @@ export default function GameScreen() {
   const humanTurn =
     !!game && !!current && game.phase !== 'finished' && (online ? current.seat === mySeat : !current.bot);
 
+  // Pass & Play with someone sitting at the top: on their turn the panel turns
+  // to face them (the phone lies flat between the players).
+  const humans = game ? game.players.filter((p) => !p.bot).length : 0;
+  const facingTop =
+    !online && !tutorial && !!current && !current.bot && current.seat === 2 && humans >= 2 && game?.phase !== 'finished';
+  const [flip] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const anim = Animated.timing(flip, {
+      toValue: facingTop ? 1 : 0,
+      duration: 380,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [facingTop, flip]);
+  const flipStyle = { transform: [{ rotate: flip.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] };
+
   // Online: a buzz when your turn begins (the others' turns can take a while).
   const myTurnStarts = online && humanTurn && game?.phase === 'awaitingThrow' && game.pending.length === 0 ? game.turn : null;
   useEffect(() => {
@@ -436,7 +455,12 @@ export default function GameScreen() {
           </Pressable>
         )}
       </View>
-      <Shells shells={game.lastThrow?.shells ?? null} rolling={rolling} size={wide ? 40 : height < 700 ? 28 : 34} />
+      <Shells
+        shells={game.lastThrow?.shells ?? null}
+        rolling={rolling}
+        rollMs={timings.roll}
+        size={wide ? 40 : height < 700 ? 28 : 34}
+      />
       <Text style={styles.score}>
         {rolling
           ? ' '
@@ -541,13 +565,13 @@ export default function GameScreen() {
           <View style={styles.side}>
             {coach}
             {players}
-            {panel}
+            <Animated.View style={[styles.panelWrap, flipStyle]}>{panel}</Animated.View>
           </View>
         ) : (
           <>
             {/* The panel sits at the bottom, near the thumb; spare height goes above it. */}
             <View style={styles.spacer} />
-            {panel}
+            <Animated.View style={[styles.panelWrap, flipStyle]}>{panel}</Animated.View>
           </>
         )}
       </ScrollView>
@@ -669,6 +693,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   panelTight: { padding: space.md, gap: 6 },
+  /** Holds the panel so it can turn to face the top player in Pass & Play. */
+  panelWrap: { width: '100%', maxWidth: 620 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'stretch' },
   undo: {
     borderWidth: 1.5,

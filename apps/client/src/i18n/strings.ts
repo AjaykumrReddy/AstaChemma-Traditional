@@ -627,8 +627,8 @@ const en: Strings = {
     {
       title: 'The 7×7 board',
       bullets: [
-        'Same pieces, shells and rules – just a longer race: 48 steps to the centre instead of 24.',
-        'Round the outer ring counter-clockwise, the middle ring clockwise, then the inner ring counter-clockwise, and into the centre.',
+        'Same pieces, shells and rules – just a longer race: 49 steps to the centre instead of 24.',
+        'Round the outer ring counter-clockwise, the middle ring clockwise, then the inner ring counter-clockwise – and from its last square, one step back to the square below the centre and up into it.',
         'X squares: the middle of each outer side (where you enter), the four corners of the middle ring, and the centre.',
         'Choose the board when you start a game, create a room or look for a quick match.',
       ],
@@ -989,8 +989,8 @@ const te: Strings = {
     {
       title: '7×7 బోర్డు',
       bullets: [
-        'అవే కాయలు, అవే గవ్వలు, అవే నియమాలు – దారి మాత్రం పొడవు: మధ్యకు 24 కాదు, 48 అడుగులు.',
-        'బయటి వలయం అపసవ్య దిశలో, మధ్య వలయం సవ్య దిశలో, లోపలి వలయం మళ్ళీ అపసవ్య దిశలో, ఆపై మధ్య గడికి.',
+        'అవే కాయలు, అవే గవ్వలు, అవే నియమాలు – దారి మాత్రం పొడవు: మధ్యకు 24 కాదు, 49 అడుగులు.',
+        'బయటి వలయం అపసవ్య దిశలో, మధ్య వలయం సవ్య దిశలో, లోపలి వలయం మళ్ళీ అపసవ్య దిశలో – దాని చివరి గడి నుండి మధ్య గడి కింది గడికి, అక్కడి నుండి పైకి మధ్యకు.',
         'X గడులు: ప్రతి బయటి వైపు మధ్య గడి (అక్కడే దిగుతారు), మధ్య వలయం నాలుగు మూలలు, మధ్య గడి.',
         'ఆట మొదలుపెట్టేటప్పుడు, గది సృష్టించేటప్పుడు లేదా త్వరిత ఆట వెతికేటప్పుడు బోర్డు ఎంచుకోండి.',
       ],

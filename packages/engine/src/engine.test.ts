@@ -554,20 +554,20 @@ describe('7×7 board', () => {
   const B7 = BOARDS['7x7'];
   const seven: GameConfig = { ...twoPlayers, board: '7x7' };
 
-  it('visits all 49 squares once, a step at a time, and ends at the centre', () => {
+  it('visits all 49 squares, one square at a time, and ends at the centre', () => {
     for (const seat of [0, 1, 2, 3] as Seat[]) {
       const route = B7.routes[seat];
-      expect(route).toHaveLength(49);
+      expect(route).toHaveLength(50);
       expect(new Set(route.map(cellKey)).size).toBe(49);
       expect(route[B7.home]).toEqual({ row: 3, col: 3 });
-      // One square at a time; only the last step into the centre is diagonal.
-      for (let i = 1; i < B7.home; i++) {
+      // Never diagonally, not even into the centre.
+      for (let i = 1; i <= B7.home; i++) {
         const a = route[i - 1]!;
         const b = route[i]!;
         expect(Math.abs(a.row - b.row) + Math.abs(a.col - b.col)).toBe(1);
       }
     }
-    expect(B7.home).toBe(48);
+    expect(B7.home).toBe(49);
   });
 
   it('runs the outer ring counter-clockwise, the middle clockwise, the inner counter-clockwise', () => {
@@ -581,6 +581,8 @@ describe('7×7 board', () => {
     expect(r[40]).toEqual({ row: 4, col: 3 }); // inner ring: just inside
     expect(r[41]).toEqual({ row: 4, col: 4 }); // … and goes right (counter-clockwise)
     expect(r[47]).toEqual({ row: 4, col: 2 });
+    expect(r[48]).toEqual({ row: 4, col: 3 }); // back below the centre (second visit)
+    expect(r[49]).toEqual({ row: 3, col: 3 }); // … and up into it
   });
 
   it('has X squares on each side, the middle ring corners and the centre; everyone enters on one', () => {
@@ -603,11 +605,12 @@ describe('7×7 board', () => {
     expect(g.legalMoves.find((m) => m.pieceId === '0-C1')).toMatchObject({ to: 3, captures: ['1-C1'] });
   });
 
-  it('only finishes on an exact throw into the centre (48 steps)', () => {
-    let g = place(createGame(seven, 1), { '0-C1': 45 });
+  it('only finishes on an exact throw into the centre (49 steps)', () => {
+    // From the square left of below-the-centre: down, right, up – a 3, as drawn.
+    let g = place(createGame(seven, 1), { '0-C1': 46 });
     g = applyThrow(g, open(3));
-    expect(g.legalMoves.find((m) => m.pieceId === '0-C1')).toMatchObject({ to: 48, finishes: true });
-    let h = place(createGame(seven, 1), { '0-C1': 45 });
+    expect(g.legalMoves.find((m) => m.pieceId === '0-C1')).toMatchObject({ to: 49, finishes: true });
+    let h = place(createGame(seven, 1), { '0-C1': 46 });
     h = applyThrow(h, open(4));
     expect(h.legalMoves.find((m) => m.pieceId === '0-C1')).toBeUndefined();
   });
@@ -624,8 +627,8 @@ describe('7×7 board', () => {
   }, 60_000);
 
   it('a longer route takes longer to finish', () => {
-    expect(expectedTurnsToFinish(-1, -1, -1, 48)).toBeGreaterThan(expectedTurnsToFinish(-1, -1, -1, 24) * 1.5);
-    expect(expectedTurnsToFinish(48, 48, 48, 48)).toBe(0);
+    expect(expectedTurnsToFinish(-1, -1, -1, B7.home)).toBeGreaterThan(expectedTurnsToFinish(-1, -1, -1, 24) * 1.5);
+    expect(expectedTurnsToFinish(B7.home, B7.home, B7.home, B7.home)).toBe(0);
   });
 
   it('treats games saved before boards existed as 5×5', () => {

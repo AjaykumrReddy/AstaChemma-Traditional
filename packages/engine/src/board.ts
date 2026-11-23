@@ -66,12 +66,15 @@ function ringCounterClockwise(size: number, k: number): Cell[] {
  * The bottom player's route on a board of `size` squares: enter on the middle
  * of the bottom side, round the outer ring counter-clockwise, then each ring
  * further in, alternating direction (the next ring starts on the square just
- * inside where the last one ended), and finally the centre.
+ * inside where the last one ended), and finally the centre, one square at a
+ * time (the last ring's first square may be passed twice to get there).
  */
 function bottomRoute(size: number): Cell[] {
   const route: Cell[] = [];
   const rings = (size - 1) / 2;
+  let lastRingStart = 0;
   for (let k = 0; k < rings; k++) {
+    lastRingStart = route.length;
     let ring = ringCounterClockwise(size, k);
     if (k % 2 === 1) ring = [ring[0]!, ...ring.slice(1).reverse()]; // clockwise
     if (k > 0) {
@@ -83,6 +86,11 @@ function bottomRoute(size: number): Cell[] {
     route.push(...ring);
   }
   const mid = (size - 1) / 2;
+  // Into the centre square by square, never diagonally: if the last ring ends
+  // beside a corner of the centre (as on 7×7), step back onto that ring's first
+  // square, which is just below the centre, and go up from there.
+  const last = route[route.length - 1]!;
+  if (Math.abs(last.row - mid) + Math.abs(last.col - mid) !== 1) route.push(route[lastRingStart]!);
   route.push({ row: mid, col: mid });
   return route;
 }
@@ -126,8 +134,9 @@ export const BOARDS: Record<BoardId, Board> = {
     { row: 2, col: 4 },
     { row: 4, col: 2 },
   ]),
-  // 48 steps: outer ring (24) counter-clockwise, middle ring (16) clockwise,
-  // inner ring (8) counter-clockwise, centre. X squares: the middle of each
+  // 49 steps: outer ring (24) counter-clockwise, middle ring (16) clockwise,
+  // inner ring (8) counter-clockwise, back onto the square below the centre
+  // (visited twice), then up into the centre. X squares: the middle of each
   // outer side, the four corners of the middle ring, and the centre.
   '7x7': makeBoard('7x7', 7, [
     { row: 0, col: 3 },
