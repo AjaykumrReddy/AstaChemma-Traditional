@@ -229,6 +229,16 @@ export interface ShellsProps {
   size?: number;
   /** How long a throw takes (the shells are in the air for most of it). */
   rollMs?: number;
+  /**
+   * Decides where this throw's shells land; change it for every throw. Two
+   * panels showing the same game (Pass & Play) give the same seed, so they
+   * show the same throw.
+   */
+  seed?: number;
+  /** Height of the area the shells land in (default: room for a loose scatter). */
+  height?: number;
+  /** Draw no mat of its own (it sits on another surface). */
+  bare?: boolean;
 }
 
 /**
@@ -236,18 +246,22 @@ export interface ShellsProps {
  * the panel: each flies its own arc, spinning and flipping, and lands with a
  * small bounce somewhere new on the mat, at its own angle.
  */
-export function Shells({ shells, rolling, size = 34, rollMs = 650 }: ShellsProps) {
+export function Shells({ shells, rolling, size = 34, rollMs = 650, seed = 1, height: givenHeight, bare }: ShellsProps) {
   const t = useStrings();
-  const height = Math.round(size * 2.15);
+  const height = Math.round(givenHeight ?? size * 2.6);
   const [width, setWidth] = useState(size * 9);
   const [spots, setSpots] = useState<Spot[]>(() => scatter(size * 9, height, size, seeded(7)));
   const [flights, setFlights] = useState<Flight[]>(() => [STILL, STILL, STILL, STILL, STILL]);
   const [progress] = useState(() => Array.from({ length: 5 }, () => new Animated.Value(P_END)));
   const [flicker, setFlicker] = useState<boolean[]>([false, false, false, false, false]);
   const [wasRolling, setWasRolling] = useState(rolling);
-  // Each throw scatters differently: a seed picked once, plus a throw counter.
-  const [seedBase] = useState(() => Math.floor(Math.random() * 1e9));
-  const [throwCount, setThrowCount] = useState(0);
+  const [lastHeight, setLastHeight] = useState(height);
+
+  // The mat got taller or shorter: lay resting shells out over it again.
+  if (height !== lastHeight) {
+    setLastHeight(height);
+    if (!rolling) setSpots(scatter(width, height, size, seeded(seed * 7919 + 17)));
+  }
 
   // A new throw (rolling just switched on): pick where each shell lands and how
   // it gets there. Done while rendering, so the very first frame is already the
@@ -255,8 +269,7 @@ export function Shells({ shells, rolling, size = 34, rollMs = 650 }: ShellsProps
   if (rolling !== wasRolling) {
     setWasRolling(rolling);
     if (rolling) {
-      const random = seeded(seedBase + throwCount * 7919);
-      setThrowCount(throwCount + 1);
+      const random = seeded(seed * 7919 + 17);
       const next = scatter(width, height, size, random);
       // The hand is on the player's side of the panel (below the mat).
       const hand = { x: width / 2 + (random() - 0.5) * size, y: height + size * 0.35 };
@@ -309,7 +322,7 @@ export function Shells({ shells, rolling, size = 34, rollMs = 650 }: ShellsProps
   const shown = rolling ? flicker : (shells ?? [false, false, false, false, false]);
   const label = shells && !rolling ? t.shellsOpenA11y(shells.filter(Boolean).length) : t.shellsA11y;
   return (
-    <View style={[styles.mat, { height }, !shells && !rolling && styles.idle]} onLayout={onLayout} accessibilityLabel={label}>
+    <View style={[bare ? styles.bare : styles.mat, { height }, !shells && !rolling && styles.idle]} onLayout={onLayout} accessibilityLabel={label}>
       {spots.map((spot, i) => (
         <FlyingCowrie
           key={i}
@@ -334,6 +347,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(246, 215, 123, 0.14)',
   },
+  bare: { alignSelf: 'stretch' },
   idle: { opacity: 0.6 },
   glow: { position: 'absolute', backgroundColor: colors.highlight },
   shadow: { position: 'absolute', backgroundColor: '#000' },

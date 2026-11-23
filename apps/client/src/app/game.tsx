@@ -1,10 +1,9 @@
-import { boardOf, cellAt, cellKey, chooseBotAction, type Cell, type GameState, type Move } from '@asta/engine';
+import { boardOf, cellAt, cellKey, chooseBotAction, type Cell, type GameState, type Move, type Seat } from '@asta/engine';
 import { Redirect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  Easing,
   Platform,
   Pressable,
   ScrollView,
@@ -23,6 +22,7 @@ import { CoachCard } from '../components/CoachCard';
 import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Shells } from '../components/Shells';
+import { ThrowMat } from '../components/ThrowMat';
 import { useStrings, withDisplayNames, type Strings } from '../i18n';
 import { haptic } from '../feedback/haptics';
 import { useOnlineStore } from '../online/store';
@@ -35,6 +35,8 @@ import { colors, radius, seatColors, space } from '../theme';
 const WIDE_BREAKPOINT = 820;
 const SIDE_WIDTH = 340;
 const HEADER_ALLOWANCE = 72;
+/** Two-sided Pass & Play: a rough mat height, until the real space is measured. */
+const MAT_ESTIMATE = 160;
 /** Cards float over the background as dark glass with a faint gold rim. */
 const GLASS = 'rgba(10, 30, 25, 0.72)';
 const GOLD_RIM = '#F6D77B';
@@ -231,23 +233,14 @@ export default function GameScreen() {
   const humanTurn =
     !!game && !!current && game.phase !== 'finished' && (online ? current.seat === mySeat : !current.bot);
 
-  // Pass & Play with someone sitting at the top: on their turn the panel turns
-  // to face them (the phone lies flat between the players).
+  // Pass & Play on a phone with someone sitting at the top: the phone lies flat
+  // between the players, so each side gets its own panel, the top one facing
+  // them. (Not on the web, and not on tablets or computers.)
   const humans = game ? game.players.filter((p) => !p.bot).length : 0;
-  const facingTop =
-    !online && !tutorial && !!current && !current.bot && current.seat === 2 && humans >= 2 && game?.phase !== 'finished';
-  const [flip] = useState(() => new Animated.Value(0));
-  useEffect(() => {
-    const anim = Animated.timing(flip, {
-      toValue: facingTop ? 1 : 0,
-      duration: 380,
-      easing: Easing.inOut(Easing.quad),
-      useNativeDriver: Platform.OS !== 'web',
-    });
-    anim.start();
-    return () => anim.stop();
-  }, [facingTop, flip]);
-  const flipStyle = { transform: [{ rotate: flip.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] };
+  const topIsHuman = !!game?.players.some((p) => p.seat === 2 && !p.bot);
+  const twoSidedGame = Platform.OS !== 'web' && !online && !tutorial && humans >= 2 && topIsHuman;
+  /** Two-sided layout: the space left for the board between the panels. */
+  const [boardArea, setBoardArea] = useState<{ width: number; height: number } | null>(null);
 
   // Online: a buzz when your turn begins (the others' turns can take a while).
   const myTurnStarts = online && humanTurn && game?.phase === 'awaitingThrow' && game.pending.length === 0 ? game.turn : null;
@@ -364,13 +357,21 @@ export default function GameScreen() {
   const currentName = named.players[game.current]!.name;
 
   const wide = width >= WIDE_BREAKPOINT;
+  const twoSided = twoSidedGame && !wide;
   const available = height - HEADER_ALLOWANCE - insets.top - insets.bottom;
   const boardSize = Math.floor(
-    wide
-      ? Math.min(available - space.lg, width - SIDE_WIDTH - space.xl * 3, 820)
-      : // Phones: the board takes what the chip row (~60) and the panel (~250) leave.
-        Math.max(230, Math.min(width - space.md * 2, available - 330, 620)),
+    twoSided
+      ? // Whatever the two panels leave (measured), before that a fair guess.
+        boardArea
+        ? Math.max(200, Math.min(boardArea.width, boardArea.height))
+        : Math.max(200, Math.min(width - space.md * 2, height - insets.top - insets.bottom - 2 * MAT_ESTIMATE - 40))
+      : wide
+        ? Math.min(available - space.lg, width - SIDE_WIDTH - space.xl * 3, 820)
+        : // Phones: the board takes what the chip row (~60) and the panel (~250) leave.
+          Math.max(230, Math.min(width - space.md * 2, available - 330, 620)),
   );
+  // Two-sided: the top panel is for the top player's turns, the bottom one for everyone else's.
+  const topActive = current.seat === 2 && !current.bot;
 
   const shown = displayState(game, animation);
   const seat = seatColors[current.seat];
@@ -435,8 +436,22 @@ export default function GameScreen() {
   const seatButton = { backgroundColor: seat.fill, borderBottomColor: seat.dark };
   const seatButtonText = current.seat === 0 ? styles.darkText : styles.lightText;
 
-  const panel = (
-    <View style={[styles.panel, height < 700 && !wide && styles.panelTight, { borderColor: game.phase === 'finished' ? colors.accent : seat.fill }]}>
+  /**
+   * The throw panel. In the two-sided layout there are two: the one on the
+   * side whose turn it is is `active`; the other shows the same throw, faded.
+   */
+  const renderPanel = (active = true) => (
+    <View
+      style={[
+        styles.panel,
+        ((height < 700 && !wide) || twoSided) && styles.panelTight,
+        { borderColor: game.phase === 'finished' ? colors.accent : seat.fill },
+        !active && styles.panelIdle,
+        { pointerEvents: active ? 'auto' : 'none' },
+      ]}
+      accessibilityElementsHidden={!active}
+      importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
+    >
       <View style={styles.statusRow}>
         <SeatMark seat={current.seat} size={16} />
         <Text style={styles.status} numberOfLines={2}>
@@ -459,15 +474,20 @@ export default function GameScreen() {
         shells={game.lastThrow?.shells ?? null}
         rolling={rolling}
         rollMs={timings.roll}
-        size={wide ? 40 : height < 700 ? 28 : 34}
+        size={twoSided ? (height < 700 ? 22 : 28) : wide ? 40 : height < 700 ? 28 : 34}
+        // Different for every throw (the game moves on between throws), the same for both panels.
+        seed={game.rng ^ (game.turn * 131 + game.events.length * 17 + game.pending.length)}
       />
-      <Text style={styles.score}>
-        {rolling
-          ? ' '
-          : game.lastThrow
-            ? `${describeOpen(t, game.lastThrow.open)} · ${describeScore(t, game.lastThrow.open)}`
-            : t.countOpenHint}
-      </Text>
+      {/* Two-sided: one line of news instead of two, to leave the board room. */}
+      {!twoSided && (
+        <Text style={styles.score}>
+          {rolling
+            ? ' '
+            : game.lastThrow
+              ? `${describeOpen(t, game.lastThrow.open)} · ${describeScore(t, game.lastThrow.open)}`
+              : t.countOpenHint}
+        </Text>
+      )}
       {game.pending.length > 1 && !rolling && (
         <View style={styles.pendingRow} accessibilityLabel={t.throwsToUseA11y}>
           <Text style={styles.pendingLabel}>{t.toUse}</Text>
@@ -478,8 +498,10 @@ export default function GameScreen() {
           ))}
         </View>
       )}
-      <Text style={styles.message} numberOfLines={3}>
-        {messages.join(' · ')}
+      <Text style={styles.message} numberOfLines={twoSided ? 2 : 3}>
+        {twoSided && game.lastThrow && !rolling
+          ? [`${describeOpen(t, game.lastThrow.open)} · ${describeScore(t, game.lastThrow.open)}`, ...messages].join(' · ')
+          : messages.join(' · ')}
       </Text>
       {joinMove && (
         <Pressable
@@ -513,6 +535,117 @@ export default function GameScreen() {
     </View>
   );
 
+  const board = (
+    <Board
+      state={shown}
+      size={boardSize}
+      movable={movable}
+      selected={selected}
+      movingPieceId={animation?.pieceId ?? null}
+      stepMs={timings.step}
+      onPiecePress={onPiecePress}
+      onCellPress={onCellPress}
+      effects={effects}
+      onEffectDone={removeEffect}
+      shakeKey={shakeKey}
+      view={online && mySeat !== null ? mySeat : 0}
+    />
+  );
+
+  const settingsPopup = (
+    <Popup visible={settingsOpen} onClose={() => setSettingsOpen(false)} closeLabel={t.close} title={t.settings}>
+      <ScrollView style={{ maxHeight: height * 0.6 }} bounces={false}>
+        <SettingsPanel />
+      </ScrollView>
+      <Pressable
+        style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]}
+        onPress={() => setSettingsOpen(false)}
+        accessibilityRole="button"
+      >
+        <Text style={styles.bigButtonText}>{t.done}</Text>
+      </Pressable>
+    </Popup>
+  );
+
+  // Pass & Play with players facing each other: a word-free throwing mat each.
+  const matHeight = Math.round(Math.min(175, Math.max(120, (height - insets.top - insets.bottom) * 0.2)));
+  const renderMat = (matSeat: Seat, active: boolean) => {
+    const colours = seatColors[matSeat];
+    return (
+      <ThrowMat
+        fill={colours.fill}
+        dark={colours.dark}
+        ink={matSeat === 0 ? '#2A2208' : '#FFFFFF'}
+        active={active}
+        canThrow={showThrow || showHold}
+        onThrow={throwShells}
+        value={game.lastThrow ? throwValue(game.lastThrow.open) : null}
+        kept={game.pending.length > 1 ? game.pending.slice(0, -1).map((p) => throwValue(p.open)) : []}
+        shells={game.lastThrow?.shells ?? null}
+        rolling={rolling}
+        rollMs={timings.roll}
+        seed={game.rng ^ (game.turn * 131 + game.events.length * 17 + game.pending.length)}
+        height={matHeight}
+        onUndo={active && canUndo ? undo : undefined}
+        undoLabel={t.undoA11y}
+        throwLabel={t.throwShells}
+        resultLabel={game.lastThrow ? t.shellsOpenA11y(game.lastThrow.open) : t.shellsA11y}
+      />
+    );
+  };
+
+  if (twoSided) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.sm }]}>
+        <Backdrop />
+        <View style={styles.twoSided}>
+          {/* The top player's mat, turned to face them. */}
+          <View style={[styles.panelWrap, styles.facingTop]}>{renderMat(2, topActive)}</View>
+          <View
+            style={styles.boardArea}
+            onLayout={(e) => {
+              const { width: w, height: h } = e.nativeEvent.layout;
+              if (!boardArea || Math.abs(boardArea.width - w) > 1 || Math.abs(boardArea.height - h) > 1) setBoardArea({ width: w, height: h });
+            }}
+          >
+            <View style={{ width: boardSize, height: boardSize }}>
+              {board}
+              {/* Back and settings in the board's empty corners (no title bar in this layout). */}
+              <View style={[styles.cornerButton, styles.cornerLeft]}>
+                <IconButton label={t.back} onPress={goBack} size={34}>
+                  <Text style={styles.cornerGlyph}>‹</Text>
+                </IconButton>
+              </View>
+              <View style={[styles.cornerButton, styles.cornerRight]}>
+                <IconButton label={t.settings} onPress={() => setSettingsOpen(true)} size={34}>
+                  <Text style={styles.gearGlyph}>⚙</Text>
+                </IconButton>
+              </View>
+            </View>
+          </View>
+          <View style={styles.panelWrap}>{renderMat(topActive ? 0 : current.seat, !topActive)}</View>
+        </View>
+        {settingsPopup}
+        {game.phase === 'finished' && !animation && (
+          <View style={styles.overlay}>
+            <Confetti width={width} height={height} seed={game.turn} />
+            <View style={styles.dialog}>
+              <BouncingTrophy />
+              <Text style={styles.dialogTitle}>{t.won(winners.join(' & '))}</Text>
+              <Text style={styles.dialogText}>{game.config.mode === 'team' ? t.winTeam : t.winSolo}</Text>
+              <Pressable style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]} onPress={restart}>
+                <Text style={styles.bigButtonText}>{t.playAgain}</Text>
+              </Pressable>
+              <Pressable style={styles.dialogSecondary} onPress={() => router.back()}>
+                <Text style={styles.dialogSecondaryText}>{t.newSetup}</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <Backdrop />
@@ -545,33 +678,18 @@ export default function GameScreen() {
         )}
         {/* On phones the coach takes the player chips' place, so the board and buttons stay in view. */}
         {!wide && (coach ?? players)}
-        <View style={{ width: boardSize, height: boardSize }}>
-          <Board
-            state={shown}
-            size={boardSize}
-            movable={movable}
-            selected={selected}
-            movingPieceId={animation?.pieceId ?? null}
-            stepMs={timings.step}
-            onPiecePress={onPiecePress}
-            onCellPress={onCellPress}
-            effects={effects}
-            onEffectDone={removeEffect}
-            shakeKey={shakeKey}
-            view={online && mySeat !== null ? mySeat : 0}
-          />
-        </View>
+        <View style={{ width: boardSize, height: boardSize }}>{board}</View>
         {wide ? (
           <View style={styles.side}>
             {coach}
             {players}
-            <Animated.View style={[styles.panelWrap, flipStyle]}>{panel}</Animated.View>
+            {renderPanel()}
           </View>
         ) : (
           <>
             {/* The panel sits at the bottom, near the thumb; spare height goes above it. */}
             <View style={styles.spacer} />
-            <Animated.View style={[styles.panelWrap, flipStyle]}>{panel}</Animated.View>
+            {renderPanel()}
           </>
         )}
       </ScrollView>
@@ -693,8 +811,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   panelTight: { padding: space.md, gap: 6 },
-  /** Holds the panel so it can turn to face the top player in Pass & Play. */
-  panelWrap: { width: '100%', maxWidth: 620 },
+  /** Holds a panel in the two-sided Pass & Play layout. */
+  panelWrap: { width: '100%', maxWidth: 620, alignSelf: 'center' },
+  /** The top player's panel reads from their side of the phone. */
+  facingTop: { transform: [{ rotate: '180deg' }] },
+  /** The panel of the side whose turn it isn't. */
+  panelIdle: { opacity: 0.42 },
+  twoSided: { flex: 1, paddingHorizontal: space.md, gap: space.sm },
+  boardArea: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 0 },
+  cornerButton: { position: 'absolute' },
+  cornerLeft: { left: 2, bottom: 2 },
+  cornerRight: { right: 2, bottom: 2 },
+  cornerGlyph: { color: colors.chalk, fontSize: 24, fontWeight: '700', marginTop: -3 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'stretch' },
   undo: {
     borderWidth: 1.5,
