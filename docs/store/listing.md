@@ -52,6 +52,7 @@ PLAY YOUR WAY
 • Against the computer – easy, medium or hard.
 • Pass & Play – family and friends on one phone, 2 to 4 players or 2 v 2 teams.
 • Online with friends – create a room, share the 4-letter code and play together on your own phones. Everyone sees their own side at the bottom. Lost your connection? Rejoin and carry on – the computer keeps your seat warm.
+• Quick match – no code needed: tap "Find a player" and play someone online right away.
 
 LEARN AS YOU PLAY
 New to Asta Chemma? A short guided game teaches every rule as you play, and How to play explains it all with pictures.
@@ -84,6 +85,7 @@ MADE WITH CARE
 • కంప్యూటర్‌తో – సులువు, మధ్యస్థం లేదా కష్టం.
 • ఒకే ఫోన్‌లో – కుటుంబం, స్నేహితులతో, 2 నుండి 4 మంది లేదా 2 v 2 జట్లు.
 • స్నేహితులతో ఆన్‌లైన్ – గది సృష్టించి, 4 అక్షరాల కోడ్ పంపి, ఎవరి ఫోన్‌లో వారు కలిసి ఆడండి. ప్రతి ఒక్కరికీ తమ వైపు కిందనే కనిపిస్తుంది. కనెక్షన్ పోయిందా? మళ్ళీ చేరి కొనసాగించండి – అప్పటిదాకా కంప్యూటర్ మీ స్థానంలో ఆడుతుంది.
+• త్వరిత ఆట – కోడ్ అవసరం లేదు: "ఆటగాడిని వెతకండి" నొక్కితే ఆన్‌లైన్‌లో ఉన్న ఎవరితోనైనా వెంటనే ఆడవచ్చు.
 
 ఆడుతూనే నేర్చుకోండి
 అష్ట చెమ్మ కొత్తా? చిన్న గైడెడ్ ఆట ఆడుతూనే అన్ని నియమాలు నేర్పుతుంది, "ఎలా ఆడాలి" పేజీ బొమ్మలతో వివరిస్తుంది.
