@@ -25,11 +25,12 @@ import { BoardDrawing } from '../components/BoardDrawing';
 import { GRID_END, MID, VIEW_PAD, VIEW_TOTAL, cellCentre, rotateToSeat } from '../components/boardGeometry';
 import { IconButton, Popup } from '../components/Chrome';
 import { ComputerIcon, LearnIcon, OnlineIcon, PassPlayIcon } from '../components/ModeIcons';
+import { LOGO_ASPECT, Logo } from '../components/Logo';
 import { ModeTile } from '../components/ModeTile';
 import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { Cowrie } from '../components/Shells';
-import { STRINGS, useStrings, withDisplayNames } from '../i18n';
+import { useStrings, withDisplayNames } from '../i18n';
 import { PRIVACY_URL } from '../online/config';
 import { useOnlineStore } from '../online/store';
 import { useGameStore } from '../store/game';
@@ -133,7 +134,6 @@ export default function HomeScreen() {
   const t = useStrings();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const language = useGameStore((s) => s.language);
   const startTutorial = useGameStore((s) => s.startTutorial);
   const tutorialDone = useGameStore((s) => s.tutorialDone);
   const hydrated = useGameStore((s) => s.hydrated);
@@ -237,9 +237,10 @@ export default function HomeScreen() {
   const available = height - insets.top - insets.bottom;
   const tileHeight = Math.round(Math.max(104, Math.min(150, available * 0.165)));
   const iconSize = Math.round(tileHeight * 0.42);
-  const reserved = 56 /* top bar */ + 64 /* title */ + tileHeight * 2 + space.md + space.lg * 2 + 18; /* shells overhang */
+  const logoWidth = Math.round(Math.min(width * 0.82, 380));
+  const logoHeight = Math.round(logoWidth * LOGO_ASPECT) + space.sm;
+  const reserved = 56 /* top bar */ + logoHeight + tileHeight * 2 + space.md + space.lg * 2 + 18; /* shells overhang */
   const heroSize = Math.round(Math.max(110, Math.min(width * 0.8, 400, available - reserved)));
-  const otherTitle = language === 'te' ? STRINGS.en.appTitle : STRINGS.te.appTitle;
 
   return (
     <View style={styles.screen}>
@@ -298,16 +299,10 @@ export default function HomeScreen() {
 
           {/* Title and board art */}
           <View style={styles.hero}>
-            {/* The logo: the name, with "Traditional" as a small tilted ribbon on its top-right. */}
-            <View style={styles.logo} accessibilityLabel={`${t.appTitle} ${t.titleCaption}`}>
-              <Text style={styles.title} numberOfLines={1}>
-                {t.appTitle}
-              </Text>
-              <View style={styles.ribbon}>
-                <Text style={styles.ribbonText}>{t.titleCaption}</Text>
-              </View>
+            {/* The logo: the name in gold on a "Traditional" banner. */}
+            <View style={styles.logo} accessible accessibilityRole="header" accessibilityLabel={`${t.appTitle} ${t.titleCaption}`}>
+              <Logo width={logoWidth} />
             </View>
-            <Text style={styles.subtitle}>{otherTitle}</Text>
             <View style={[styles.boardArt, { width: heroSize, height: heroSize }]}>
               <BoardDrawing players={HERO_PLAYERS} currentSeat={null} destinations={[]} strong={false} size={heroSize} />
               <HeroMarbles size={heroSize} />
@@ -535,35 +530,7 @@ const styles = StyleSheet.create({
   iconGlyph: { color: colors.chalk, fontSize: 21, fontWeight: '900' },
   gearGlyph: { color: colors.chalk, fontSize: 22, marginTop: -2 },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: {
-    color: '#F6D77B',
-    fontSize: 40,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0,0,0,0.55)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 6,
-  },
-  logo: { alignSelf: 'center', paddingTop: 14, paddingRight: 6 },
-  ribbon: {
-    position: 'absolute',
-    top: 0,
-    right: -18,
-    transform: [{ rotate: '-7deg' }],
-    backgroundColor: '#8E1F14',
-    borderWidth: 1.5,
-    borderColor: '#F6D77B',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  ribbonText: { color: '#FFE9A8', fontSize: 11.5, fontWeight: '900', letterSpacing: 1.8, textTransform: 'uppercase' },
-  subtitle: { color: colors.chalkDim, fontSize: 15, fontWeight: '700', letterSpacing: 1, marginBottom: space.sm },
+  logo: { alignSelf: 'center', marginBottom: space.sm },
   boardArt: { position: 'relative' },
   shells: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
   tiles: { gap: space.md },
