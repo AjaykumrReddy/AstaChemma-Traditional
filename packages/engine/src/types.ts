@@ -1,4 +1,4 @@
-import type { Seat } from './board';
+import type { BoardId, Seat } from './board';
 
 export type PieceKind = 'mother' | 'child';
 
@@ -17,6 +17,8 @@ export interface GameConfig {
   mode: GameMode;
   /** 2–4 players for individual mode, exactly 4 for team mode. */
   players: PlayerConfig[];
+  /** Which board (missing in games saved before 7×7: those are 5×5). */
+  board?: BoardId;
 }
 
 export interface Player {
@@ -32,7 +34,7 @@ export interface Piece {
   id: string;
   owner: number;
   kind: PieceKind;
-  /** -1 = waiting in the starting area, 0…23 = on the route, 24 = home. */
+  /** -1 = waiting in the starting area, 0… = on the route, the board's `home` index = home (24 on 5×5, 48 on 7×7). */
   progress: number;
 }
 

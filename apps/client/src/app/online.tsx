@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Backdrop } from '../components/Backdrop';
+import { BoardPicker } from '../components/BoardPicker';
 import { TopBar } from '../components/Chrome';
 import { Segmented } from '../components/Segmented';
 import { useStrings } from '../i18n';
@@ -82,6 +83,7 @@ export default function OnlineScreen() {
             accessibilityLabel={t.yourName}
           />
           {nameMissing && <Text style={styles.errorText}>{t.nameNeeded}</Text>}
+          <BoardPicker />
         </View>
 
         <View style={[styles.card, styles.quickCard]}>

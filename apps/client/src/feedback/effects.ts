@@ -1,4 +1,4 @@
-import { CENTRE, cellAt, isEight, type Cell, type GameState } from '@asta/engine';
+import { boardOf, cellAt, isEight, type Cell, type GameState } from '@asta/engine';
 import { boardColors, seatColors } from '../theme';
 import type { HapticKind } from './haptics';
 import type { SoundName } from './sounds';
@@ -54,7 +54,8 @@ export function feedbackForMove(state: GameState): Feedback {
   if (!piece) return result;
   const seat = state.players[piece.owner]!.seat;
   const color = seatColors[seat].fill;
-  const landing = cellAt(seat, move.to);
+  const board = boardOf(state);
+  const landing = cellAt(board, seat, move.to);
 
   if (move.captures.length > 0 && landing) {
     result.effects.push({ id: id(), kind: 'capture', cell: landing, color });
@@ -62,7 +63,7 @@ export function feedbackForMove(state: GameState): Feedback {
     result.shake = true;
     result.sounds.push({ name: 'capture', delay: 0 });
   } else if (move.finishes) {
-    result.effects.push({ id: id(), kind: 'home', cell: CENTRE, color: boardColors.gold });
+    result.effects.push({ id: id(), kind: 'home', cell: board.centre, color: boardColors.gold });
     result.haptic = 'success';
     result.sounds.push({ name: 'home', delay: 0 });
   } else if (move.enters && piece.kind === 'mother' && landing) {

@@ -1,40 +1,13 @@
-import { BOARD_SIZE, SAFE_CELLS, cellKey, isSafeCell, type Cell, type Player, type Seat } from '@asta/engine';
+import { BOARDS, cellKey, type Board, type Cell, type Player, type Seat } from '@asta/engine';
 import { memo } from 'react';
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { boardTheme, useLook, type BoardPalette } from '../cosmetics';
 import { colors, seatColors } from '../theme';
-import {
-  GRID_END,
-  MID,
-  ORIGIN,
-  VIEW_PAD,
-  VIEW_TOTAL,
-  YARD_RADIUS,
-  cellCentre,
-  ringOf,
-  rotateToSeat,
-  viewCell,
-  viewDirection,
-  viewSeat,
-  yardPath,
-  type Point,
-} from './boardGeometry';
+import { ORIGIN, VIEW_PAD, YARD_RADIUS, geometryFor, viewDirection, viewSeat, type Geometry, type Point } from './boardGeometry';
 import { useSvgId } from './svgId';
 
 const FRAME = 0.2;
 const TILE_GAP = 0.035;
-
-/** Direction of travel shown by the small chevrons: outer ring counter-clockwise, inner ring clockwise. */
-const ROUTE_HINTS: { cell: Cell; dir: Point }[] = [
-  { cell: { row: 4, col: 3 }, dir: { x: 1, y: 0 } },
-  { cell: { row: 1, col: 4 }, dir: { x: 0, y: -1 } },
-  { cell: { row: 0, col: 1 }, dir: { x: -1, y: 0 } },
-  { cell: { row: 3, col: 0 }, dir: { x: 0, y: 1 } },
-  { cell: { row: 2, col: 1 }, dir: { x: 0, y: -1 } },
-  { cell: { row: 1, col: 2 }, dir: { x: 1, y: 0 } },
-  { cell: { row: 2, col: 3 }, dir: { x: 0, y: 1 } },
-  { cell: { row: 3, col: 2 }, dir: { x: -1, y: 0 } },
-];
 
 const fmt = (n: number) => n.toFixed(4);
 
@@ -77,10 +50,10 @@ function Lotus({ c, u, b }: { c: Point; u: string; b: BoardPalette }) {
 }
 
 /** A safe square: the traditional X, finished with a small gold rosette. */
-function SafeMark({ cell, b }: { cell: Cell; b: BoardPalette }) {
+function SafeMark({ cell, b, geo }: { cell: Cell; b: BoardPalette; geo: Geometry }) {
   const x = ORIGIN + cell.col;
   const y = ORIGIN + cell.row;
-  const c = cellCentre(cell);
+  const c = geo.cellCentre(cell);
   const inset = 0.16;
   const rosette = Array.from({ length: 4 }, (_, i) => (i * Math.PI) / 2 + Math.PI / 4);
   return (
@@ -109,20 +82,24 @@ export interface BoardDrawingProps {
   view?: Seat;
   /** A board theme to draw (the shop's previews); otherwise the player's own. */
   theme?: string;
+  /** Which board (5×5 unless given). */
+  board?: Board;
 }
 
 /** The static board artwork: frame, tiles, safe squares, home, starting areas and move highlights. */
-function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, view = 0, theme }: BoardDrawingProps) {
+function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, view = 0, theme, board = BOARDS['5x5'] }: BoardDrawingProps) {
   const u = useSvgId();
   const look = useLook();
   const b = boardTheme(theme ?? look.board);
+  const geo = geometryFor(board);
+  const n = geo.size;
   const tiles: Cell[] = [];
-  for (let row = 0; row < BOARD_SIZE; row++) for (let col = 0; col < BOARD_SIZE; col++) tiles.push({ row, col });
+  for (let row = 0; row < n; row++) for (let col = 0; col < n; col++) tiles.push({ row, col });
   const frameX = ORIGIN - FRAME;
-  const frameSize = BOARD_SIZE + FRAME * 2;
+  const frameSize = n + FRAME * 2;
 
   return (
-    <Svg width={size} height={size} viewBox={`${-VIEW_PAD} ${-VIEW_PAD} ${VIEW_TOTAL} ${VIEW_TOTAL}`}>
+    <Svg width={size} height={size} viewBox={`${-VIEW_PAD} ${-VIEW_PAD} ${geo.total} ${geo.total}`}>
       <Defs>
         <LinearGradient id={`frame${u}`} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor={b.frameLight} />
@@ -158,7 +135,7 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
           <Stop offset="1" stopColor={b.goldDeep} />
         </RadialGradient>
         {([0, 1, 2, 3] as Seat[]).map((seat) => {
-          const inner = rotateToSeat({ x: MID, y: GRID_END }, viewSeat(seat, view));
+          const inner = geo.rotateToSeat({ x: geo.mid, y: geo.gridEnd }, viewSeat(seat, view));
           return (
             <RadialGradient
               key={seat}
@@ -182,10 +159,10 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
         return (
           <G key={`yard${p.seat}`}>
             {active && (
-              <Path d={yardPath(side, YARD_RADIUS + 0.04)} fill="none" stroke={seatColors[p.seat].fill} strokeWidth={0.1} strokeOpacity={0.7} />
+              <Path d={geo.yardPath(side, YARD_RADIUS + 0.04)} fill="none" stroke={seatColors[p.seat].fill} strokeWidth={0.1} strokeOpacity={0.7} />
             )}
-            <Path d={yardPath(side)} fill={`url(#yard${p.seat}${u})`} stroke={b.gold} strokeWidth={0.045} />
-            <Path d={yardPath(side, YARD_RADIUS - 0.1)} fill="none" stroke={b.gold} strokeOpacity={0.35} strokeWidth={0.015} strokeDasharray="0.05 0.05" />
+            <Path d={geo.yardPath(side)} fill={`url(#yard${p.seat}${u})`} stroke={b.gold} strokeWidth={0.045} />
+            <Path d={geo.yardPath(side, YARD_RADIUS - 0.1)} fill="none" stroke={b.gold} strokeOpacity={0.35} strokeWidth={0.015} strokeDasharray="0.05 0.05" />
           </G>
         );
       })}
@@ -194,12 +171,12 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
       <Rect x={frameX + 0.05} y={frameX + 0.08} width={frameSize} height={frameSize} rx={0.16} fill={b.shadow} fillOpacity={0.4} />
       <Rect x={frameX} y={frameX} width={frameSize} height={frameSize} rx={0.16} fill={`url(#frame${u})`} stroke={b.frameEdge} strokeWidth={0.03} />
       <Rect x={frameX} y={frameX} width={frameSize} height={frameSize} rx={0.16} fill={`url(#frameSheen${u})`} />
-      <Rect x={ORIGIN - 0.035} y={ORIGIN - 0.035} width={BOARD_SIZE + 0.07} height={BOARD_SIZE + 0.07} rx={0.05} fill={b.grout} stroke={b.gold} strokeWidth={0.025} strokeOpacity={0.8} />
+      <Rect x={ORIGIN - 0.035} y={ORIGIN - 0.035} width={n + 0.07} height={n + 0.07} rx={0.05} fill={b.grout} stroke={b.gold} strokeWidth={0.025} strokeOpacity={0.8} />
 
-      {/* Inlaid tiles: outer ring lighter than inner ring, centre is home */}
+      {/* Inlaid tiles: rings alternate light and dark from the outside in; the centre is home */}
       {tiles.map((cell) => {
-        const ring = ringOf(cell);
-        const fill = ring === 0 ? `url(#tileOuter${u})` : ring === 1 ? `url(#tileInner${u})` : `url(#tileHome${u})`;
+        const ring = geo.ringOf(cell);
+        const fill = ring === geo.rings ? `url(#tileHome${u})` : ring % 2 === 0 ? `url(#tileOuter${u})` : `url(#tileInner${u})`;
         return (
           <G key={`t${cellKey(cell)}`}>
             <Rect
@@ -225,10 +202,10 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
       })}
 
       {/* Route direction hints */}
-      {ROUTE_HINTS.filter((h) => !isSafeCell(h.cell)).map((h) => (
+      {geo.routeHints.map((h) => (
         <Path
           key={`r${cellKey(h.cell)}`}
-          d={chevron(cellCentre(viewCell(h.cell, view)), viewDirection(h.dir, view), 0.22)}
+          d={chevron(geo.cellCentre(geo.viewCell(h.cell, view)), viewDirection(h.dir, view), 0.22)}
           fill="none"
           stroke={b.gold}
           strokeOpacity={0.28}
@@ -238,14 +215,14 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
         />
       ))}
 
-      {SAFE_CELLS.filter((c) => ringOf(c) !== 2).map((cell) => (
-        <SafeMark key={`x${cellKey(cell)}`} cell={cell} b={b} />
+      {board.safe.filter((c) => geo.ringOf(c) !== geo.rings).map((cell) => (
+        <SafeMark key={`x${cellKey(cell)}`} cell={cell} b={b} geo={geo} />
       ))}
-      <Lotus c={{ x: MID, y: MID }} u={u} b={b} />
+      <Lotus c={{ x: geo.mid, y: geo.mid }} u={u} b={b} />
 
       {/* Legal destinations */}
       {destinations.map((real) => {
-        const cell = viewCell(real, view);
+        const cell = geo.viewCell(real, view);
         return (
         <Rect
           key={`d${cellKey(cell)}`}

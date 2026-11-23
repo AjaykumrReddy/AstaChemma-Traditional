@@ -1,4 +1,4 @@
-import type { BotLevel, GameMode, GameState, Seat } from '@asta/engine';
+import { isBoardId, type BoardId, type BotLevel, type GameMode, type GameState, type Seat } from '@asta/engine';
 
 /**
  * Messages between the app and the online game server, sent as JSON over a
@@ -6,8 +6,22 @@ import type { BotLevel, GameMode, GameState, Seat } from '@asta/engine';
  * runs computer players and broadcasts the room after every change.
  */
 
-/** Bump when a change would break older apps; the server rejects other versions. */
-export const PROTOCOL_VERSION = 1;
+/**
+ * The version this app speaks. Bump when older apps would misunderstand
+ * something new; the server accepts MIN_PROTOCOL_VERSION … PROTOCOL_VERSION.
+ *   1: the 5×5 board only.
+ *   2: rooms and quick match may use the 7×7 board (`board`).
+ */
+export const PROTOCOL_VERSION = 2;
+/** The oldest app version the server still talks to. */
+export const MIN_PROTOCOL_VERSION = 1;
+/** Apps older than this can only play on the 5×5 board. */
+export const BOARDS_PROTOCOL_VERSION = 2;
+
+/** Whether the server can talk to an app speaking this version. */
+export function supportedProtocol(version: number): boolean {
+  return Number.isInteger(version) && version >= MIN_PROTOCOL_VERSION && version <= PROTOCOL_VERSION;
+}
 
 /** Largest message either side accepts, in bytes. */
 export const MAX_MESSAGE_BYTES = 16 * 1024;
@@ -47,6 +61,8 @@ export type RoomStatus = 'lobby' | 'playing' | 'finished';
 export interface RoomView {
   code: string;
   mode: GameMode;
+  /** The board (missing from older servers: 5×5). */
+  board?: BoardId;
   status: RoomStatus;
   /** The seats in play for this room's player count. */
   seats: SeatView[];
@@ -73,7 +89,8 @@ export interface RoomView {
 export type QuickMode = '2p';
 
 export type MatchClientMessage =
-  | { t: 'queue'; protocol: number; mode: QuickMode; name: string; account?: string }
+  /** `board`: which line to wait in (missing: 5×5). Players are only matched on the same board. */
+  | { t: 'queue'; protocol: number; mode: QuickMode; name: string; account?: string; board?: BoardId }
   | { t: 'cancel' }
   | { t: 'ping' };
 
@@ -99,7 +116,9 @@ export function parseMatchMessage(raw: string): MatchClientMessage | null {
   if (!name) return null;
   const protocol = typeof data.protocol === 'number' ? data.protocol : -1;
   const account = typeof data.account === 'string' && data.account.length <= MAX_TOKEN_LENGTH ? data.account : undefined;
-  return { t: 'queue', protocol, mode: '2p', name, ...(account ? { account } : {}) };
+  if (data.board !== undefined && !isBoardId(data.board)) return null;
+  const board = data.board;
+  return { t: 'queue', protocol, mode: '2p', name, ...(account ? { account } : {}), ...(board ? { board } : {}) };
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +151,7 @@ export function isAcceptableName(name: string): boolean {
 
 export type ClientMessage =
   /** `account`: the player's session token, so results count towards their profile (optional). */
-  | { t: 'create'; protocol: number; name: string; mode: GameMode; players: 2 | 3 | 4; account?: string }
+  | { t: 'create'; protocol: number; name: string; mode: GameMode; players: 2 | 3 | 4; account?: string; board?: BoardId }
   | { t: 'join'; protocol: number; code: string; name: string; account?: string }
   | { t: 'rejoin'; protocol: number; code: string; playerId: string; token: string }
   /** Host, in the lobby: make a seat open or a computer player. */
@@ -374,7 +393,9 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const players = data.players;
       if (!name || !mode || (players !== 2 && players !== 3 && players !== 4)) return null;
       if (mode === 'team' && players !== 4) return null;
-      return { t: 'create', protocol, name, mode, players, ...(account ? { account } : {}) };
+      if (data.board !== undefined && !isBoardId(data.board)) return null;
+      const board = data.board;
+      return { t: 'create', protocol, name, mode, players, ...(account ? { account } : {}), ...(board ? { board } : {}) };
     }
     case 'join': {
       const name = cleanName(data.name);

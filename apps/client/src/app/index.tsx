@@ -1,4 +1,4 @@
-import { HOME_INDEX, type Player, type Seat } from '@asta/engine';
+import { boardOf, type Player, type Seat } from '@asta/engine';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -22,7 +22,7 @@ import { CoinIcon } from '../components/CoinIcon';
 import { TrophyIcon } from '../components/TrophyIcon';
 import { Backdrop } from '../components/Backdrop';
 import { BoardDrawing } from '../components/BoardDrawing';
-import { GRID_END, MID, VIEW_PAD, VIEW_TOTAL, cellCentre, rotateToSeat } from '../components/boardGeometry';
+import { CLASSIC, VIEW_PAD } from '../components/boardGeometry';
 import { IconButton, Popup } from '../components/Chrome';
 import { ComputerIcon, LearnIcon, OnlineIcon, PassPlayIcon } from '../components/ModeIcons';
 import { LOGO_ASPECT, Logo } from '../components/Logo';
@@ -54,7 +54,7 @@ function HeroMarbles({ size }: { size: number }) {
   const marbles: { seat: Seat; x: number; y: number; r: number }[] = [];
   for (const seat of [0, 1, 2, 3] as Seat[]) {
     for (const dx of [-0.32, 0.32]) {
-      const p = rotateToSeat({ x: MID + dx, y: GRID_END + 0.45 }, seat);
+      const p = CLASSIC.rotateToSeat({ x: CLASSIC.mid + dx, y: CLASSIC.gridEnd + 0.45 }, seat);
       marbles.push({ seat, ...p, r: 0.24 });
     }
   }
@@ -64,10 +64,10 @@ function HeroMarbles({ size }: { size: number }) {
     [2, 0, 1],
     [3, 3, 0],
   ];
-  for (const [seat, row, col] of onBoard) marbles.push({ seat, ...cellCentre({ row, col }), r: 0.3 });
+  for (const [seat, row, col] of onBoard) marbles.push({ seat, ...CLASSIC.cellCentre({ row, col }), r: 0.3 });
 
   return (
-    <Svg width={size} height={size} viewBox={`${-VIEW_PAD} ${-VIEW_PAD} ${VIEW_TOTAL} ${VIEW_TOTAL}`} style={StyleSheet.absoluteFill}>
+    <Svg width={size} height={size} viewBox={`${-VIEW_PAD} ${-VIEW_PAD} ${CLASSIC.total} ${CLASSIC.total}`} style={StyleSheet.absoluteFill}>
       <Defs>
         {([0, 1, 2, 3] as Seat[]).map((seat) => (
           <RadialGradient key={seat} id={`heroMarble${seat}`} cx="35%" cy="30%" r="75%">
@@ -423,7 +423,7 @@ export default function HomeScreen() {
           <>
             <View style={styles.resumePlayers}>
               {saved.players.map((p) => {
-                const home = saved.pieces.filter((pc) => pc.owner === p.index && pc.progress === HOME_INDEX).length;
+                const home = saved.pieces.filter((pc) => pc.owner === p.index && pc.progress === boardOf(saved).home).length;
                 const isTurn = p.index === saved.current;
                 return (
                   <View key={p.index} style={styles.resumePlayer}>

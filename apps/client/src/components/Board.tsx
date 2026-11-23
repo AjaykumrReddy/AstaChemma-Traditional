@@ -1,4 +1,4 @@
-import { HOME_INDEX, cellAt, cellKey, type Cell, type GameState, type Move, type Piece, type Seat } from '@asta/engine';
+import { boardOf, cellAt, cellKey, type Cell, type GameState, type Move, type Piece, type Seat } from '@asta/engine';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import type { BoardEffect } from '../feedback/effects';
@@ -7,18 +7,7 @@ import { useGameStore } from '../store/game';
 import { seatShapes } from '../theme';
 import { BoardDrawing } from './BoardDrawing';
 import { BoardEffects } from './Effects';
-import {
-  GRID_END,
-  MID,
-  ORIGIN,
-  VIEW_PAD,
-  VIEW_TOTAL,
-  cellCentre,
-  rotateToSeat,
-  viewCell,
-  viewSeat,
-  type Point,
-} from './boardGeometry';
+import { ORIGIN, VIEW_PAD, geometryFor, viewSeat, type Geometry, type Point } from './boardGeometry';
 import { PieceView } from './PieceView';
 
 /**
@@ -53,7 +42,8 @@ interface PlacedPiece {
 }
 
 /** Where each piece is drawn, seen from the `view` seat. */
-function placePieces(state: GameState, view: Seat): PlacedPiece[] {
+function placePieces(state: GameState, view: Seat, geo: Geometry): PlacedPiece[] {
+  const board = geo.board;
   const placed: PlacedPiece[] = [];
   const byCell = new Map<string, { cell: Cell; pieces: Piece[] }>();
   const yards = new Map<number, Piece[]>();
@@ -64,7 +54,7 @@ function placePieces(state: GameState, view: Seat): PlacedPiece[] {
       yards.set(piece.owner, [...(yards.get(piece.owner) ?? []), piece]);
       continue;
     }
-    const cell = cellAt(seatOf(piece), piece.progress)!;
+    const cell = cellAt(board, seatOf(piece), piece.progress)!;
     const key = cellKey(cell);
     const entry = byCell.get(key) ?? { cell, pieces: [] };
     entry.pieces.push(piece);
@@ -74,7 +64,7 @@ function placePieces(state: GameState, view: Seat): PlacedPiece[] {
   for (const { cell, pieces } of byCell.values()) {
     pieces.sort((a, b) => a.owner - b.owner || a.id.localeCompare(b.id));
     const { offsets, r } = slots(pieces.length);
-    const c = cellCentre(viewCell(cell, view));
+    const c = geo.cellCentre(geo.viewCell(cell, view));
     pieces.forEach((piece, i) => {
       const o = offsets[i] ?? { x: 0, y: 0 };
       placed.push({ piece, seat: seatOf(piece), at: { x: c.x + o.x, y: c.y + o.y }, r });
@@ -86,8 +76,8 @@ function placePieces(state: GameState, view: Seat): PlacedPiece[] {
     pieces.sort((a, b) => a.id.localeCompare(b.id));
     pieces.forEach((piece, i) => {
       // Laid out for the bottom starting area, then rotated to the player's side.
-      const base = { x: MID + (i - (pieces.length - 1) / 2) * 0.48, y: GRID_END + 0.5 };
-      placed.push({ piece, seat, at: rotateToSeat(base, viewSeat(seat, view)), r: 0.22 });
+      const base = { x: geo.mid + (i - (pieces.length - 1) / 2) * 0.48, y: geo.gridEnd + 0.5 };
+      placed.push({ piece, seat, at: geo.rotateToSeat(base, viewSeat(seat, view)), r: 0.22 });
     });
   }
   return placed;
@@ -133,7 +123,9 @@ function BoardView({
 }: BoardProps) {
   const t = useStrings();
   const markers = useGameStore((s) => s.markers);
-  const unit = size / VIEW_TOTAL;
+  const board = boardOf(state);
+  const geo = geometryFor(board);
+  const unit = size / geo.total;
   const [shake] = useState(() => new Animated.Value(0));
 
   // A quick shudder when a capture lands.
@@ -150,10 +142,10 @@ function BoardView({
   }, [shakeKey, shake]);
   /** Board units → pixels, accounting for the padding around the drawing. */
   const px = (v: number) => (v + VIEW_PAD) * unit;
-  const placed = useMemo(() => placePieces(state, view), [state, view]);
+  const placed = useMemo(() => placePieces(state, view, geo), [state, view, geo]);
   const shownEffects = useMemo(
-    () => (view === 0 ? effects : effects.map((e) => ({ ...e, cell: viewCell(e.cell, view) }))),
-    [effects, view],
+    () => (view === 0 ? effects : effects.map((e) => ({ ...e, cell: geo.viewCell(e.cell, view) }))),
+    [effects, view, geo],
   );
   const movableIds = useMemo(() => new Set(movable.map((m) => m.pieceId)), [movable]);
   const currentSeat = state.phase === 'finished' ? null : (state.players[state.current]?.seat ?? null);
@@ -165,11 +157,11 @@ function BoardView({
     for (const m of shown) {
       const piece = state.pieces.find((p) => p.id === m.pieceId);
       if (!piece) continue;
-      const cell = cellAt(state.players[piece.owner]!.seat, m.to);
+      const cell = cellAt(board, state.players[piece.owner]!.seat, m.to);
       if (cell && !cells.some((c) => cellKey(c) === cellKey(cell))) cells.push(cell);
     }
     return cells;
-  }, [movable, selected, state]);
+  }, [movable, selected, state, board]);
 
   // Stable order (by id) keeps each piece's view mounted so it can glide.
   const ordered = useMemo(() => [...placed].sort((a, b) => a.piece.id.localeCompare(b.piece.id)), [placed]);
@@ -185,6 +177,7 @@ function BoardView({
         strong={selected !== null}
         size={size}
         view={view}
+        board={board}
       />
       <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none' }]}>
         {ordered.map(({ piece, seat, at, r }) => (
@@ -199,7 +192,7 @@ function BoardView({
             y={px(at.y)}
             radius={(piece.kind === 'mother' ? r : r * 0.82) * unit}
             unit={unit}
-            home={piece.progress === HOME_INDEX}
+            home={piece.progress === board.home}
             movable={movableIds.has(piece.id)}
             selected={selected === piece.id}
             raised={piece.id === movingPieceId}
@@ -213,7 +206,7 @@ function BoardView({
         {onCellPress &&
           destinations.map((cell) => {
             // Drawn where the viewer sees the square; reports the real square.
-            const shown = viewCell(cell, view);
+            const shown = geo.viewCell(cell, view);
             return (
             <Pressable
               key={`tap${cellKey(cell)}`}

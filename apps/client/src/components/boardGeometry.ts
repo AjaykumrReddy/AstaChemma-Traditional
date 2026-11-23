@@ -1,33 +1,47 @@
-import { BOARD_SIZE, type Cell, type Seat } from '@asta/engine';
+import { BOARDS, cellKey, isSafeCell, type Board, type Cell, type Seat } from '@asta/engine';
 
 /**
- * The 5×5 board lives in a 7×7 unit space: the grid spans 1…6 and each
- * player's starting area is a half-circle outside the middle of their side.
+ * Drawing space for a board: one square is one unit. The grid spans
+ * ORIGIN … ORIGIN + size, with a one-unit margin all round for each player's
+ * starting area (a half-circle outside the middle of their side). So the
+ * 5×5 board is a 7×7 drawing and the 7×7 board a 9×9 one; both scale to fit.
  */
-export const VIEW = 7;
 export const ORIGIN = 1;
-export const MID = VIEW / 2;
 export const YARD_RADIUS = 0.95;
-export const GRID_END = ORIGIN + BOARD_SIZE;
-/** Breathing room around the 7×7 space so starting-area outlines and glows are never clipped. */
+/** Breathing room around the drawing so starting-area outlines and glows are never clipped. */
 export const VIEW_PAD = 0.14;
-export const VIEW_TOTAL = VIEW + VIEW_PAD * 2;
 
 export interface Point {
   x: number;
   y: number;
 }
 
-export function cellCentre(cell: Cell): Point {
-  return { x: ORIGIN + cell.col + 0.5, y: ORIGIN + cell.row + 0.5 };
-}
-
-/** Rotate a point about the board centre to the given seat (bottom → right → top → left). */
-export function rotateToSeat(p: Point, seat: Seat): Point {
-  let dx = p.x - MID;
-  let dy = p.y - MID;
-  for (let i = 0; i < seat; i++) [dx, dy] = [dy, -dx];
-  return { x: MID + dx, y: MID + dy };
+export interface Geometry {
+  board: Board;
+  size: number;
+  /** Width (and height) of the drawing, starting areas included. */
+  view: number;
+  /** Centre of the drawing. */
+  mid: number;
+  /** Where the grid ends (its bottom and right edge). */
+  gridEnd: number;
+  /** The whole drawing including the padding. */
+  total: number;
+  cellCentre(cell: Cell): Point;
+  /** Rotate a point about the board centre to the given seat (bottom → right → top → left). */
+  rotateToSeat(p: Point, seat: Seat): Point;
+  /** Where a real square appears when viewing from `view` (a quarter turn clockwise per seat). */
+  viewCell(cell: Cell, view: Seat): Cell;
+  /** Where a board point appears when viewing from `view`. */
+  viewPoint(p: Point, view: Seat): Point;
+  /** SVG path for a seat's half-circle starting area. */
+  yardPath(seat: Seat, radius?: number): string;
+  /** How far in a square is: 0 = outer ring, 1 = next ring … `rings` = the centre. */
+  ringOf(cell: Cell): number;
+  /** Number of rings around the centre (2 on 5×5, 3 on 7×7). */
+  rings: number;
+  /** Small arrows showing the direction of travel round each ring. */
+  routeHints: { cell: Cell; dir: Point }[];
 }
 
 /*
@@ -41,18 +55,6 @@ export function viewSeat(seat: Seat, view: Seat): Seat {
   return ((seat - view + 4) % 4) as Seat;
 }
 
-/** Where a real square appears when viewing from `view` (a quarter turn clockwise per seat). */
-export function viewCell(cell: Cell, view: Seat): Cell {
-  let { row, col } = cell;
-  for (let i = 0; i < view; i++) [row, col] = [col, BOARD_SIZE - 1 - row];
-  return { row, col };
-}
-
-/** Where a board point appears when viewing from `view`. */
-export function viewPoint(p: Point, view: Seat): Point {
-  return rotateToSeat(p, viewSeat(0, view));
-}
-
 /** A direction of travel as seen from `view`. */
 export function viewDirection(d: Point, view: Seat): Point {
   let { x, y } = d;
@@ -60,15 +62,80 @@ export function viewDirection(d: Point, view: Seat): Point {
   return { x, y };
 }
 
-/** SVG path for a seat's half-circle starting area. */
-export function yardPath(seat: Seat, radius = YARD_RADIUS): string {
-  const a = rotateToSeat({ x: MID - radius, y: GRID_END }, seat);
-  const b = rotateToSeat({ x: MID + radius, y: GRID_END }, seat);
-  return `M ${a.x} ${a.y} A ${radius} ${radius} 0 0 0 ${b.x} ${b.y}`;
+/**
+ * One arrow per side of each ring: on the middle square of the side (or the
+ * next one along when the middle is an X square), pointing the way pieces go.
+ */
+function routeHintsFor(board: Board): { cell: Cell; dir: Point }[] {
+  const route = board.routes[0];
+  const size = board.size;
+  const mid = (size - 1) / 2;
+  const depth = (c: Cell) => Math.min(c.row, c.col, size - 1 - c.row, size - 1 - c.col);
+  const isSideMiddle = (c: Cell) => c.row === mid || c.col === mid;
+  const hints: { cell: Cell; dir: Point }[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < board.home; i++) {
+    const cell = route[i]!;
+    if (!isSideMiddle(cell)) continue;
+    // Skip past X squares to the next square of the same ring.
+    let j = i;
+    while (j < board.home && isSafeCell(board, route[j]!) && depth(route[j]!) === depth(cell)) j++;
+    const at = route[j]!;
+    if (j >= board.home || depth(at) !== depth(cell) || seen.has(cellKey(at))) continue;
+    seen.add(cellKey(at));
+    // The way pieces travel through it: from the square before (or, on the first
+    // square of a ring, towards the square after).
+    const firstOfRing = j === 0 || depth(route[j - 1]!) !== depth(at);
+    const from = firstOfRing ? at : route[j - 1]!;
+    const to = firstOfRing ? route[j + 1]! : at;
+    hints.push({ cell: at, dir: { x: to.col - from.col, y: to.row - from.row } });
+  }
+  return hints;
 }
 
-/** Ring a square belongs to: 0 = outer ring, 1 = inner ring, 2 = centre. */
-export function ringOf(cell: Cell): 0 | 1 | 2 {
-  const d = Math.min(cell.row, cell.col, BOARD_SIZE - 1 - cell.row, BOARD_SIZE - 1 - cell.col);
-  return d as 0 | 1 | 2;
+const cache = new Map<string, Geometry>();
+
+/** Drawing geometry for a board (shared, built once per board). */
+export function geometryFor(board: Board): Geometry {
+  const cached = cache.get(board.id);
+  if (cached) return cached;
+  const size = board.size;
+  const view = size + 2 * ORIGIN;
+  const mid = view / 2;
+  const gridEnd = ORIGIN + size;
+  const rotateToSeat = (p: Point, seat: Seat): Point => {
+    let dx = p.x - mid;
+    let dy = p.y - mid;
+    for (let i = 0; i < seat; i++) [dx, dy] = [dy, -dx];
+    return { x: mid + dx, y: mid + dy };
+  };
+  const geo: Geometry = {
+    board,
+    size,
+    view,
+    mid,
+    gridEnd,
+    total: view + VIEW_PAD * 2,
+    cellCentre: (cell) => ({ x: ORIGIN + cell.col + 0.5, y: ORIGIN + cell.row + 0.5 }),
+    rotateToSeat,
+    viewCell: (cell, v) => {
+      let { row, col } = cell;
+      for (let i = 0; i < v; i++) [row, col] = [col, size - 1 - row];
+      return { row, col };
+    },
+    viewPoint: (p, v) => rotateToSeat(p, viewSeat(0, v)),
+    yardPath: (seat, radius = YARD_RADIUS) => {
+      const a = rotateToSeat({ x: mid - radius, y: gridEnd }, seat);
+      const b = rotateToSeat({ x: mid + radius, y: gridEnd }, seat);
+      return `M ${a.x} ${a.y} A ${radius} ${radius} 0 0 0 ${b.x} ${b.y}`;
+    },
+    ringOf: (cell) => Math.min(cell.row, cell.col, size - 1 - cell.row, size - 1 - cell.col),
+    rings: (size - 1) / 2,
+    routeHints: routeHintsFor(board),
+  };
+  cache.set(board.id, geo);
+  return geo;
 }
+
+/** The classic board's geometry (the home screen art, rules pictures and shop previews). */
+export const CLASSIC = geometryFor(BOARDS['5x5']);

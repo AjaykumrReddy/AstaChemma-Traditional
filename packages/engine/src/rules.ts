@@ -1,4 +1,4 @@
-import { HOME_INDEX, YARD_INDEX, cellAt, isSafeCell, sameCell, type Seat } from './board';
+import { YARD_INDEX, boardFor, cellAt, isSafeCell, sameCell, type Board, type Seat } from './board';
 import { nextRandom } from './rng';
 import type {
   GameConfig,
@@ -135,8 +135,14 @@ export function piecesOf(state: GameState, playerIndex: number): Piece[] {
   return state.pieces.filter((p) => p.owner === playerIndex);
 }
 
+/** The board this game is played on. */
+export function boardOf(state: GameState): Board {
+  return boardFor(state.config.board);
+}
+
 export function isPlayerDone(state: GameState, playerIndex: number): boolean {
-  return piecesOf(state, playerIndex).every((p) => p.progress === HOME_INDEX);
+  const home = boardOf(state).home;
+  return piecesOf(state, playerIndex).every((p) => p.progress === home);
 }
 
 export function teammateOf(state: GameState, playerIndex: number): number | null {
@@ -160,7 +166,7 @@ export function controlledPlayer(state: GameState, playerIndex: number): number 
 
 /** Board position of a piece, or null when it is in the starting area. */
 export function pieceCell(state: GameState, piece: Piece) {
-  return cellAt(seatOf(state, piece.owner), piece.progress);
+  return cellAt(boardOf(state), seatOf(state, piece.owner), piece.progress);
 }
 
 /**
@@ -181,11 +187,12 @@ export function canCapture(state: GameState, attacker: Piece, victim: Piece): bo
  * home can always be shared.
  */
 function landing(state: GameState, mover: Piece, to: number): string[] | null {
-  if (to >= HOME_INDEX) return [];
-  const target = cellAt(seatOf(state, mover.owner), to);
-  if (!target || isSafeCell(target)) return [];
+  const board = boardOf(state);
+  if (to >= board.home) return [];
+  const target = cellAt(board, seatOf(state, mover.owner), to);
+  if (!target || isSafeCell(board, target)) return [];
   const occupants = state.pieces.filter((p) => {
-    if (p.id === mover.id || p.progress < 0 || p.progress >= HOME_INDEX) return false;
+    if (p.id === mover.id || p.progress < 0 || p.progress >= board.home) return false;
     const cell = pieceCell(state, p);
     return cell !== null && sameCell(cell, target);
   });
@@ -193,8 +200,8 @@ function landing(state: GameState, mover: Piece, to: number): string[] | null {
   return occupants.map((p) => p.id);
 }
 
-function destinationFor(piece: Piece, open: number): { to: number; enters: boolean } | null {
-  if (piece.progress === HOME_INDEX) return null;
+function destinationFor(home: number, piece: Piece, open: number): { to: number; enters: boolean } | null {
+  if (piece.progress === home) return null;
   if (piece.progress === YARD_INDEX) {
     const to = entryProgress(piece.kind, open);
     return to === null ? null : { to, enters: true };
@@ -203,7 +210,7 @@ function destinationFor(piece: Piece, open: number): { to: number; enters: boole
   if (steps === null) return null;
   const to = piece.progress + steps;
   // Exact finish: a move may not overshoot the centre.
-  return to > HOME_INDEX ? null : { to, enters: false };
+  return to > home ? null : { to, enters: false };
 }
 
 /** Indexes of held 4s that can be joined into an 8 (the first two), or null. */
@@ -215,6 +222,7 @@ function joinableFours(pending: ShellThrow[]): [number, number] | null {
 /** All legal moves for the current player with their pending throws. */
 export function legalMovesFor(state: GameState, playerIndex: number, pending: ShellThrow[]): Move[] {
   const owner = controlledPlayer(state, playerIndex);
+  const home = boardOf(state).home;
   const moves: Move[] = [];
   // Identical throws give identical options; offer each result value once.
   const seen = new Set<number>();
@@ -222,7 +230,7 @@ export function legalMovesFor(state: GameState, playerIndex: number, pending: Sh
     if (seen.has(result.open)) return;
     seen.add(result.open);
     for (const piece of piecesOf(state, owner)) {
-      const dest = destinationFor(piece, result.open);
+      const dest = destinationFor(home, piece, result.open);
       if (!dest) continue;
       const captures = landing(state, piece, dest.to);
       if (captures === null) continue;
@@ -235,7 +243,7 @@ export function legalMovesFor(state: GameState, playerIndex: number, pending: Sh
         to: dest.to,
         enters: dest.enters,
         captures,
-        finishes: dest.to === HOME_INDEX,
+        finishes: dest.to === home,
       });
     }
   });

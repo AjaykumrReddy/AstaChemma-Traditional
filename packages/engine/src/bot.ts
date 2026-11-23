@@ -1,8 +1,9 @@
-import { HOME_INDEX, cellAt, isSafeCell, sameCell } from './board';
+import { cellAt, isSafeCell, sameCell } from './board';
 import {
   SHELL_COUNT,
   applyMove,
   applyThrow,
+  boardOf,
   areTeammates,
   canCapture,
   controlledPlayer,
@@ -22,13 +23,14 @@ import type { BotLevel, GameState, Move, Piece, ShellThrow } from './types';
  * Pieces on safe squares, at home or in the starting area are never at risk.
  */
 export function captureRisk(state: GameState, piece: Piece): number {
-  if (piece.progress < 0 || piece.progress >= HOME_INDEX) return 0;
+  const board = boardOf(state);
+  if (piece.progress < 0 || piece.progress >= board.home) return 0;
   const target = pieceCell(state, piece);
-  if (!target || isSafeCell(target)) return 0;
+  if (!target || isSafeCell(board, target)) return 0;
 
   let survive = 1;
   for (const other of state.pieces) {
-    if (other.progress >= HOME_INDEX) continue;
+    if (other.progress >= board.home) continue;
     if (!canCapture(state, other, piece)) continue;
     const seat = seatOf(state, other.owner);
     let hit = 0;
@@ -40,8 +42,8 @@ export function captureRisk(state: GameState, piece: Piece): number {
         const steps = stepsFor(other.kind, open);
         dest = steps === null ? null : other.progress + steps;
       }
-      if (dest === null || dest >= HOME_INDEX) continue;
-      const cell = cellAt(seat, dest);
+      if (dest === null || dest >= board.home) continue;
+      const cell = cellAt(board, seat, dest);
       if (cell && sameCell(cell, target)) hit += throwProbability(open);
     }
     survive *= 1 - Math.min(hit, 1);
@@ -55,8 +57,9 @@ export function captureRisk(state: GameState, piece: Piece): number {
  */
 export function playerTurnsLeft(state: GameState, owner: number, riskWeight: number): number {
   const mine = piecesOf(state, owner);
-  const pos = ['M', 'C1', 'C2'].map((k) => mine.find((p) => p.id === `${owner}-${k}`)?.progress ?? HOME_INDEX);
-  const at = (p: number[]) => expectedTurnsToFinish(p[0]!, p[1]!, p[2]!);
+  const home = boardOf(state).home;
+  const pos = ['M', 'C1', 'C2'].map((k) => mine.find((p) => p.id === `${owner}-${k}`)?.progress ?? home);
+  const at = (p: number[]) => expectedTurnsToFinish(p[0]!, p[1]!, p[2]!, home);
   const base = at(pos);
   if (riskWeight === 0) return base;
   let penalty = 0;

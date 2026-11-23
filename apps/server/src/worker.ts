@@ -1,11 +1,13 @@
-import type { Seat } from '@asta/engine';
+import { DEFAULT_BOARD, type BoardId, type Seat } from '@asta/engine';
 import { DurableObject } from 'cloudflare:workers';
 import {
+  BOARDS_PROTOCOL_VERSION,
   CODE_ALPHABET,
   CODE_LENGTH,
   MAX_MESSAGE_BYTES,
   PROTOCOL_VERSION,
   isAcceptableName,
+  supportedProtocol,
   isValidCode,
   normaliseCode,
   parseClientMessage,
@@ -149,9 +151,10 @@ export class GameRoom extends DurableObject<Env> {
   async createQuickMatch(
     code: string,
     players: { name: string; userId: string | null }[],
+    board: BoardId = DEFAULT_BOARD,
   ): Promise<{ playerId: string; token: string; seat: Seat }[] | null> {
     if (this.load()) return null; // the code is taken after all
-    const room = (this.room = this.makeRoom(Room.createQuick(code, players, Date.now(), this.timings)));
+    const room = (this.room = this.makeRoom(Room.createQuick(code, players, Date.now(), this.timings, board)));
     await this.persist();
     return room.data.members.map((m) => ({ playerId: m.id, token: m.token, seat: m.seat }));
   }
@@ -292,7 +295,7 @@ export class GameRoom extends DurableObject<Env> {
       if (message.t === 'ping') return safeSend(ws, JSON.stringify({ t: 'pong' }));
 
       if (message.t === 'create' || message.t === 'join' || message.t === 'rejoin') {
-        if (message.protocol !== PROTOCOL_VERSION) return fail('version', 'Please update the app to play online.');
+        if (!supportedProtocol(message.protocol)) return fail('version', 'Please update the app to play online.');
         if (att.memberId) return fail('illegal', 'You are already in this room.');
         if (message.t !== 'rejoin' && !isAcceptableName(message.name)) return fail('bad-name', 'Please choose a different name.');
         const attach = (memberId: string, seat: number, token: string) => {
@@ -305,10 +308,14 @@ export class GameRoom extends DurableObject<Env> {
         let room = this.load();
         if (message.t === 'create') {
           if (!att.create || room) return fail('illegal', 'This room already exists.');
-          room = this.room = this.makeRoom(Room.create(att.code, message.mode, message.players, Date.now()));
+          room = this.room = this.makeRoom(Room.create(att.code, message.mode, message.players, Date.now(), message.board));
           room.join(message.name, (m) => attach(m.id, m.seat, m.token), userId);
         } else {
           if (!room) return fail('no-room', 'No room with that code.');
+          // Apps from before 7×7 would draw it as 5×5.
+          if ((room.data.board ?? DEFAULT_BOARD) !== DEFAULT_BOARD && message.protocol < BOARDS_PROTOCOL_VERSION) {
+            return fail('version', 'Please update the app to play on this board.');
+          }
           if (message.t === 'join') room.join(message.name, (m) => attach(m.id, m.seat, m.token), userId);
           else {
             // A newer connection replaces any older one for the same player.

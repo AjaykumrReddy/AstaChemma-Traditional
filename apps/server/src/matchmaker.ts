@@ -1,8 +1,10 @@
+import { DEFAULT_BOARD, type BoardId } from '@asta/engine';
 import { DurableObject } from 'cloudflare:workers';
 import {
+  BOARDS_PROTOCOL_VERSION,
   MAX_MESSAGE_BYTES,
-  PROTOCOL_VERSION,
   isAcceptableName,
+  supportedProtocol,
   parseMatchMessage,
   type MatchServerMessage,
 } from '@asta/protocol';
@@ -11,13 +13,14 @@ import { freshCode } from './codes';
 import type { Env } from './worker';
 
 /**
- * Quick match: the waiting line for one kind of game (for now: two players).
+ * Quick match: the waiting lines for two-player games, one per board.
  *
  * Players connect to /match and say they're ready; the line is kept in their
  * sockets' attachments, so it survives hibernation. A Durable Object handles
  * one thing at a time, so nobody can be matched twice. Two players waiting →
  * a fresh room is created with their seats reserved, and each gets a ticket
- * (player id + token) to join it exactly as if rejoining.
+ * (player id + token) to join it exactly as if rejoining. Players are only
+ * matched with others who chose the same board.
  */
 
 interface Ticket {
@@ -26,6 +29,8 @@ interface Ticket {
   userId?: string | null;
   /** When they joined the line (first come, first matched). */
   since?: number;
+  /** Which line: the board they want (missing: 5×5). */
+  board?: BoardId;
 }
 
 /** A waiting socket silent this long (two missed pings) is treated as gone. */
@@ -64,11 +69,15 @@ export class Matchmaker extends DurableObject<Env> {
     }
 
     // Joining the line.
-    if (message.protocol !== PROTOCOL_VERSION) return send({ t: 'error', code: 'version', message: 'Please update the app to play online.' });
+    if (!supportedProtocol(message.protocol)) return send({ t: 'error', code: 'version', message: 'Please update the app to play online.' });
     if (!isAcceptableName(message.name)) return send({ t: 'error', code: 'bad-name', message: 'Please choose a different name.' });
     if (ticket.state !== 'connected') return;
+    const board = message.board ?? DEFAULT_BOARD;
+    if (board !== DEFAULT_BOARD && message.protocol < BOARDS_PROTOCOL_VERSION) {
+      return send({ t: 'error', code: 'version', message: 'Please update the app to play on this board.' });
+    }
     const userId = await userIdForToken(this.env, message.account);
-    ws.serializeAttachment({ state: 'waiting', name: message.name, userId, since: Date.now() } satisfies Ticket);
+    ws.serializeAttachment({ state: 'waiting', name: message.name, userId, since: Date.now(), board } satisfies Ticket);
     await this.match();
     this.announce();
   }
@@ -103,10 +112,12 @@ export class Matchmaker extends DurableObject<Env> {
     return line.sort((a, b) => (a.ticket.since ?? 0) - (b.ticket.since ?? 0));
   }
 
-  /** Tell everyone waiting how many are in line. */
+  /** Tell everyone waiting how many are in their line (the same board). */
   private announce(): void {
     const line = this.line();
-    for (const { ws } of line) safeSend(ws, { t: 'queued', waiting: line.length });
+    const counts = new Map<BoardId, number>();
+    for (const { ticket } of line) counts.set(boardOf(ticket), (counts.get(boardOf(ticket)) ?? 0) + 1);
+    for (const { ws, ticket } of line) safeSend(ws, { t: 'queued', waiting: counts.get(boardOf(ticket)) ?? 1 });
   }
 
   /** Pair up everyone who can be paired. */
@@ -124,7 +135,7 @@ export class Matchmaker extends DurableObject<Env> {
           if (!group) break;
           // Reserve them first: awaiting the room lets other messages in.
           for (const p of group) p.ws.serializeAttachment({ ...p.ticket, state: 'matching' } satisfies Ticket);
-          const seats = await this.startRoom(group);
+          const seats = await this.startRoom(group, boardOf(group[0]!.ticket));
           if (!seats) {
             for (const p of group) p.ws.serializeAttachment({ ...p.ticket, state: 'waiting' } satisfies Ticket);
             break; // try again on the next arrival
@@ -142,10 +153,15 @@ export class Matchmaker extends DurableObject<Env> {
     }
   }
 
-  /** The longest-waiting players who can play each other (never someone with themselves). */
+  /**
+   * The longest-waiting players who can play each other: on the same board,
+   * and never someone with themselves.
+   */
   private nextGroup(): { ws: WebSocket; ticket: Ticket }[] | null {
-    const group: { ws: WebSocket; ticket: Ticket }[] = [];
+    const groups = new Map<BoardId, { ws: WebSocket; ticket: Ticket }[]>();
     for (const p of this.line()) {
+      const group = groups.get(boardOf(p.ticket)) ?? [];
+      groups.set(boardOf(p.ticket), group);
       if (p.ticket.userId && group.some((g) => g.ticket.userId === p.ticket.userId)) continue;
       group.push(p);
       if (group.length === PLAYERS_PER_GAME) {
@@ -156,13 +172,14 @@ export class Matchmaker extends DurableObject<Env> {
     return null;
   }
 
-  private async startRoom(group: { ticket: Ticket }[]) {
+  private async startRoom(group: { ticket: Ticket }[], board: BoardId) {
     try {
       const code = await freshCode(this.env.GAME_ROOM);
       if (!code) return null;
       const members = await this.env.GAME_ROOM.getByName(code).createQuickMatch(
         code,
         group.map((p) => ({ name: p.ticket.name ?? 'Player', userId: p.ticket.userId ?? null })),
+        board,
       );
       return members ? { code, members } : null;
     } catch (error) {
@@ -171,6 +188,8 @@ export class Matchmaker extends DurableObject<Env> {
     }
   }
 }
+
+const boardOf = (ticket: Ticket): BoardId => ticket.board ?? DEFAULT_BOARD;
 
 function safeSend(ws: WebSocket, message: MatchServerMessage): void {
   try {

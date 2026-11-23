@@ -1,4 +1,4 @@
-import type { BotLevel, GameMode, Seat } from '@asta/engine';
+import { DEFAULT_BOARD, type BoardId, type BotLevel, type GameMode, type Seat } from '@asta/engine';
 import {
   PROTOCOL_VERSION,
   isAcceptableName,
@@ -275,7 +275,7 @@ function queueForMatch(name: string): void {
   ws.onopen = () => {
     if (ws !== matchSocket) return;
     matchRetries = 0;
-    ws.send(JSON.stringify({ t: 'queue', protocol: PROTOCOL_VERSION, mode: '2p', name, ...accountFor(name) }));
+    ws.send(JSON.stringify({ t: 'queue', protocol: PROTOCOL_VERSION, mode: '2p', name, ...accountFor(name), ...boardChoice() }));
     matchPing = setInterval(() => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ t: 'ping' })), PING_MS);
   };
   ws.onmessage = (event) => {
@@ -320,6 +320,12 @@ function queueForMatch(name: string): void {
       useOnlineStore.setState({ search: null, error: 'network' });
     }
   };
+}
+
+/** The board chosen for new online games (sent only when it isn't the classic one). */
+function boardChoice(): { board?: BoardId } {
+  const board = useGameStore.getState().board;
+  return board !== DEFAULT_BOARD ? { board } : {};
 }
 
 // Coming back to the app: reconnect at once if we hold a seat and the socket died.
@@ -387,7 +393,7 @@ export const useOnlineStore = create<OnlineStore>()(
         const name = get().name.trim();
         get().forget();
         stayConnected = false;
-        connect('new', { t: 'create', protocol: PROTOCOL_VERSION, name, mode, players, ...accountFor(name) });
+        connect('new', { t: 'create', protocol: PROTOCOL_VERSION, name, mode, players, ...accountFor(name), ...boardChoice() });
       },
 
       join(code) {

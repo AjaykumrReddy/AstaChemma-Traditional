@@ -1,11 +1,9 @@
 /**
- * Board geometry for the 5×5 Asta Chemma board.
+ * Board geometry: the 5×5 and 7×7 Asta Chemma boards.
  *
  * Coordinates are [row, col] with row 0 at the top and col 0 at the left,
  * as seen by the player sitting at the bottom (seat 0).
  */
-
-export const BOARD_SIZE = 5;
 
 export type Seat = 0 | 1 | 2 | 3;
 
@@ -22,94 +20,149 @@ export interface Cell {
   col: number;
 }
 
-export const CENTRE: Cell = { row: 2, col: 2 };
+export type BoardId = '5x5' | '7x7';
 
-/** X-marked squares. Pieces on these cannot be captured. The centre is also home. */
-export const SAFE_CELLS: readonly Cell[] = [
-  { row: 0, col: 2 },
-  { row: 2, col: 0 },
-  { row: 2, col: 2 },
-  { row: 2, col: 4 },
-  { row: 4, col: 2 },
-];
+export const BOARD_IDS: readonly BoardId[] = ['5x5', '7x7'];
 
-/**
- * Route for the bottom player, from the player's route drawing:
- * enter on own X, go counter-clockwise round the outer ring (16 squares),
- * then clockwise round the inner ring (8 squares), then the centre.
- */
-const BOTTOM_ROUTE: readonly Cell[] = [
-  // outer ring, counter-clockwise
-  { row: 4, col: 2 }, // 0 – entry (safe)
-  { row: 4, col: 3 },
-  { row: 4, col: 4 },
-  { row: 3, col: 4 },
-  { row: 2, col: 4 }, // 4 – safe
-  { row: 1, col: 4 },
-  { row: 0, col: 4 },
-  { row: 0, col: 3 },
-  { row: 0, col: 2 }, // 8 – safe
-  { row: 0, col: 1 },
-  { row: 0, col: 0 },
-  { row: 1, col: 0 },
-  { row: 2, col: 0 }, // 12 – safe
-  { row: 3, col: 0 },
-  { row: 4, col: 0 },
-  { row: 4, col: 1 }, // 15 – last outer square
-  // inner ring, clockwise
-  { row: 3, col: 1 }, // 16
-  { row: 2, col: 1 },
-  { row: 1, col: 1 },
-  { row: 1, col: 2 },
-  { row: 1, col: 3 },
-  { row: 2, col: 3 },
-  { row: 3, col: 3 },
-  { row: 3, col: 2 }, // 23
-  // home
-  { row: 2, col: 2 }, // 24 – centre
-];
+/** The board games use when none is chosen (games saved before 7×7 existed). */
+export const DEFAULT_BOARD: BoardId = '5x5';
 
-/** Path index of the centre. A piece at this index is home. */
-export const HOME_INDEX = BOTTOM_ROUTE.length - 1; // 24
-
-/** Path index meaning "waiting in the starting area, not on the board". */
-export const YARD_INDEX = -1;
-
-/** Rotate a cell 90° so the bottom player's geometry maps to the next seat (counter-clockwise). */
-function rotateToNextSeat(cell: Cell): Cell {
-  return { row: BOARD_SIZE - 1 - cell.col, col: cell.row };
+export interface Board {
+  id: BoardId;
+  /** Squares per side. */
+  size: number;
+  centre: Cell;
+  /** X-marked squares: pieces on these can't be captured, and anyone may share them. The centre is one. */
+  safe: readonly Cell[];
+  /** Route index of the centre: a piece here is home. */
+  home: number;
+  /** Each seat's route, entry square … centre. */
+  routes: Record<Seat, readonly Cell[]>;
 }
 
-function rotate(cell: Cell, times: number): Cell {
+/** Route index meaning "waiting in the starting area, not on the board". */
+export const YARD_INDEX = -1;
+
+/**
+ * The squares of ring `k` (0 = outermost) counter-clockwise as the bottom
+ * player sees it, starting at the middle of its bottom side: right along the
+ * bottom, up the right side, left along the top, down the left side, and back
+ * along the bottom.
+ */
+function ringCounterClockwise(size: number, k: number): Cell[] {
+  const lo = k;
+  const hi = size - 1 - k;
+  const mid = (size - 1) / 2;
+  const cells: Cell[] = [];
+  for (let c = mid; c < hi; c++) cells.push({ row: hi, col: c });
+  for (let r = hi; r > lo; r--) cells.push({ row: r, col: hi });
+  for (let c = hi; c > lo; c--) cells.push({ row: lo, col: c });
+  for (let r = lo; r < hi; r++) cells.push({ row: r, col: lo });
+  for (let c = lo; c < mid; c++) cells.push({ row: hi, col: c });
+  return cells;
+}
+
+/**
+ * The bottom player's route on a board of `size` squares: enter on the middle
+ * of the bottom side, round the outer ring counter-clockwise, then each ring
+ * further in, alternating direction (the next ring starts on the square just
+ * inside where the last one ended), and finally the centre.
+ */
+function bottomRoute(size: number): Cell[] {
+  const route: Cell[] = [];
+  const rings = (size - 1) / 2;
+  for (let k = 0; k < rings; k++) {
+    let ring = ringCounterClockwise(size, k);
+    if (k % 2 === 1) ring = [ring[0]!, ...ring.slice(1).reverse()]; // clockwise
+    if (k > 0) {
+      // Start just inside (above) where the previous ring ended.
+      const last = route[route.length - 1]!;
+      const start = ring.findIndex((c) => c.row === last.row - 1 && c.col === last.col);
+      ring = [...ring.slice(start), ...ring.slice(0, start)];
+    }
+    route.push(...ring);
+  }
+  const mid = (size - 1) / 2;
+  route.push({ row: mid, col: mid });
+  return route;
+}
+
+/** Rotate a cell 90° so the bottom player's geometry maps to the next seat (counter-clockwise). */
+function rotateToNextSeat(cell: Cell, size: number): Cell {
+  return { row: size - 1 - cell.col, col: cell.row };
+}
+
+function rotate(cell: Cell, times: number, size: number): Cell {
   let c = cell;
-  for (let i = 0; i < times; i++) c = rotateToNextSeat(c);
+  for (let i = 0; i < times; i++) c = rotateToNextSeat(c, size);
   return c;
 }
 
-const ROUTES: Record<Seat, readonly Cell[]> = {
-  0: BOTTOM_ROUTE,
-  1: BOTTOM_ROUTE.map((c) => rotate(c, 1)),
-  2: BOTTOM_ROUTE.map((c) => rotate(c, 2)),
-  3: BOTTOM_ROUTE.map((c) => rotate(c, 3)),
+function makeBoard(id: BoardId, size: number, safe: Cell[]): Board {
+  const bottom = bottomRoute(size);
+  const mid = (size - 1) / 2;
+  return {
+    id,
+    size,
+    centre: { row: mid, col: mid },
+    safe,
+    home: bottom.length - 1,
+    routes: {
+      0: bottom,
+      1: bottom.map((c) => rotate(c, 1, size)),
+      2: bottom.map((c) => rotate(c, 2, size)),
+      3: bottom.map((c) => rotate(c, 3, size)),
+    },
+  };
+}
+
+export const BOARDS: Record<BoardId, Board> = {
+  // 24 steps: outer ring (16) counter-clockwise, inner ring (8) clockwise, centre.
+  // X squares: the middle of each side, and the centre.
+  '5x5': makeBoard('5x5', 5, [
+    { row: 0, col: 2 },
+    { row: 2, col: 0 },
+    { row: 2, col: 2 },
+    { row: 2, col: 4 },
+    { row: 4, col: 2 },
+  ]),
+  // 48 steps: outer ring (24) counter-clockwise, middle ring (16) clockwise,
+  // inner ring (8) counter-clockwise, centre. X squares: the middle of each
+  // outer side, the four corners of the middle ring, and the centre.
+  '7x7': makeBoard('7x7', 7, [
+    { row: 0, col: 3 },
+    { row: 3, col: 0 },
+    { row: 3, col: 6 },
+    { row: 6, col: 3 },
+    { row: 1, col: 1 },
+    { row: 1, col: 5 },
+    { row: 5, col: 1 },
+    { row: 5, col: 5 },
+    { row: 3, col: 3 },
+  ]),
 };
 
-/** The full route (entry square … centre) for a seat. */
-export function routeFor(seat: Seat): readonly Cell[] {
-  return ROUTES[seat];
+/** The board for an id (anything unknown or missing is the default 5×5). */
+export function boardFor(id: BoardId | string | undefined | null): Board {
+  return BOARDS[id as BoardId] ?? BOARDS[DEFAULT_BOARD];
+}
+
+export function isBoardId(value: unknown): value is BoardId {
+  return typeof value === 'string' && (BOARD_IDS as readonly string[]).includes(value);
 }
 
 /** Board cell for a piece at `progress` along `seat`'s route, or null if in the yard. */
-export function cellAt(seat: Seat, progress: number): Cell | null {
-  if (progress < 0 || progress > HOME_INDEX) return null;
-  return ROUTES[seat][progress] ?? null;
+export function cellAt(board: Board, seat: Seat, progress: number): Cell | null {
+  if (progress < 0 || progress > board.home) return null;
+  return board.routes[seat][progress] ?? null;
 }
 
 export function sameCell(a: Cell, b: Cell): boolean {
   return a.row === b.row && a.col === b.col;
 }
 
-export function isSafeCell(cell: Cell): boolean {
-  return SAFE_CELLS.some((s) => sameCell(s, cell));
+export function isSafeCell(board: Board, cell: Cell): boolean {
+  return board.safe.some((s) => sameCell(s, cell));
 }
 
 export function cellKey(cell: Cell): string {

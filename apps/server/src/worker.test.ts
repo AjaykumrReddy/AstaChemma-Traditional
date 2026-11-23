@@ -811,3 +811,66 @@ describe('quick match', () => {
     }
   });
 });
+
+describe('boards', () => {
+  it('creates a 7×7 room and plays on it', async () => {
+    const host = await connect('new');
+    host.send({ t: 'create', protocol: P, name: 'Asha', mode: 'individual', players: 2, board: '7x7' });
+    const { code } = await host.welcome();
+    expect((await host.room(() => true)).board).toBe('7x7');
+    host.send({ t: 'seat', seat: 2, kind: 'bot', level: 'easy' });
+    await host.room((r) => r.seats.every((s) => s.kind !== 'open'));
+    host.send({ t: 'start' });
+    const playing = await host.room((r) => r.status === 'playing');
+    expect(playing.game?.config.board).toBe('7x7');
+    // Apps from before 7×7 (protocol 1) are asked to update instead of joining it.
+    const old = await connect(code);
+    old.send({ t: 'join', protocol: 1, code, name: 'Ravi' });
+    expect((await old.error()).code).toBe('version');
+    old.close();
+    host.close();
+  });
+
+  it('rooms without a board are 5×5, and older apps can still play them', async () => {
+    const host = await connect('new');
+    host.send({ t: 'create', protocol: 1, name: 'Asha', mode: 'individual', players: 2 });
+    const { code } = await host.welcome();
+    expect((await host.room(() => true)).board).toBe('5x5');
+    const guest = await connect(code);
+    guest.send({ t: 'join', protocol: 1, code, name: 'Ravi' });
+    expect((await guest.welcome()).seat).toBe(2);
+    host.close();
+    guest.close();
+  });
+
+  it('matches quick-match players only on the same board', async () => {
+    const five = await queueUp();
+    five.queue('Five');
+    expect(await five.queued()).toEqual({ t: 'queued', waiting: 1 });
+    const sevenA = await queueUp();
+    sevenA.queue('SevenA', { board: '7x7' });
+    // Each line counts only its own board.
+    expect(await sevenA.queued()).toEqual({ t: 'queued', waiting: 1 });
+    const sevenB = await queueUp();
+    sevenB.queue('SevenB', { board: '7x7' });
+    const [a, b] = await Promise.all([sevenA.matched(), sevenB.matched()]);
+    expect(a.code).toBe(b.code);
+    const c = await connect(a.code);
+    c.send({ t: 'rejoin', protocol: P, code: a.code, playerId: a.playerId, token: a.token });
+    await c.welcome();
+    const room = await c.room(() => true);
+    expect(room).toMatchObject({ board: '7x7', quick: true, status: 'playing' });
+    expect(room.game?.config.board).toBe('7x7');
+    c.close();
+    // The 5×5 player is still waiting, alone.
+    five.send({ t: 'cancel' });
+    await five.closed;
+  });
+
+  it('asks older apps to update before queueing for 7×7', async () => {
+    const old = await queueUp();
+    old.queue('Old', { protocol: 1, board: '7x7' });
+    expect((await old.error()).code).toBe('version');
+    old.close();
+  });
+});

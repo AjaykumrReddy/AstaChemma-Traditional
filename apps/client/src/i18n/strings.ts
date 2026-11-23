@@ -166,6 +166,10 @@ export interface Strings {
   rejoin: string;
   /** Online: the prompt when it becomes this player's turn. */
   yourTurn: string;
+  // Boards
+  boardLabel: string;
+  boardName: Record<'5x5' | '7x7', string>;
+  boardHint: Record<'5x5' | '7x7', string>;
   // Quick match
   quickMatch: string;
   quickMatchHint: string;
@@ -435,6 +439,12 @@ const en: Strings = {
   rejoinHint: (code) => `Room ${code}`,
   rejoin: 'Rejoin',
   yourTurn: 'Your turn – throw the shells',
+  boardLabel: 'Board',
+  boardName: { '5x5': '5×5', '7x7': '7×7' },
+  boardHint: {
+    '5x5': 'The classic board: a quick game.',
+    '7x7': 'The big board: three rings and a longer race (about twice as long).',
+  },
   quickMatch: 'Quick match',
   quickMatchHint: 'Play someone online right now – no code needed. 20 seconds a turn.',
   findPlayer: 'Find a player',
@@ -615,6 +625,15 @@ const en: Strings = {
       bullets: ['Once you have all your pieces home, you use your throws to move your partner’s pieces.'],
     },
     {
+      title: 'The 7×7 board',
+      bullets: [
+        'Same pieces, shells and rules – just a longer race: 48 steps to the centre instead of 24.',
+        'Round the outer ring counter-clockwise, the middle ring clockwise, then the inner ring counter-clockwise, and into the centre.',
+        'X squares: the middle of each outer side (where you enter), the four corners of the middle ring, and the centre.',
+        'Choose the board when you start a game, create a room or look for a quick match.',
+      ],
+    },
+    {
       title: 'Playing in the app',
       bullets: [
         'Tap a glowing piece to see where it will land, then tap it again (or the highlighted square) to move.',
@@ -782,6 +801,12 @@ const te: Strings = {
   rejoinHint: (code) => `గది ${code}`,
   rejoin: 'మళ్ళీ చేరండి',
   yourTurn: 'మీ వంతు – గవ్వలు వేయండి',
+  boardLabel: 'బోర్డు',
+  boardName: { '5x5': '5×5', '7x7': '7×7' },
+  boardHint: {
+    '5x5': 'సాంప్రదాయ బోర్డు: త్వరగా ముగిసే ఆట.',
+    '7x7': 'పెద్ద బోర్డు: మూడు వలయాలు, ఎక్కువ దూరం (దాదాపు రెండింతలు).',
+  },
   quickMatch: 'త్వరిత ఆట',
   quickMatchHint: 'ఇప్పుడే ఆన్‌లైన్‌లో ఎవరితోనైనా ఆడండి – కోడ్ అవసరం లేదు. ఒక్కో వంతుకు 20 సెకన్లు.',
   findPlayer: 'ఆటగాడిని వెతకండి',
@@ -960,6 +985,15 @@ const te: Strings = {
     {
       title: 'జట్లు',
       bullets: ['మీ కాయలన్నీ ఇంటికి చేరాక, మీ వేట్లతో మీ భాగస్వామి కాయలను కదుపుతారు.'],
+    },
+    {
+      title: '7×7 బోర్డు',
+      bullets: [
+        'అవే కాయలు, అవే గవ్వలు, అవే నియమాలు – దారి మాత్రం పొడవు: మధ్యకు 24 కాదు, 48 అడుగులు.',
+        'బయటి వలయం అపసవ్య దిశలో, మధ్య వలయం సవ్య దిశలో, లోపలి వలయం మళ్ళీ అపసవ్య దిశలో, ఆపై మధ్య గడికి.',
+        'X గడులు: ప్రతి బయటి వైపు మధ్య గడి (అక్కడే దిగుతారు), మధ్య వలయం నాలుగు మూలలు, మధ్య గడి.',
+        'ఆట మొదలుపెట్టేటప్పుడు, గది సృష్టించేటప్పుడు లేదా త్వరిత ఆట వెతికేటప్పుడు బోర్డు ఎంచుకోండి.',
+      ],
     },
     {
       title: 'యాప్‌లో ఆడడం',

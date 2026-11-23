@@ -1,8 +1,10 @@
 import {
+  DEFAULT_BOARD,
   applyMove,
   chooseBotAction,
   createGame,
   throwShells,
+  type BoardId,
   type BotLevel,
   type GameConfig,
   type GameMode,
@@ -92,6 +94,8 @@ export interface RoomData {
   format: 1;
   code: string;
   mode: GameMode;
+  /** Missing in rooms saved before 7×7 existed: 5×5. */
+  board?: BoardId;
   seatsInPlay: Seat[];
   /** Keyed by seat number. */
   seats: Partial<Record<Seat, SeatData>>;
@@ -145,7 +149,7 @@ export class Room {
   ) {}
 
   /** A fresh lobby. */
-  static create(code: string, mode: GameMode, players: number, now: number): RoomData {
+  static create(code: string, mode: GameMode, players: number, now: number, board: BoardId = DEFAULT_BOARD): RoomData {
     const seatsInPlay = seatsForCount(mode === 'team' ? 4 : players);
     const seats: Partial<Record<Seat, SeatData>> = {};
     for (const seat of seatsInPlay) seats[seat] = { kind: 'open', name: null };
@@ -153,6 +157,7 @@ export class Room {
       format: 1,
       code,
       mode,
+      board,
       seatsInPlay,
       seats,
       members: [],
@@ -175,8 +180,9 @@ export class Room {
     players: { name: string; userId: string | null }[],
     now: number,
     timings: Pick<RoomTimings, 'joinMs' | 'turnMs'> = DEFAULT_TIMINGS,
+    board: BoardId = DEFAULT_BOARD,
   ): RoomData {
-    const d = Room.create(code, 'individual', players.length, now);
+    const d = Room.create(code, 'individual', players.length, now, board);
     d.quick = true;
     d.seatsInPlay.forEach((seat, i) => {
       const p = players[i]!;
@@ -194,7 +200,10 @@ export class Room {
       d.members.push(member);
       d.seats[seat] = { kind: 'human', name: p.name, memberId: member.id, ...(p.userId ? { userId: p.userId } : {}) };
     });
-    d.game = createGame({ mode: 'individual', players: d.seatsInPlay.map((seat) => ({ name: d.seats[seat]!.name!, seat })) }, randomSeed());
+    d.game = createGame(
+      { mode: 'individual', board, players: d.seatsInPlay.map((seat) => ({ name: d.seats[seat]!.name!, seat })) },
+      randomSeed(),
+    );
     d.status = 'playing';
     d.startedAt = now;
     // The first player also gets the time to arrive.
@@ -305,6 +314,7 @@ export class Room {
     let computer = 0;
     const config: GameConfig = {
       mode: d.mode,
+      ...(d.board && d.board !== DEFAULT_BOARD ? { board: d.board } : {}),
       players: d.seatsInPlay.map((seat) => {
         const slot = d.seats[seat]!;
         if (slot.kind === 'bot') {
@@ -518,6 +528,7 @@ export class Room {
     return {
       code: d.code,
       mode: d.mode,
+      board: d.board ?? DEFAULT_BOARD,
       status: d.status,
       seats,
       // The random-number state is hidden so nobody can predict the next throw.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  HOME_INDEX,
-  SAFE_CELLS,
+  BOARDS,
+  boardOf,
   YARD_INDEX,
   applyMove,
   applyThrow,
@@ -13,7 +13,6 @@ import {
   expectedTurnsToFinish,
   isSafeCell,
   makeThrow,
-  routeFor,
   stepsFor,
   entryProgress,
   scoreForOpen,
@@ -22,6 +21,10 @@ import {
   type GameState,
   type Seat,
 } from './index';
+
+const B5 = BOARDS['5x5'];
+const HOME_INDEX = B5.home;
+const routeFor = (seat: Seat) => B5.routes[seat];
 
 const open = (n: number) => makeThrow([0, 1, 2, 3, 4].map((i) => i < n));
 
@@ -72,8 +75,17 @@ describe('board route', () => {
     expect(routeFor(1)[0]).toEqual({ row: 2, col: 4 });
     expect(routeFor(2)[0]).toEqual({ row: 0, col: 2 });
     expect(routeFor(3)[0]).toEqual({ row: 2, col: 0 });
-    for (const seat of [0, 1, 2, 3] as Seat[]) expect(isSafeCell(routeFor(seat)[0]!)).toBe(true);
-    expect(SAFE_CELLS).toHaveLength(5);
+    for (const seat of [0, 1, 2, 3] as Seat[]) expect(isSafeCell(B5, routeFor(seat)[0]!)).toBe(true);
+    expect(B5.safe).toHaveLength(5);
+  });
+
+  it('is exactly the 5×5 route the family drew', () => {
+    const drawn = [
+      [4, 2], [4, 3], [4, 4], [3, 4], [2, 4], [1, 4], [0, 4], [0, 3], [0, 2], [0, 1], [0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [4, 1],
+      [3, 1], [2, 1], [1, 1], [1, 2], [1, 3], [2, 3], [3, 3], [3, 2],
+      [2, 2],
+    ];
+    expect(routeFor(0).map((c) => [c.row, c.col])).toEqual(drawn);
   });
 
   it('follows the drawn route for the bottom player', () => {
@@ -535,5 +547,90 @@ describe('determinism and full games', () => {
     expect(expectedTurnsToFinish(HOME_INDEX, HOME_INDEX, HOME_INDEX)).toBe(0);
     // A Mother on the board is worth far more than a Child on the board.
     expect(start - expectedTurnsToFinish(0, -1, -1)).toBeGreaterThan(start - expectedTurnsToFinish(-1, 0, -1));
+  });
+});
+
+describe('7×7 board', () => {
+  const B7 = BOARDS['7x7'];
+  const seven: GameConfig = { ...twoPlayers, board: '7x7' };
+
+  it('visits all 49 squares once, a step at a time, and ends at the centre', () => {
+    for (const seat of [0, 1, 2, 3] as Seat[]) {
+      const route = B7.routes[seat];
+      expect(route).toHaveLength(49);
+      expect(new Set(route.map(cellKey)).size).toBe(49);
+      expect(route[B7.home]).toEqual({ row: 3, col: 3 });
+      // One square at a time; only the last step into the centre is diagonal.
+      for (let i = 1; i < B7.home; i++) {
+        const a = route[i - 1]!;
+        const b = route[i]!;
+        expect(Math.abs(a.row - b.row) + Math.abs(a.col - b.col)).toBe(1);
+      }
+    }
+    expect(B7.home).toBe(48);
+  });
+
+  it('runs the outer ring counter-clockwise, the middle clockwise, the inner counter-clockwise', () => {
+    const r = B7.routes[0];
+    expect(r[0]).toEqual({ row: 6, col: 3 }); // entry, middle of the bottom side
+    expect(r[1]).toEqual({ row: 6, col: 4 }); // outer ring goes right first
+    expect(r[23]).toEqual({ row: 6, col: 2 }); // last outer square
+    expect(r[24]).toEqual({ row: 5, col: 2 }); // middle ring: just inside
+    expect(r[25]).toEqual({ row: 5, col: 1 }); // … and goes left (clockwise)
+    expect(r[39]).toEqual({ row: 5, col: 3 }); // last middle square
+    expect(r[40]).toEqual({ row: 4, col: 3 }); // inner ring: just inside
+    expect(r[41]).toEqual({ row: 4, col: 4 }); // … and goes right (counter-clockwise)
+    expect(r[47]).toEqual({ row: 4, col: 2 });
+  });
+
+  it('has X squares on each side, the middle ring corners and the centre; everyone enters on one', () => {
+    expect(B7.safe).toHaveLength(9);
+    for (const seat of [0, 1, 2, 3] as Seat[]) expect(isSafeCell(B7, B7.routes[seat][0]!)).toBe(true);
+    expect(isSafeCell(B7, { row: 1, col: 1 })).toBe(true);
+    expect(isSafeCell(B7, { row: 2, col: 2 })).toBe(false);
+  });
+
+  it('plays by the same rules: entry, moves and like-for-like captures', () => {
+    let g = createGame(seven, 1);
+    g = applyThrow(g, open(4)); // a 4 brings a Child out
+    const enter = g.legalMoves.find((m) => m.pieceId === '0-C1')!;
+    expect(enter).toMatchObject({ to: 0, enters: true });
+    // A Child of seat 2 standing 3 squares along seat 0's route (a plain square) can be captured.
+    const target = B7.routes[0][3]!;
+    const theirs = B7.routes[2].findIndex((c) => c.row === target.row && c.col === target.col);
+    g = place(createGame(seven, 1), { '0-C1': 0, '1-C1': theirs });
+    g = applyThrow(g, open(3));
+    expect(g.legalMoves.find((m) => m.pieceId === '0-C1')).toMatchObject({ to: 3, captures: ['1-C1'] });
+  });
+
+  it('only finishes on an exact throw into the centre (48 steps)', () => {
+    let g = place(createGame(seven, 1), { '0-C1': 45 });
+    g = applyThrow(g, open(3));
+    expect(g.legalMoves.find((m) => m.pieceId === '0-C1')).toMatchObject({ to: 48, finishes: true });
+    let h = place(createGame(seven, 1), { '0-C1': 45 });
+    h = applyThrow(h, open(4));
+    expect(h.legalMoves.find((m) => m.pieceId === '0-C1')).toBeUndefined();
+  });
+
+  it('computers finish whole games on it', () => {
+    for (const level of ['easy', 'medium', 'hard'] as const) {
+      let g = createGame({ mode: 'individual', board: '7x7', players: [0, 1, 2, 3].map((seat) => ({ name: `P${seat}`, seat: seat as Seat, bot: level })) }, 7);
+      for (let i = 0; i < 20_000 && g.phase !== 'finished'; i++) {
+        const a = chooseBotAction(g, level);
+        g = a.type === 'throw' ? throwShells(g) : applyMove(g, a.move.id);
+      }
+      expect(g.phase).toBe('finished');
+    }
+  }, 60_000);
+
+  it('a longer route takes longer to finish', () => {
+    expect(expectedTurnsToFinish(-1, -1, -1, 48)).toBeGreaterThan(expectedTurnsToFinish(-1, -1, -1, 24) * 1.5);
+    expect(expectedTurnsToFinish(48, 48, 48, 48)).toBe(0);
+  });
+
+  it('treats games saved before boards existed as 5×5', () => {
+    const g = createGame(twoPlayers, 1);
+    expect(g.config.board).toBeUndefined();
+    expect(boardOf(g).id).toBe('5x5');
   });
 });

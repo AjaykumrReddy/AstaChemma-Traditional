@@ -1,4 +1,4 @@
-import type { Seat } from '@asta/engine';
+import { DEFAULT_BOARD, type Seat } from '@asta/engine';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -49,6 +49,7 @@ export default function MatchScreen() {
   const cancelMatch = useOnlineStore((s) => s.cancelMatch);
   const openGame = useOnlineStore((s) => s.openGame);
   const startGame = useGameStore((s) => s.startGame);
+  const board = useGameStore((s) => s.board);
 
   const [now, setNow] = useState(() => Date.now());
   const [offerDismissed, setOfferDismissed] = useState(false);
@@ -84,7 +85,7 @@ export default function MatchScreen() {
       { name, seat: 0 },
       { name: t.computer(2), seat: 2, bot: 'medium' },
     ];
-    startGame({ mode: 'individual', players });
+    startGame({ mode: 'individual', players, ...(board !== DEFAULT_BOARD ? { board } : {}) });
     router.replace('/game');
   };
 
@@ -104,6 +105,9 @@ export default function MatchScreen() {
               <SearchingShells />
               <Text style={styles.title} accessibilityLiveRegion="polite">
                 {t.searching}
+              </Text>
+              <Text style={styles.hint}>
+                {t.boardLabel}: {t.boardName[board]}
               </Text>
               <Text style={styles.clock}>{clock(waited)}</Text>
               <Text style={styles.hint}>{t.searchingCount(search.waiting)}</Text>

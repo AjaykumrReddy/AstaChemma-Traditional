@@ -1,9 +1,10 @@
-import type { BotLevel, GameConfig, GameMode, Seat } from '@asta/engine';
+import { DEFAULT_BOARD, type BotLevel, type GameConfig, type GameMode, type Seat } from '@asta/engine';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Backdrop } from '../components/Backdrop';
+import { BoardPicker } from '../components/BoardPicker';
 import { TopBar } from '../components/Chrome';
 import { SeatMark } from '../components/SeatMark';
 import { Segmented } from '../components/Segmented';
@@ -29,6 +30,7 @@ export default function SetupScreen() {
   const { kind } = useLocalSearchParams<{ kind?: string }>();
   const vsComputer = kind !== 'friends';
   const startGame = useGameStore((s) => s.startGame);
+  const board = useGameStore((s) => s.board);
   const hasSaved = useGameStore((s) => s.hydrated && !!s.game && s.game.phase !== 'finished' && s.mode === 'local' && !s.tutorial);
 
   const [mode, setMode] = useState<GameMode>('individual');
@@ -44,6 +46,7 @@ export default function SetupScreen() {
   const start = () => {
     const config: GameConfig = {
       mode,
+      ...(board !== DEFAULT_BOARD ? { board } : {}),
       players: active.map((seat) => ({
         name: names[seat]?.trim() || defaultName(seat),
         seat,
@@ -86,6 +89,7 @@ export default function SetupScreen() {
                 <Segmented options={levels} value={level} onChange={setLevel} />
               </View>
             )}
+            <BoardPicker />
           </View>
 
           <View style={styles.card}>

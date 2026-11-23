@@ -124,7 +124,7 @@ export default function LobbyScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
-            {room.mode === 'team' ? t.teams2v2 : t.playersCount(room.seats.length)}
+            {room.mode === 'team' ? t.teams2v2 : t.playersCount(room.seats.length)} · {t.boardName[room.board ?? '5x5']}
           </Text>
           {room.seats.map((seat) => (
             <SeatRow key={seat.seat} seat={seat} mine={seat.seat === session.seat} isHost={isHost} t={t} />

@@ -1,4 +1,4 @@
-import { HOME_INDEX, cellAt, cellKey, chooseBotAction, type Cell, type GameState, type Move } from '@asta/engine';
+import { boardOf, cellAt, cellKey, chooseBotAction, type Cell, type GameState, type Move } from '@asta/engine';
 import { Redirect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -41,7 +41,7 @@ const GOLD_RIM = '#F6D77B';
 function destinationOf(state: GameState, move: Move): Cell | null {
   const piece = state.pieces.find((p) => p.id === move.pieceId);
   if (!piece) return null;
-  return cellAt(state.players[piece.owner]!.seat, move.to);
+  return cellAt(boardOf(state), state.players[piece.owner]!.seat, move.to);
 }
 
 /** Moves that lead to genuinely different positions (two waiting Children are interchangeable). */
@@ -97,7 +97,7 @@ function PlayerChip({
               style={[
                 p.kind === 'mother' ? styles.homeMother : styles.homeChild,
                 { borderColor: seat.fill },
-                p.progress === HOME_INDEX && { backgroundColor: seat.fill },
+                p.progress === boardOf(state).home && { backgroundColor: seat.fill },
               ]}
             />
           ))}

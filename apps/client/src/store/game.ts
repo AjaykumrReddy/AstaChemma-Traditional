@@ -1,7 +1,10 @@
 import {
+  DEFAULT_BOARD,
   applyMove,
   applyThrow,
   createGame,
+  isBoardId,
+  type BoardId,
   makeThrow,
   randomSeed,
   throwShells as engineThrow,
@@ -72,6 +75,8 @@ interface GameStore {
   language: Lang;
   /** Show a shape per player on marbles and markers, for colour-blind players. */
   markers: boolean;
+  /** The board last chosen for a new game (local and online). */
+  board: BoardId;
   /**
    * The player closed the "Continue your game" popup for the saved game: don't
    * offer it by itself again (it stays one tap away) until a new game starts.
@@ -134,6 +139,7 @@ interface GameStore {
   setSound(on: boolean): void;
   setLanguage(language: Lang): void;
   setMarkers(on: boolean): void;
+  setBoard(board: BoardId): void;
   dismissResume(): void;
 }
 
@@ -162,7 +168,7 @@ const UNDO_LIMIT = 30;
 /** What is saved on the device: enough to resume exactly where the game stopped. */
 type SavedGame = Pick<
   GameStore,
-  'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language' | 'markers' | 'tutorialDone' | 'resumeDismissed'
+  'config' | 'game' | 'autoMove' | 'speed' | 'sound' | 'language' | 'markers' | 'board' | 'tutorialDone' | 'resumeDismissed'
 >;
 
 /** Bump when the saved shape changes in a way old saves can't be read. */
@@ -314,6 +320,7 @@ export const useGameStore = create<GameStore>()(
         sound: true,
         language: 'en',
         markers: false,
+        board: DEFAULT_BOARD,
         resumeDismissed: false,
         effects: [],
         shakeKey: 0,
@@ -562,6 +569,10 @@ export const useGameStore = create<GameStore>()(
           set({ markers: on });
         },
 
+        setBoard(board) {
+          set({ board });
+        },
+
         dismissResume() {
           set({ resumeDismissed: true });
         },
@@ -582,6 +593,7 @@ export const useGameStore = create<GameStore>()(
         sound: s.sound,
         language: s.language,
         markers: s.markers,
+        board: s.board,
         resumeDismissed: s.resumeDismissed,
       }),
       // A save from an incompatible version is dropped rather than risking a crash.
@@ -593,6 +605,7 @@ export const useGameStore = create<GameStore>()(
         sound: true,
         language: 'en',
         markers: false,
+        board: DEFAULT_BOARD,
         tutorialDone: false,
         resumeDismissed: false,
       }),
@@ -611,6 +624,7 @@ export const useGameStore = create<GameStore>()(
           language: saved.language === 'te' || saved.language === 'en' ? saved.language : current.language,
           tutorialDone: saved.tutorialDone === true,
           markers: saved.markers === true,
+          board: isBoardId(saved.board) ? saved.board : current.board,
           resumeDismissed: saved.resumeDismissed === true,
           note: game ? 'welcome' : current.note,
         };
