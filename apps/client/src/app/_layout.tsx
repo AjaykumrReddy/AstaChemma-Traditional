@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { useAccountStore } from '../account/store';
+import { withCrashReporting } from '../crash';
 import { useStrings } from '../i18n';
 import { useOnlineStore } from '../online/store';
 import { colors } from '../theme';
@@ -17,7 +18,9 @@ function useAccount() {
   }, []);
 }
 
-export default function RootLayout() {
+export default withCrashReporting(RootLayout);
+
+function RootLayout() {
   const t = useStrings();
   useAccount();
   return (

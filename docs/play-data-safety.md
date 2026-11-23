@@ -19,7 +19,7 @@ the privacy policy (`/privacy` on the game server).
 
 ## Data types
 
-Nothing is **shared** with third parties (Cloudflare, Neon and Google process data only on our
+Nothing is **shared** with third parties (Cloudflare, Neon, Google and Sentry process data only on our
 behalf as service providers, which the form does not count as sharing). Nothing is used for
 advertising or analytics.
 
@@ -29,10 +29,17 @@ advertising or analytics.
 | Personal info → **Email address** | Yes | No | Optional (only with Google sign-in) | Account management |
 | Personal info → **User IDs** (account ID; Google account ID when signed in) | Yes | No | Required | App functionality, Account management |
 | App activity → **Other actions** (online game results, coins, coin history, shop purchases) | Yes | No | Required | App functionality |
+| App info and performance → **Crash logs** (Sentry, from v5.1 once `EXPO_PUBLIC_SENTRY_DSN` is set) | Yes | No | Required | Analytics *(Play's purpose for "fixing bugs / app performance")* |
+| App info and performance → **Diagnostics** (app version, device model, OS version, screen-load timings for ~5% of sessions) | Yes | No | Required | Analytics |
+
+Crash reports carry no name, email, account ID or IP address (`sendDefaultPii: false`, user
+and console breadcrumbs stripped in `apps/client/src/crash.ts`). In Sentry, set **Settings →
+Security & Privacy → "Prevent storing of IP addresses"** on, and data retention to 90 days, to
+match the privacy policy.
 
 **Not collected:** location (precise or approximate), contacts, photos/videos, audio, files,
 calendar, messages, health, financial info / purchase history (there are no real-money
-purchases), web browsing, installed apps, device or advertising IDs, crash logs, diagnostics.
+purchases), web browsing, installed apps, device or advertising IDs.
 
 Note on IP addresses: our host (Cloudflare) sees IP addresses to deliver traffic and to limit
 how fast new accounts can be created from one address; we don't store them or tie them to an

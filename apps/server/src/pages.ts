@@ -9,7 +9,7 @@
  */
 
 /** When the privacy policy last changed (shown on the page; update with every change). */
-export const PRIVACY_UPDATED = '22 November 2026';
+export const PRIVACY_UPDATED = '23 November 2026';
 
 const STYLE = `
   :root { color-scheme: dark; }
@@ -131,6 +131,7 @@ export function privacyPage(supportEmail: string | undefined): Response {
       <li>No ads, no tracking, no analytics, and we never sell or share your data.</li>
       <li>Coins are play money only: they can't be bought, sold or exchanged for money.</li>
       <li>You can delete your account and data at any time, in the app.</li>
+      <li>If the app crashes, it sends us a crash report (what went wrong, the app version and the phone model) so we can fix it – never your name or account.</li>
     </ul>
   </div>
 
@@ -142,6 +143,7 @@ export function privacyPage(supportEmail: string | undefined): Response {
     <li><b>Online games.</b> For each finished online game: the room code, when it was played, each player's name and seat, who won and the coins earned. While a game is in progress, the game server also keeps the room itself (seats, names and moves); it is removed shortly after the game ends or the room is left.</li>
     <li><b>Activity dates.</b> When your account was created and, at most hourly, when it was last used – so inactive accounts could be tidied up in future.</li>
     <li><b>Sign-in sessions.</b> Your phone holds a secret sign-in key in its secure storage. We store only a scrambled (hashed) form of it, so it is useless to anyone who sees our database.</li>
+    <li><b>Crash reports.</b> If the app crashes or hits an error, it sends a report: the error and where in the app it happened, the app version, the phone model and operating system version, and (for a small sample of sessions) how long screens took to load. Reports don't include your name, email, account number, IP address or anything you typed, and they are deleted after 90 days.</li>
   </ul>
   <p>Other players in an online game see your player name and how you are playing. Once you have won an online game against another person, your player name and your number of online wins and games also appear on the leaderboard, which every player can see. Choose a name you're happy for others to see.</p>
 
@@ -149,13 +151,14 @@ export function privacyPage(supportEmail: string | undefined): Response {
   <p>Games against the computer or with friends on the same phone, your settings (language, speed, sound) and the guided game are stored only on your phone. We never receive them. Uninstalling the app removes them.</p>
 
   <h2>What we don't collect</h2>
-  <p>We don't collect your location, contacts, photos, microphone, phone number, advertising ID or payment details, and the app contains no advertising or analytics tools.</p>
+  <p>We don't collect your location, contacts, photos, microphone, phone number, advertising ID or payment details, and the app contains no advertising or analytics tools (crash reports, above, are used only to fix problems).</p>
 
   <h2>Who processes the data</h2>
   <ul>
     <li><b>Cloudflare</b> runs our game server. Like any website host, it processes your IP address to deliver the service and to stop abuse (for example, limiting how quickly new accounts can be made from one address). We don't store IP addresses; Cloudflare's technical logs are kept for a few days.</li>
     <li><b>Neon</b> hosts our database (in Singapore).</li>
     <li><b>Google</b> handles Google sign-in, under Google's own privacy policy.</li>
+    <li><b>Sentry</b> (Functional Software, Inc.) receives and stores crash reports.</li>
   </ul>
   <p>They act on our behalf only. We don't sell, rent or share your data with anyone else, and we don't use it for advertising.</p>
 
@@ -198,11 +201,12 @@ export function privacyPage(supportEmail: string | undefined): Response {
     <li><b>Google సైన్ ఇన్ (ఐచ్ఛికం):</b> మీ Google ఖాతా ID, ఈమెయిల్ (Google ధృవీకరించినది మాత్రమే), మొదటి పేరు – సైన్ ఇన్ చేయడానికి, ఫోన్ మారినా ఖాతా ఉండటానికి మాత్రమే. మీ Google పాస్‌వర్డ్ మాకు ఎప్పుడూ రాదు.</li>
     <li><b>నాణేలు, దుకాణం:</b> నాణేల నిల్వ, ప్రతి మార్పు రికార్డు, మీరు కొన్నవి, వాడుతున్నవి.</li>
     <li><b>ఆన్‌లైన్ ఆటలు:</b> గది కోడ్, సమయం, ఆటగాళ్ల పేర్లు, ఎవరు గెలిచారు, సంపాదించిన నాణేలు.</li>
+    <li><b>క్రాష్ నివేదికలు:</b> యాప్ ఆగిపోతే లేదా లోపం వస్తే – ఏ లోపం, యాప్ వెర్షన్, ఫోన్ మోడల్, OS వెర్షన్ – సరిచేయడానికి మాత్రమే. మీ పేరు, ఈమెయిల్, ఖాతా సంఖ్య, IP చిరునామా ఉండవు; 90 రోజుల తర్వాత తొలగిపోతాయి.</li>
   </ul>
   <p>ఆన్‌లైన్ ఆటలో ఇతరులు మీ ఆటగాడి పేరు చూస్తారు. మరొక వ్యక్తితో ఆన్‌లైన్ ఆట గెలిచాక, మీ పేరు, గెలుపుల సంఖ్య అందరూ చూసే లీడర్‌బోర్డ్‌లో కనిపిస్తాయి.</p>
   <p>కంప్యూటర్‌తో లేదా ఒకే ఫోన్‌లో ఆడే ఆటలు, సెట్టింగ్‌లు మీ ఫోన్‌లోనే ఉంటాయి – మాకు రావు. మీ లొకేషన్, కాంటాక్ట్‌లు, ఫోటోలు, ఫోన్ నంబర్, చెల్లింపు వివరాలు సేకరించం.</p>
   <h2>ఎవరు నిర్వహిస్తారు</h2>
-  <p>మా సర్వర్‌ను Cloudflare, డేటాబేస్‌ను Neon (సింగపూర్), సైన్ ఇన్‌ను Google నిర్వహిస్తాయి – మా తరపున మాత్రమే. IP చిరునామాలను మేము నిల్వ చేయం.</p>
+  <p>మా సర్వర్‌ను Cloudflare, డేటాబేస్‌ను Neon (సింగపూర్), సైన్ ఇన్‌ను Google, క్రాష్ నివేదికలను Sentry నిర్వహిస్తాయి – మా తరపున మాత్రమే. IP చిరునామాలను మేము నిల్వ చేయం.</p>
   <h2>ఎంతకాలం ఉంచుతాం</h2>
   <p>మీరు ఖాతాను తొలగించే వరకు. తొలగిస్తే మీ ఖాతా, పేరు, ఈమెయిల్, నాణేలు, కొనుగోళ్లు వెంటనే తొలగిపోతాయి. ముగిసిన ఆటల ఫలితాలు మీ పేరు లేకుండా ఉంటాయి.</p>
   <h2>మీ ఎంపికలు</h2>

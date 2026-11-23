@@ -3,7 +3,7 @@
     "name": "Asta Chemma",
     "slug": "asta-chemma",
     "scheme": "astachemma",
-    "version": "4.0.0",
+    "version": "5.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -56,7 +56,8 @@
           "backgroundColor": "#1E3A33"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "@sentry/react-native"
     ],
     "extra": {
       "router": {
