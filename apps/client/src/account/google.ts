@@ -1,4 +1,5 @@
 import { Platform, TurboModuleRegistry } from 'react-native';
+import { reportProblem } from '../crash';
 
 /**
  * Google sign-in on the phone. Google gives the app an ID token, which the
@@ -49,6 +50,10 @@ export async function googleIdToken(): Promise<GoogleResult> {
       return { type: 'cancelled' };
     }
     console.warn('Google sign-in failed', error);
+    // Report only Google's error code and message (e.g. DEVELOPER_ERROR = the app's
+    // signing key isn't registered), never the account.
+    const code = isErrorWithCode(error) ? String(error.code) : 'unknown';
+    reportProblem(`Google sign-in failed (${code})`, { code, message: error instanceof Error ? error.message : String(error) });
     return { type: 'failed' };
   }
 }

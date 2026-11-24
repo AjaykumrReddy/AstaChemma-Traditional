@@ -36,6 +36,12 @@ if (crashReportingEnabled) {
   });
 }
 
+/** Report a problem the app handled itself (it carries on), with a few non-personal details. */
+export function reportProblem(message: string, details: Record<string, string>): void {
+  if (!crashReportingEnabled) return;
+  Sentry.captureMessage(message, { level: 'warning', extra: details });
+}
+
 /** A harmless test report, to check reports arrive (Profile → tap the version 7 times). */
 export function sendTestReport(): boolean {
   if (!crashReportingEnabled) return false;
