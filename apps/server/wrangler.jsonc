@@ -25,7 +25,10 @@
     // Google sign-in: ID tokens must be issued for our Web client (not secret).
     "GOOGLE_CLIENT_IDS": "743187252908-gfthj90i9kealbdok71ub1bluqruiohe.apps.googleusercontent.com",
     // Public contact address on /privacy and /delete-account (also the Play Store contact email).
-    "SUPPORT_EMAIL": "mail.businessworks@gmail.com"
+    "SUPPORT_EMAIL": "mail.businessworks@gmail.com",
+    // Server error reports (Sentry project astachemma-server). Not secret: it only lets
+    // the server send reports. Tests and local dev switch it off.
+    "SENTRY_DSN": "https://dcba6cb32d7b3dee4703ada3b18b8186@o4512481138704384.ingest.us.sentry.io/4512486455443456"
   },
   "observability": { "enabled": true }
 }

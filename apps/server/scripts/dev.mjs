@@ -14,7 +14,8 @@ const server = new PGLiteSocketServer({ db, port: DB_PORT, host: '127.0.0.1', ma
 await server.start();
 console.log(`Local Postgres (PGlite) on 127.0.0.1:${DB_PORT}`);
 
-const wrangler = spawn('npx', ['wrangler', 'dev', '--port', '8787', '--ip', '0.0.0.0'], {
+// No error reports from local development.
+const wrangler = spawn('npx', ['wrangler', 'dev', '--port', '8787', '--ip', '0.0.0.0', '--var', 'SENTRY_DSN:'], {
   stdio: 'inherit',
   shell: true,
   env: {

@@ -67,6 +67,8 @@ export async function setup(project: TestProject) {
     'SILENT_MS:2000',
     'GOOGLE_CLIENT_IDS:test-web-client',
     `GOOGLE_JWKS_URL:http://127.0.0.1:${jwksPort}/certs`,
+    // No error reports from tests.
+    'SENTRY_DSN:',
   ].flatMap(
     (v) => ['--var', v],
   );
