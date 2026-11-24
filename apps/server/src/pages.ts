@@ -4,6 +4,7 @@
  *   GET /delete-account   How to delete your account and data (Google Play's
  *                         "account deletion" link).
  *   GET /privacy          The privacy policy.
+ *   GET /                 A small homepage (in a browser).
  *
  * Both name the contact address from SUPPORT_EMAIL (wrangler.jsonc).
  */
@@ -211,6 +212,58 @@ export function privacyPage(supportEmail: string | undefined): Response {
   <p>మీరు ఖాతాను తొలగించే వరకు. తొలగిస్తే మీ ఖాతా, పేరు, ఈమెయిల్, నాణేలు, కొనుగోళ్లు వెంటనే తొలగిపోతాయి. ముగిసిన ఆటల ఫలితాలు మీ పేరు లేకుండా ఉంటాయి.</p>
   <h2>మీ ఎంపికలు</h2>
   <p>ప్రొఫైల్‌లో మీ వివరాలు చూడండి, పేరు మార్చండి, లేదా ఖాతాను తొలగించండి (<a href="/delete-account">ఎలా తొలగించాలి</a>). ప్రశ్నలకు: ${mailTe}.</p>
+</main>
+</body>
+</html>`;
+  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+}
+
+/**
+ * GET / in a browser: a small homepage (Google sign-in's consent screen and the
+ * store listing need one). Apps and monitors asking for JSON still get the
+ * service status.
+ */
+export function homePage(supportEmail: string | undefined): Response {
+  const email = supportEmail ? escapeHtml(supportEmail) : null;
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asta Chemma Traditional</title>
+<meta name="description" content="Asta Chemma (అష్ట చెమ్మ), the traditional Telugu board game with cowrie shells – for Android.">
+<style>${STYLE}
+  .hero { text-align: center; padding: 24px 0 8px; }
+  .hero h1 { font-size: 34px; }
+  .tag { display: inline-block; background: #8e1f14; color: #ffe9a8; border: 1.5px solid #f6d77b; border-radius: 8px; padding: 1px 12px; font-weight: 800; letter-spacing: 2px; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <h1>Asta Chemma</h1>
+    <span class="tag">TRADITIONAL</span>
+    <p class="sub" style="margin-top:12px">అష్ట చెమ్మ – the board game played in Telugu homes with cowrie shells</p>
+  </div>
+
+  <div class="card">
+    <h2>The game</h2>
+    <p>Throw five cowrie shells, count how many land open, and race your Mother and two Children round the board to the lotus in the centre – with the true house rules. Play on the classic 5×5 board or the big 7×7 one.</p>
+    <ul>
+      <li>Against the computer – easy, medium or hard</li>
+      <li>Pass &amp; Play – family and friends on one phone, face to face</li>
+      <li>Online – with friends by room code, or a quick match with anyone</li>
+      <li>English and Telugu · no ads · coins are just for fun</li>
+    </ul>
+    <p>Coming to Google Play for Android.</p>
+  </div>
+
+  <h2>Help and privacy</h2>
+  <ul>
+    <li><a href="/privacy">Privacy policy</a></li>
+    <li><a href="/delete-account">Delete your account</a></li>
+    ${email ? `<li>Contact: <a href="mailto:${email}">${email}</a></li>` : ''}
+  </ul>
 </main>
 </body>
 </html>`;

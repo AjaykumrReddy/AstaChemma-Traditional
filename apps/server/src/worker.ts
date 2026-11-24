@@ -17,7 +17,7 @@ import { handleApi, userIdForToken, type ApiEnv } from './api';
 import { freshCode } from './codes';
 import { Matchmaker as MatchmakerBase } from './matchmaker';
 import { Sentry, reportError, sentryOptions, type SentryEnv } from './sentry';
-import { deleteAccountPage, privacyPage } from './pages';
+import { deleteAccountPage, homePage, privacyPage } from './pages';
 
 // Durable Object classes must be exported from the Worker's main module (wrapped for error reports).
 export const Matchmaker = Sentry.instrumentDurableObjectWithSentry(sentryOptions, MatchmakerBase);
@@ -66,7 +66,11 @@ export default Sentry.withSentry(sentryOptions, {
     const url = new URL(request.url);
     if (url.pathname === '/health') return json({ ok: true, protocol: PROTOCOL_VERSION });
     // Opening the address in a browser: say what this is rather than "not found".
-    if (url.pathname === '/') return json({ service: 'Asta Chemma game server', ok: true, protocol: PROTOCOL_VERSION });
+    if (url.pathname === '/') {
+      // People get the homepage; apps and monitors asking for JSON get the status.
+      if ((request.headers.get('accept') ?? '').includes('text/html')) return homePage(env.SUPPORT_EMAIL || undefined);
+      return json({ service: 'Asta Chemma game server', ok: true, protocol: PROTOCOL_VERSION });
+    }
     if (url.pathname === '/delete-account') return deleteAccountPage(env.SUPPORT_EMAIL || undefined);
     if (url.pathname === '/privacy') return privacyPage(env.SUPPORT_EMAIL || undefined);
     const api = await handleApi(request, env, url);
