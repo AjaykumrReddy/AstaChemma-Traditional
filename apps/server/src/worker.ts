@@ -15,11 +15,12 @@ import {
 } from '@asta/protocol';
 import { handleApi, userIdForToken, type ApiEnv } from './api';
 import { freshCode } from './codes';
-import { Matchmaker } from './matchmaker';
+import { Matchmaker as MatchmakerBase } from './matchmaker';
+import { Sentry, reportError, sentryOptions, type SentryEnv } from './sentry';
 import { deleteAccountPage, privacyPage } from './pages';
 
-// Durable Object classes must be exported from the Worker's main module.
-export { Matchmaker };
+// Durable Object classes must be exported from the Worker's main module (wrapped for error reports).
+export const Matchmaker = Sentry.instrumentDurableObjectWithSentry(sentryOptions, MatchmakerBase);
 import { recordGame } from './db/accounts';
 import { withDb } from './db/db';
 import { DEFAULT_TIMINGS, Room, RoomError, type RoomData, type RoomTimings } from './room';
@@ -36,9 +37,9 @@ import { DEFAULT_TIMINGS, Room, RoomError, type RoomData, type RoomTimings } fro
  * rooms cost nothing), and uses its single storage alarm for every timed event.
  */
 
-export interface Env extends ApiEnv {
-  GAME_ROOM: DurableObjectNamespace<GameRoom>;
-  MATCHMAKER: DurableObjectNamespace<Matchmaker>;
+export interface Env extends ApiEnv, SentryEnv {
+  GAME_ROOM: DurableObjectNamespace<GameRoomBase>;
+  MATCHMAKER: DurableObjectNamespace<MatchmakerBase>;
   /** Quick match: time per throw or move, and for matched players to arrive (tests use small values). */
   TURN_MS?: string;
   JOIN_MS?: string;
@@ -59,7 +60,8 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 
-export default {
+// Errors anywhere in the server are reported to Sentry (when SENTRY_DSN is set).
+export default Sentry.withSentry(sentryOptions, {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === '/health') return json({ ok: true, protocol: PROTOCOL_VERSION });
@@ -92,7 +94,7 @@ export default {
     url.searchParams.set('code', code);
     return env.GAME_ROOM.getByName(code).fetch(new Request(url, request));
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Env>);
 
 /** What each socket remembers across hibernation. */
 interface Attachment {
@@ -114,7 +116,7 @@ const DEFAULT_RATE_MAX_MESSAGES = 60;
  */
 const DEFAULT_SILENT_MS = 60_000;
 
-export class GameRoom extends DurableObject<Env> {
+class GameRoomBase extends DurableObject<Env> {
   private room: Room | null = null;
   private readonly timings: RoomTimings;
   private readonly rateMax: number;
@@ -214,6 +216,7 @@ export class GameRoom extends DurableObject<Env> {
       }
     } catch (error) {
       console.error('could not record the result', error);
+      reportError(error);
     }
   }
 
@@ -357,6 +360,7 @@ export class GameRoom extends DurableObject<Env> {
     } catch (error) {
       if (error instanceof RoomError) return fail(error.code, error.message);
       console.error('room error', error);
+      reportError(error);
       fail('illegal', 'Something went wrong.');
     }
   }
@@ -386,6 +390,7 @@ export class GameRoom extends DurableObject<Env> {
       room.wake();
     } catch (error) {
       console.error('alarm error', error);
+      reportError(error);
     }
     await this.persist();
   }
@@ -409,3 +414,6 @@ function safeSend(ws: WebSocket, text: string): void {
     // The socket is closing; the close handler tidies up.
   }
 }
+
+/** The room Durable Object, wrapped so its errors are reported to Sentry. */
+export const GameRoom = Sentry.instrumentDurableObjectWithSentry(sentryOptions, GameRoomBase);

@@ -15,6 +15,7 @@
   "dependencies": {
     "@asta/engine": "*",
     "@asta/protocol": "*",
+    "@sentry/cloudflare": "^11.17.0",
     "pg": "^8.23.1"
   },
   "devDependencies": {

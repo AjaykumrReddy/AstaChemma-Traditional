@@ -15,6 +15,7 @@ import {
 } from './db/accounts';
 import { verifyGoogleIdToken } from './google';
 import { withDb, type Db } from './db/db';
+import { reportError } from './sentry';
 
 /**
  * The account API (JSON over HTTPS):
@@ -195,6 +196,7 @@ export async function handleApi(request: Request, env: ApiEnv, url: URL): Promis
     return json({ error: 'not found' }, 404);
   } catch (error) {
     console.error('api error', error);
+    reportError(error);
     return fail('unavailable', 503);
   }
 }
@@ -208,6 +210,7 @@ export async function userIdForToken(env: ApiEnv, token: string | undefined): Pr
   } catch (error) {
     // Playing matters more than stats: carry on without the account.
     console.error('account lookup failed', error);
+    reportError(error);
     return null;
   }
 }

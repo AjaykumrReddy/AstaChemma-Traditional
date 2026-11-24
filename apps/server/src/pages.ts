@@ -9,7 +9,7 @@
  */
 
 /** When the privacy policy last changed (shown on the page; update with every change). */
-export const PRIVACY_UPDATED = '23 November 2026';
+export const PRIVACY_UPDATED = '24 November 2026';
 
 const STYLE = `
   :root { color-scheme: dark; }
@@ -158,7 +158,7 @@ export function privacyPage(supportEmail: string | undefined): Response {
     <li><b>Cloudflare</b> runs our game server. Like any website host, it processes your IP address to deliver the service and to stop abuse (for example, limiting how quickly new accounts can be made from one address). We don't store IP addresses; Cloudflare's technical logs are kept for a few days.</li>
     <li><b>Neon</b> hosts our database (in Singapore).</li>
     <li><b>Google</b> handles Google sign-in, under Google's own privacy policy.</li>
-    <li><b>Sentry</b> (Functional Software, Inc.) receives and stores crash reports.</li>
+    <li><b>Sentry</b> (Functional Software, Inc.) receives and stores crash reports from the app, and error reports from our game server (what went wrong and where – never your name, account, IP address or sign-in key).</li>
   </ul>
   <p>They act on our behalf only. We don't sell, rent or share your data with anyone else, and we don't use it for advertising.</p>
 

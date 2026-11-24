@@ -10,6 +10,7 @@ import {
 } from '@asta/protocol';
 import { userIdForToken } from './api';
 import { freshCode } from './codes';
+import { reportError } from './sentry';
 import type { Env } from './worker';
 
 /**
@@ -184,6 +185,7 @@ export class Matchmaker extends DurableObject<Env> {
       return members ? { code, members } : null;
     } catch (error) {
       console.error('could not start a quick match', error);
+      reportError(error);
       return null;
     }
   }
