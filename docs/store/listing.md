@@ -59,7 +59,7 @@ LEARN AS YOU PLAY
 New to Asta Chemma? A short guided game teaches every rule as you play, and How to play explains it all with pictures.
 
 COINS, SHOP AND LEADERBOARD
-Collect a daily bonus and win coins online, then spend them on new boards, marbles and cowrie styles. Climb the weekly leaderboard of wins against friends. Coins are just for fun – they can't be bought, sold or exchanged for money.
+Collect a daily bonus and win coins online, then spend them on new boards, marbles and cowrie styles. Climb the weekly leaderboard of online wins against other players. Coins are just for fun – they can't be bought, sold or exchanged for money.
 
 MADE WITH CARE
 • English and Telugu throughout
@@ -92,7 +92,7 @@ MADE WITH CARE
 అష్ట చెమ్మ కొత్తా? చిన్న గైడెడ్ ఆట ఆడుతూనే అన్ని నియమాలు నేర్పుతుంది, "ఎలా ఆడాలి" పేజీ బొమ్మలతో వివరిస్తుంది.
 
 నాణేలు, దుకాణం, లీడర్‌బోర్డ్
-రోజువారీ బోనస్ తీసుకోండి, ఆన్‌లైన్‌లో గెలిచి నాణేలు సంపాదించండి, కొత్త బోర్డులు, గోళీలు, గవ్వలు కొనండి. స్నేహితులపై గెలుపుల వారపు లీడర్‌బోర్డ్‌లో పైకి ఎదగండి. నాణేలు సరదా కోసమే – వాటిని కొనలేరు, అమ్మలేరు, డబ్బుగా మార్చలేరు.
+రోజువారీ బోనస్ తీసుకోండి, ఆన్‌లైన్‌లో గెలిచి నాణేలు సంపాదించండి, కొత్త బోర్డులు, గోళీలు, గవ్వలు కొనండి. ఇతర ఆటగాళ్లపై ఆన్‌లైన్ గెలుపుల వారపు లీడర్‌బోర్డ్‌లో పైకి ఎదగండి. నాణేలు సరదా కోసమే – వాటిని కొనలేరు, అమ్మలేరు, డబ్బుగా మార్చలేరు.
 
 శ్రద్ధగా తయారైంది
 • పూర్తిగా తెలుగు, ఇంగ్లీష్‌లో
@@ -108,11 +108,13 @@ MADE WITH CARE
 | # | English | Telugu |
 |---|---|---|
 | 1 | Asta Chemma, the way your family plays | మీ ఇంట్లో ఆడే అష్ట చెమ్మ |
-| 2 | Play the computer | కంప్యూటర్‌తో ఆడండి |
-| 3 | Play online with friends | స్నేహితులతో ఆన్‌లైన్ ఆట |
-| 4 | Earn coins, collect new looks | నాణేలు సంపాదించండి |
-| 5 | Climb the weekly leaderboard | లీడర్‌బోర్డ్‌లో పైకి ఎదగండి |
-| 6 | Learn as you play | ఆడుతూనే నేర్చుకోండి |
+| 2 | Tap the mat, throw the cowries | చాపను నొక్కి గవ్వలు వేయండి |
+| 3 | 5×5 or the big 7×7 board | 5×5 లేదా పెద్ద 7×7 బోర్డు |
+| 4 | Face to face on one phone | ఒకే ఫోన్‌లో ఎదురెదురుగా |
+| 5 | Play online | ఆన్‌లైన్ ఆట |
+| 6 | Earn coins, collect new looks | నాణేలు సంపాదించండి |
+| 7 | Climb the weekly leaderboard | లీడర్‌బోర్డ్‌లో పైకి ఎదగండి |
+| 8 | Learn as you play | ఆడుతూనే నేర్చుకోండి |
 
 ---
 
