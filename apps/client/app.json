@@ -57,6 +57,7 @@
         }
       ],
       "expo-secure-store",
+      "./plugins/with-optional-portrait",
       [
         "@sentry/react-native",
         {
