@@ -3,7 +3,7 @@
     "name": "Asta Chemma",
     "slug": "asta-chemma",
     "scheme": "astachemma",
-    "version": "5.1.0",
+    "version": "5.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -14,7 +14,6 @@
     },
     "android": {
       "package": "com.astachemma.app",
-      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#1E3A33",
         "foregroundImage": "./assets/android-icon-foreground.png",
