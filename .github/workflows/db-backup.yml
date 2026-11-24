@@ -1,0 +1,68 @@
+# Nightly backup of the game's database (accounts, coins, stats, game results).
+#
+# Dumps the Neon Postgres database, encrypts it with BACKUP_PASSPHRASE, and keeps
+# it as a workflow artifact for 30 days. The repository is public, so the dump is
+# never stored or logged unencrypted. How to restore: docs/backups.md.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   DATABASE_URL       Neon's direct (not pooled) connection string
+#   BACKUP_PASSPHRASE  a long password; keep a copy somewhere safe
+name: Nightly database backup
+
+on:
+  schedule:
+    - cron: '30 20 * * *' # 02:00 India time, every night
+  workflow_dispatch: # run it by hand from the Actions tab
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check the secrets are set
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Add the DATABASE_URL and BACKUP_PASSPHRASE repository secrets (see docs/backups.md)."
+            exit 1
+          fi
+
+      - name: Install the PostgreSQL client (the latest, so it can back up any server version)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client
+          pg_dump --version
+
+      - name: Back up and check the backup is readable
+        run: |
+          pg_dump --format=custom --no-owner --no-privileges --file=db.dump "$DATABASE_URL"
+          pg_restore --list db.dump > contents.txt
+          echo "Tables with data: $(grep -c 'TABLE DATA' contents.txt)"
+          echo "Size: $(du -h db.dump | cut -f1)"
+          echo "DAY=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
+
+      - name: Encrypt (AES-256), then delete the unencrypted copy
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --symmetric --cipher-algo AES256 \
+            --passphrase "$BACKUP_PASSPHRASE" --output "asta-chemma-db-$DAY.dump.gpg" db.dump
+          shred -u db.dump contents.txt
+
+      - name: Keep it for 30 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: asta-chemma-db-${{ env.DAY }}
+          path: asta-chemma-db-*.dump.gpg
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
