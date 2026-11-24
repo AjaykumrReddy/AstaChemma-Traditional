@@ -269,3 +269,54 @@ export function homePage(supportEmail: string | undefined): Response {
 </html>`;
   return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
 }
+
+/** Google Play page of the app. */
+const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.astachemma.app';
+
+/**
+ * GET /join/:code – a room invite shared from the app (e.g. on WhatsApp). On
+ * Android it opens the app straight into the room (or Google Play if the app
+ * isn't installed); anywhere else it shows the code to type in.
+ */
+export function joinPage(code: string): Response {
+  const c = escapeHtml(code);
+  // Android: an intent link opens the app at astachemma://join/CODE, or falls back to Play.
+  const intent = `intent://join/${c}#Intent;scheme=astachemma;package=com.astachemma.app;S.browser_fallback_url=${encodeURIComponent(PLAY_URL)};end`;
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join my Asta Chemma game – room ${c}</title>
+<meta property="og:title" content="Join my Asta Chemma game">
+<meta property="og:description" content="Tap to play Asta Chemma with me – room ${c}">
+<style>${STYLE}
+  .hero { text-align: center; padding-top: 24px; }
+  .code { font-size: 52px; font-weight: 900; letter-spacing: 12px; color: #f7f5ee; margin: 8px 0 4px; }
+  .btn { display: block; text-align: center; background: #f6d77b; color: #2a2208; font-weight: 800; font-size: 18px; text-decoration: none; border-radius: 14px; padding: 14px; margin: 18px 0 10px; }
+  .btn.alt { background: transparent; color: #f6d77b; border: 1.5px solid #f6d77b; font-size: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <h1>Join my Asta Chemma game</h1>
+    <p class="sub">అష్ట చెమ్మ – నా ఆటలో చేరండి</p>
+    <p>Room code</p>
+    <div class="code">${c}</div>
+  </div>
+  <a class="btn" id="open" href="${intent}">Open in the app</a>
+  <a class="btn alt" href="${PLAY_URL}">Get the app on Google Play</a>
+  <div class="card">
+    <p>Already have the app? <b>Open in the app</b> takes you straight into the room. Or open Asta Chemma, tap <b>Play Online</b> and enter the code <b>${c}</b>.</p>
+    <p>యాప్ ఉంటే “Open in the app” నొక్కండి – నేరుగా గదిలోకి వెళ్తారు. లేదా యాప్‌లో “ఆన్‌లైన్ ఆట” నొక్కి కోడ్ <b>${c}</b> ఇవ్వండి.</p>
+  </div>
+</main>
+<script>
+  // On Android, try opening the app at once (the button stays for browsers that block this).
+  if (/Android/i.test(navigator.userAgent)) location.href = document.getElementById('open').href;
+</script>
+</body>
+</html>`;
+  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+}

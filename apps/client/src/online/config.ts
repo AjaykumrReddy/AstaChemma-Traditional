@@ -33,3 +33,12 @@ export function apiBaseUrl(): string {
 
 /** The privacy policy (always the live one, whichever server the app plays on). */
 export const PRIVACY_URL = `${LIVE_SERVER_URL.replace(/^wss:/, 'https:')}/privacy`;
+
+/**
+ * A room invite to share (e.g. on WhatsApp): opens the app straight into the
+ * room, or the store if the app isn't installed. Always the live server, so it
+ * works on friends' phones.
+ */
+export function inviteLink(code: string): string {
+  return `${LIVE_SERVER_URL.replace(/^wss:/, 'https:')}/join/${code}`;
+}

@@ -12,7 +12,9 @@ import {
   type Seat,
 } from '@asta/engine';
 import {
+  REACTION_GAP_MS,
   seatsForCount,
+  type ReactionId,
   type ErrorCode,
   type LastAction,
   type RoomStatus,
@@ -87,6 +89,8 @@ export interface MemberData {
   joined?: boolean;
   /** Quick match: turns in a row the timer had to play. */
   missed?: number;
+  /** When they last sent a reaction (limits how often). */
+  reactedAt?: number;
 }
 
 /** Everything about a room, as plain JSON-safe data the host saves after every change. */
@@ -116,6 +120,8 @@ export interface RoomData {
   quick?: boolean;
   /** Quick match: when the current player's throw or move is due. */
   turnAt?: number | null;
+  /** After a game: members ready to play again. */
+  rematch?: string[];
 }
 
 /** How the room reaches players and reads the time. */
@@ -282,6 +288,8 @@ export class Room {
     d.seats[member.seat] =
       d.status === 'lobby' ? { kind: 'open', name: null } : { kind: 'bot', name: member.name, level: STAND_IN_LEVEL };
     if (d.hostId === member.id) d.hostId = d.members[0]?.id ?? null;
+    // Someone leaving may be all the others were waiting for.
+    if (this.rematchReady()) return this.startRematch();
     this.changed(null);
   }
 
@@ -328,6 +336,75 @@ export class Room {
     d.status = 'playing';
     d.startedAt = this.io.now();
     this.changed({ type: 'start' });
+  }
+
+  // -------------------------------------------------------------------------
+  // After a game
+  // -------------------------------------------------------------------------
+
+  /**
+   * After a game: this player wants to play again with the same people. Once
+   * everyone still in the room is ready, a new game starts on the same seats;
+   * seats of players who are no longer connected go to the computer.
+   */
+  rematch(memberId: string): void {
+    const d = this.data;
+    const member = this.member(memberId);
+    if (!member) throw new RoomError('not-in-room', 'You are not in this room.');
+    if (d.status !== 'finished' || !d.game) throw new RoomError('illegal', 'The game is not over yet.');
+    d.rematch = [...new Set([...(d.rematch ?? []), member.id])];
+    if (this.rematchReady()) return this.startRematch();
+    this.changed(null);
+  }
+
+  /** Everyone connected has asked to play again (and someone has). */
+  private rematchReady(): boolean {
+    const d = this.data;
+    if (d.status !== 'finished' || !d.game || !d.rematch?.length) return false;
+    const ready = new Set(d.rematch);
+    return d.members.some((m) => ready.has(m.id)) && d.members.every((m) => !m.connected || ready.has(m.id));
+  }
+
+  private startRematch(): void {
+    const d = this.data;
+    const game = d.game!;
+    // Players who aren't here any more: the computer plays their seat.
+    for (const m of d.members.filter((x) => !x.connected)) {
+      d.seats[m.seat] = { kind: 'bot', name: m.name, level: STAND_IN_LEVEL };
+    }
+    d.members = d.members.filter((m) => m.connected);
+    if (!d.members.some((m) => m.id === d.hostId)) d.hostId = d.members[0]?.id ?? null;
+    for (const m of d.members) {
+      m.away = false;
+      m.awayAt = null;
+      m.missed = 0;
+    }
+    const config: GameConfig = {
+      ...game.config,
+      players: game.config.players.map((p) => {
+        const slot = d.seats[p.seat]!;
+        return slot.kind === 'bot'
+          ? { name: slot.name ?? p.name, seat: p.seat, bot: slot.level ?? p.bot ?? STAND_IN_LEVEL }
+          : { name: slot.name ?? p.name, seat: p.seat };
+      }),
+    };
+    d.game = createGame(config, randomSeed());
+    d.status = 'playing';
+    d.startedAt = this.io.now();
+    d.recorded = false;
+    d.rematch = undefined;
+    d.turnAt = null;
+    this.changed({ type: 'start' });
+  }
+
+  /** A quick reaction, passed straight on to everyone (not saved; at most one every REACTION_GAP_MS). */
+  react(memberId: string, id: ReactionId): void {
+    const member = this.member(memberId);
+    if (!member) throw new RoomError('not-in-room', 'You are not in this room.');
+    const now = this.io.now();
+    if (member.reactedAt !== undefined && now - member.reactedAt < REACTION_GAP_MS) return;
+    member.reactedAt = now;
+    for (const m of this.data.members) if (m.connected) this.io.send(m.id, { t: 'reaction', seat: member.seat, id });
   }
 
   /**
@@ -536,6 +613,9 @@ export class Room {
       version: d.version,
       lastAction: action,
       ...(d.quick ? { quick: true, turnEndsIn: d.turnAt != null ? Math.max(0, d.turnAt - this.io.now()) : null } : {}),
+      ...(d.status === 'finished' && d.rematch?.length
+        ? { rematch: d.members.filter((m) => d.rematch!.includes(m.id)).map((m) => m.seat) }
+        : {}),
     };
   }
 }

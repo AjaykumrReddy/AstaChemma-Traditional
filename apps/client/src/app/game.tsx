@@ -28,6 +28,7 @@ import { useOnlineStore } from '../online/store';
 import { displayState, useGameStore, useTimings } from '../store/game';
 import { TUTORIAL_STEPS } from '../tutorial/steps';
 import { throwValue } from '../store/messages';
+import { REACTIONS } from '@asta/protocol';
 import { colors, radius, seatColors, space } from '../theme';
 
 /** Wide screens put the board on the left and the controls on the right. */
@@ -58,12 +59,43 @@ function distinctMoves(state: GameState, moves: Move[]): Move[] {
   });
 }
 
+/** Reactions that are words rather than an emoji (drawn smaller, as a pill). */
+const PHRASE_REACTIONS: ReadonlySet<string> = new Set(['niceThrow', 'oops', 'yourTurn', 'goodGame']);
+
+/** A reaction popping up under a player's name for a few seconds. */
+function ReactionBubble({ text, at }: { text: string; at: number }) {
+  const [anim] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    // Only fresh ones (not an old one seen again after a reconnect).
+    if (Date.now() - at > 3500) return;
+    anim.setValue(0);
+    const a = Animated.sequence([
+      Animated.spring(anim, { toValue: 1, useNativeDriver: Platform.OS !== 'web', speed: 18, bounciness: 12 }),
+      Animated.delay(2400),
+      Animated.timing(anim, { toValue: 0, duration: 350, useNativeDriver: Platform.OS !== 'web' }),
+    ]);
+    a.start();
+    return () => a.stop();
+  }, [at, anim]);
+  return (
+    <Animated.View
+      style={[styles.bubble, { opacity: anim, transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }]}
+      accessibilityLiveRegion="polite"
+    >
+      <Text style={styles.bubbleText} numberOfLines={1}>
+        {text}
+      </Text>
+    </Animated.View>
+  );
+}
+
 function PlayerChip({
   state,
   index,
   t,
   presence,
   compact,
+  reaction,
 }: {
   state: GameState;
   index: number;
@@ -71,6 +103,8 @@ function PlayerChip({
   presence?: string | null;
   /** Phones: all players in one row, so only the name and pieces. */
   compact?: boolean;
+  /** Online: the player's latest quick reaction. */
+  reaction?: { text: string; at: number };
 }) {
   const player = state.players[index]!;
   const pieces = state.pieces.filter((p) => p.owner === index);
@@ -123,6 +157,7 @@ function PlayerChip({
           </Text>
         ) : null}
       </View>
+      {reaction && <ReactionBubble key={reaction.at} text={reaction.text} at={reaction.at} />}
     </View>
   );
 }
@@ -217,6 +252,11 @@ export default function GameScreen() {
   /** Coins this online game paid (arrives just after it ends). */
   const reward = useOnlineStore((s) => s.reward);
   const leaveOnline = useOnlineStore((s) => s.leave);
+  const reactions = useOnlineStore((s) => s.reactions);
+  const sendReaction = useOnlineStore((s) => s.react);
+  const rematch = useOnlineStore((s) => s.rematch);
+  const rematchSeats = useOnlineStore((s) => s.room?.rematch);
+  const [reactOpen, setReactOpen] = useState(false);
   const timings = useTimings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const online = mode === 'online';
@@ -343,6 +383,18 @@ export default function GameScreen() {
     if (s.connected === false) return t.offline;
     return null;
   };
+  /** A player's most recent reaction (online), for the bubble under their name. */
+  const latestReaction = (seatNo: number) => {
+    if (!online) return undefined;
+    const r = [...reactions].reverse().find((x) => x.seat === seatNo);
+    return r ? { text: t.reaction[r.id], at: r.at } : undefined;
+  };
+  // After an online game: who still has to agree to play again.
+  const iWantRematch = mySeat !== null && !!rematchSeats?.includes(mySeat);
+  const rematchWaitingFor = (onlineSeats ?? [])
+    .filter((x) => x.kind === 'human' && x.connected !== false && !rematchSeats?.includes(x.seat))
+    .map((x) => x.name ?? '')
+    .join(', ');
   const leaveOnlineGame = () => {
     setSettingsOpen(false);
     leaveOnline();
@@ -404,7 +456,7 @@ export default function GameScreen() {
   const players = (
     <View style={[styles.players, wide ? styles.playersWide : styles.playersRow]}>
       {game.players.map((p) => (
-        <PlayerChip key={p.index} state={named} index={p.index} t={t} presence={presenceOf(p.seat)} compact={!wide} />
+        <PlayerChip key={p.index} state={named} index={p.index} t={t} presence={presenceOf(p.seat)} compact={!wide} reaction={latestReaction(p.seat)} />
       ))}
     </View>
   );
@@ -532,6 +584,11 @@ export default function GameScreen() {
           backLabel={t.back}
           right={
             <>
+              {online && (
+                <IconButton label={t.reactTitle} onPress={() => setReactOpen(true)} size={40}>
+                  <Text style={styles.reactGlyph}>😊</Text>
+                </IconButton>
+              )}
               <IconButton label={t.rules} onPress={() => router.push('/rules')} size={40}>
                 <Text style={styles.iconGlyph}>?</Text>
               </IconButton>
@@ -569,6 +626,25 @@ export default function GameScreen() {
         )}
       </ScrollView>
 
+      <Popup visible={reactOpen} onClose={() => setReactOpen(false)} closeLabel={t.close} title={t.reactTitle}>
+        <View style={styles.reactGrid}>
+          {REACTIONS.map((id) => (
+            <Pressable
+              key={id}
+              onPress={() => {
+                sendReaction(id);
+                setReactOpen(false);
+              }}
+              style={({ pressed }) => [styles.reactButton, PHRASE_REACTIONS.has(id) && styles.reactPhrase, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t.reaction[id]}
+            >
+              <Text style={PHRASE_REACTIONS.has(id) ? styles.reactPhraseText : styles.reactEmoji}>{t.reaction[id]}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Popup>
+
       <Popup visible={settingsOpen} onClose={() => setSettingsOpen(false)} closeLabel={t.close} title={t.settings}>
         <ScrollView style={{ maxHeight: height * 0.6 }} bounces={false}>
           <SettingsPanel />
@@ -604,9 +680,21 @@ export default function GameScreen() {
               </View>
             )}
             {online ? (
-              <Pressable style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]} onPress={leaveOnlineGame}>
-                <Text style={styles.bigButtonText}>{t.backToStart}</Text>
-              </Pressable>
+              <>
+                {iWantRematch ? (
+                  <View style={styles.waitingRow}>
+                    <ActivityIndicator color={colors.chalk} size="small" />
+                    <Text style={styles.dialogText}>{t.waitingForRematch(rematchWaitingFor)}</Text>
+                  </View>
+                ) : (
+                  <Pressable style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]} onPress={rematch} accessibilityRole="button">
+                    <Text style={styles.bigButtonText}>{t.playAgain}</Text>
+                  </Pressable>
+                )}
+                <Pressable style={styles.dialogSecondary} onPress={leaveOnlineGame} accessibilityRole="button">
+                  <Text style={styles.dialogSecondaryText}>{t.backToStart}</Text>
+                </Pressable>
+              </>
             ) : (
               <>
                 <Pressable style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]} onPress={restart}>
@@ -706,6 +794,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     paddingVertical: 5,
   },
+  reactGlyph: { fontSize: 20 },
+  reactGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', paddingVertical: space.sm },
+  reactButton: {
+    minWidth: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(246, 215, 123, 0.35)',
+  },
+  reactPhrase: { paddingHorizontal: 16, height: 46, borderRadius: 23 },
+  reactEmoji: { fontSize: 28 },
+  reactPhraseText: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  bubble: {
+    position: 'absolute',
+    top: '100%',
+    marginTop: 4,
+    alignSelf: 'center',
+    zIndex: 30,
+    backgroundColor: '#FFF6D6',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1.5,
+    borderColor: '#F6D77B',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
+  bubbleText: { color: '#2A2208', fontSize: 15, fontWeight: '800' },
+  waitingRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, justifyContent: 'center', paddingVertical: space.sm },
   undoText: { color: colors.chalk, fontSize: 13.5, fontWeight: '700' },
   timer: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: 'rgba(0,0,0,0.3)' },
   timerUrgent: { backgroundColor: colors.danger },

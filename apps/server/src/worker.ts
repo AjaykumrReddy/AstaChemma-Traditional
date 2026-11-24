@@ -17,7 +17,7 @@ import { handleApi, userIdForToken, type ApiEnv } from './api';
 import { freshCode } from './codes';
 import { Matchmaker as MatchmakerBase } from './matchmaker';
 import { Sentry, reportError, sentryOptions, type SentryEnv } from './sentry';
-import { deleteAccountPage, homePage, privacyPage } from './pages';
+import { deleteAccountPage, homePage, joinPage, privacyPage } from './pages';
 
 // Durable Object classes must be exported from the Worker's main module (wrapped for error reports).
 export const Matchmaker = Sentry.instrumentDurableObjectWithSentry(sentryOptions, MatchmakerBase);
@@ -73,6 +73,12 @@ export default Sentry.withSentry(sentryOptions, {
     }
     if (url.pathname === '/delete-account') return deleteAccountPage(env.SUPPORT_EMAIL || undefined);
     if (url.pathname === '/privacy') return privacyPage(env.SUPPORT_EMAIL || undefined);
+    // A shared room invite: opens the app in that room.
+    const invite = url.pathname.match(/^\/join\/([^/]+)$/);
+    if (invite) {
+      const inviteCode = normaliseCode(decodeURIComponent(invite[1]!));
+      if (isValidCode(inviteCode)) return joinPage(inviteCode);
+    }
     const api = await handleApi(request, env, url);
     if (api) return api;
 
@@ -342,6 +348,8 @@ class GameRoomBase extends DurableObject<Env> {
 
       const room = this.load();
       if (!room || !att.memberId) return fail('not-in-room', 'Join a room first.');
+      // Reactions are passed straight on: nothing to save.
+      if (message.t === 'react') return room.react(att.memberId, message.id);
       switch (message.t) {
         case 'seat':
           room.setSeat(att.memberId, message.seat, message.kind, message.level);
@@ -354,6 +362,9 @@ class GameRoomBase extends DurableObject<Env> {
           break;
         case 'move':
           room.move(att.memberId, message.moveId);
+          break;
+        case 'rematch':
+          room.rematch(att.memberId);
           break;
         case 'leave':
           room.leave(att.memberId);

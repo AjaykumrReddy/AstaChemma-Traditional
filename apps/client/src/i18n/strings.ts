@@ -1,5 +1,5 @@
 import type { BotLevel, PieceKind, Seat } from '@asta/engine';
-import type { ErrorCode, ShopKind } from '@asta/protocol';
+import type { ErrorCode, ReactionId, ShopKind } from '@asta/protocol';
 import type { TutorialKey } from '../tutorial/steps';
 
 export type Lang = 'en' | 'te';
@@ -148,7 +148,12 @@ export interface Strings {
   reconnecting: string;
   roomCode: string;
   shareCode: string;
-  shareMessage: (code: string) => string;
+  shareMessage: (code: string, link: string) => string;
+  /** Quick reactions in online games: the emoji or short phrase shown. */
+  reaction: Record<ReactionId, string>;
+  reactTitle: string;
+  /** After an online game: waiting for these players to agree to play again. */
+  waitingForRematch: (names: string) => string;
   openSeat: string;
   addComputer: string;
   removeComputer: string;
@@ -422,7 +427,22 @@ const en: Strings = {
   reconnecting: 'Connection lost – reconnecting…',
   roomCode: 'Room code',
   shareCode: 'Share code',
-  shareMessage: (code) => `Join my Asta Chemma game! Open the app, tap “Play online”, and enter the room code ${code}`,
+  shareMessage: (code, link) => `Join my Asta Chemma game! Tap to join: ${link}
+(or open the app, tap “Play Online” and enter the room code ${code})`,
+  reaction: {
+    thumbs: '👍',
+    laugh: '😄',
+    wow: '😮',
+    sad: '😢',
+    fire: '🔥',
+    pray: '🙏',
+    niceThrow: 'Nice throw!',
+    oops: 'Oops!',
+    yourTurn: 'Your turn!',
+    goodGame: 'Good game!',
+  },
+  reactTitle: 'Send a reaction',
+  waitingForRematch: (names) => `Waiting for ${names}…`,
   openSeat: 'Waiting for a player…',
   addComputer: 'Add computer',
   removeComputer: 'Remove',
@@ -785,7 +805,22 @@ const te: Strings = {
   reconnecting: 'కనెక్షన్ పోయింది – మళ్ళీ కలుపుతోంది…',
   roomCode: 'గది కోడ్',
   shareCode: 'కోడ్ పంపండి',
-  shareMessage: (code) => `నా అష్ట చెమ్మ ఆటలో చేరండి! యాప్ తెరిచి, “ఆన్‌లైన్‌లో ఆడండి” నొక్కి, ఈ గది కోడ్ ఇవ్వండి: ${code}`,
+  shareMessage: (code, link) => `నా అష్ట చెమ్మ ఆటలో చేరండి! చేరడానికి నొక్కండి: ${link}
+(లేదా యాప్ తెరిచి, “ఆన్‌లైన్ ఆట” నొక్కి, ఈ గది కోడ్ ఇవ్వండి: ${code})`,
+  reaction: {
+    thumbs: '👍',
+    laugh: '😄',
+    wow: '😮',
+    sad: '😢',
+    fire: '🔥',
+    pray: '🙏',
+    niceThrow: 'మంచి వేటు!',
+    oops: 'అయ్యో!',
+    yourTurn: 'మీ వంతు!',
+    goodGame: 'మంచి ఆట!',
+  },
+  reactTitle: 'ప్రతిస్పందన పంపండి',
+  waitingForRematch: (names) => `${names} కోసం ఎదురుచూస్తోంది…`,
   openSeat: 'ఆటగాడి కోసం ఎదురుచూస్తోంది…',
   addComputer: 'కంప్యూటర్ చేర్చండి',
   removeComputer: 'తీసేయండి',

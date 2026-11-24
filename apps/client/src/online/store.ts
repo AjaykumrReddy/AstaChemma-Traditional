@@ -6,6 +6,7 @@ import {
   type ClientMessage,
   type ErrorCode,
   type MatchServerMessage,
+  type ReactionId,
   type RoomView,
   type ServerMessage,
 } from '@asta/protocol';
@@ -47,6 +48,8 @@ interface OnlineStore {
   reward: { coins: number; won: boolean } | null;
   /** Quick match: when the current turn's time runs out (this device's clock), or null. */
   turnDeadline: number | null;
+  /** Reactions just received, newest last (each shows for a few seconds). */
+  reactions: { seat: Seat; id: ReactionId; at: number }[];
   /** Quick match: looking for another player (null when not searching). */
   search: { since: number; waiting: number } | null;
 
@@ -65,6 +68,10 @@ interface OnlineStore {
    */
   openGame(): void;
   setSeat(seat: Seat, kind: 'open' | 'bot', level?: BotLevel): void;
+  /** After a game: ready to play again with the same people. */
+  rematch(): void;
+  /** Send a quick reaction to everyone in the room. */
+  react(id: ReactionId): void;
   start(): void;
   /** Leave the room for good (the computer takes the seat mid-game). */
   leave(): void;
@@ -210,7 +217,9 @@ function handle(message: ServerMessage): void {
       const { room } = message;
       // The server says how long is left, so clocks needn't agree.
       const turnDeadline = room.turnEndsIn != null ? Date.now() + room.turnEndsIn : null;
-      store.setState({ room, turnDeadline });
+      // A new game after a rematch: the last game's coins are no longer news.
+      const again = store.getState().room?.status === 'finished' && room.status === 'playing';
+      store.setState({ room, turnDeadline, ...(again ? { reward: null } : {}) });
       // Only while the game screen is showing the online game (see openGame).
       if (room.status !== 'lobby' && useGameStore.getState().mode === 'online') {
         useGameStore.getState().receiveRoom(room);
@@ -230,6 +239,13 @@ function handle(message: ServerMessage): void {
       store.setState({ reward: { coins: message.coins, won: message.won } });
       // The new balance and stats.
       void useAccountStore.getState().ensure();
+      return;
+    }
+    case 'reaction': {
+      // Keep only the last few seconds' worth.
+      const now = Date.now();
+      const recent = store.getState().reactions.filter((r) => now - r.at < 4000);
+      store.setState({ reactions: [...recent, { seat: message.seat, id: message.id, at: now }] });
       return;
     }
     case 'left':
@@ -369,6 +385,7 @@ export const useOnlineStore = create<OnlineStore>()(
       error: null,
       reward: null,
       turnDeadline: null,
+      reactions: [],
       search: null,
 
       setName(name) {
@@ -422,6 +439,14 @@ export const useOnlineStore = create<OnlineStore>()(
         send({ t: 'seat', seat, kind, level });
       },
 
+      rematch() {
+        send({ t: 'rematch' });
+      },
+
+      react(id) {
+        send({ t: 'react', id });
+      },
+
       start() {
         send({ t: 'start' });
       },
@@ -434,7 +459,7 @@ export const useOnlineStore = create<OnlineStore>()(
       forget() {
         stayConnected = false;
         closeSocket();
-        set({ session: null, room: null, status: 'idle', reward: null, turnDeadline: null });
+        set({ session: null, room: null, status: 'idle', reward: null, turnDeadline: null, reactions: [] });
         useGameStore.getState().exitOnline();
       },
 

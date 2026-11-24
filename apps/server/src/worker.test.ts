@@ -82,6 +82,7 @@ async function connect(path: string) {
     welcome: () => next((m): m is Extract<ServerMessage, { t: 'welcome' }> => m.t === 'welcome'),
     reward: () => next((m): m is Extract<ServerMessage, { t: 'reward' }> => m.t === 'reward', 10_000),
     error: () => next((m): m is Extract<ServerMessage, { t: 'error' }> => m.t === 'error'),
+    reaction: () => next((m): m is Extract<ServerMessage, { t: 'reaction' }> => m.t === 'reaction'),
     close: () => socket.close(),
     /** Go quiet without closing, like a phone that lost signal. */
     goSilent: () => clearInterval(pinger),
@@ -274,7 +275,23 @@ describe('play', () => {
     expect(final.game?.winners).toHaveLength(1);
     // The finished state reached the guest too.
     expect((await guest.settled()).status).toBe('finished');
+
+    // Both ask to play again: a new game starts with the same players.
+    host.send({ t: 'rematch' });
+    expect((await guest.room((r) => !!r.rematch?.length)).rematch).toEqual([0]);
+    guest.send({ t: 'rematch' });
+    const again = await host.room((r) => r.status === 'playing');
+    expect(again.game?.phase).toBe('awaitingThrow');
+    expect(again.seats.map((x) => x.name)).toEqual(['Asha', 'Ravi']);
   }, 180_000);
+
+  it('passes quick reactions on to everyone in the room, and ignores unknown ones', async () => {
+    const { host, guest } = await twoPlayerGame();
+    guest.send({ t: 'react', id: 'niceThrow' });
+    expect(await host.reaction()).toEqual({ t: 'reaction', seat: 2, id: 'niceThrow' });
+    host.send({ t: 'react', id: 'free text is not allowed' });
+    expect((await host.error()).code).toBe('bad-message');
+  });
 });
 
 describe('connections', () => {
@@ -872,5 +889,16 @@ describe('boards', () => {
     old.queue('Old', { protocol: 1, board: '7x7' });
     expect((await old.error()).code).toBe('version');
     old.close();
+  });
+});
+
+describe('invite links', () => {
+  it('serves a page that opens the app in the room, and ignores bad codes', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/join/kq7m`);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('intent://join/KQ7M#Intent;scheme=astachemma;package=com.astachemma.app');
+    expect(html).toContain('<div class="code">KQ7M</div>');
+    expect((await fetch(`http://127.0.0.1:${port}/join/not-a-code`)).status).toBe(404);
   });
 });

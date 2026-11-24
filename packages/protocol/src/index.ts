@@ -78,6 +78,8 @@ export interface RoomView {
   quick?: boolean;
   /** Milliseconds left for the current player's throw or move (rooms with a turn timer). */
   turnEndsIn?: number | null;
+  /** After a game: the seats whose players are ready to play again. */
+  rematch?: Seat[];
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +151,20 @@ export function isAcceptableName(name: string): boolean {
   return !BLOCKED_NAME_PARTS.some((part) => flat.includes(part));
 }
 
+/**
+ * Quick reactions players can send during an online game: a fixed set, shown
+ * in each player's own language, so there is nothing free-form to moderate.
+ */
+export const REACTIONS = ['thumbs', 'laugh', 'wow', 'sad', 'fire', 'pray', 'niceThrow', 'oops', 'yourTurn', 'goodGame'] as const;
+export type ReactionId = (typeof REACTIONS)[number];
+
+export function isReactionId(value: unknown): value is ReactionId {
+  return typeof value === 'string' && (REACTIONS as readonly string[]).includes(value);
+}
+
+/** At most one reaction per player this often. */
+export const REACTION_GAP_MS = 1500;
+
 export type ClientMessage =
   /** `account`: the player's session token, so results count towards their profile (optional). */
   | { t: 'create'; protocol: number; name: string; mode: GameMode; players: 2 | 3 | 4; account?: string; board?: BoardId }
@@ -162,6 +178,10 @@ export type ClientMessage =
   | { t: 'move'; moveId: string }
   /** Leave the room for good (a computer takes over the seat in a game). */
   | { t: 'leave' }
+  /** After a game: ready to play again with the same people (starts once everyone is). */
+  | { t: 'rematch' }
+  /** A quick reaction for the others to see (one of REACTIONS; no free text). */
+  | { t: 'react'; id: ReactionId }
   | { t: 'ping' };
 
 export type ErrorCode =
@@ -186,6 +206,8 @@ export type ServerMessage =
   | { t: 'error'; code: ErrorCode; message: string }
   | { t: 'left' }
   | { t: 'pong' }
+  /** Someone in the room reacted (shown briefly by their name). */
+  | { t: 'reaction'; seat: Seat; id: ReactionId }
   /** A finished game paid you coins (signed-in players only). */
   | GameRewardMessage;
 
@@ -422,9 +444,14 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       const moveId = str('moveId');
       return moveId ? { t: 'move', moveId } : null;
     }
+    case 'react': {
+      const id = str('id');
+      return id && isReactionId(id) ? { t: 'react', id } : null;
+    }
     case 'start':
     case 'throw':
     case 'leave':
+    case 'rematch':
     case 'ping':
       return { t: data.t };
     default:

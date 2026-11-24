@@ -1,6 +1,6 @@
 import type { GameMode } from '@asta/engine';
 import { CODE_LENGTH, MAX_NAME_LENGTH, isAcceptableName } from '@asta/protocol';
-import { useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,7 +29,9 @@ export default function OnlineScreen() {
 
   const [mode, setMode] = useState<GameMode>('individual');
   const [players, setPlayers] = useState<2 | 3 | 4>(2);
-  const [code, setCode] = useState('');
+  // An invite link may arrive here with the room code filled in.
+  const params = useLocalSearchParams<{ code?: string }>();
+  const [code, setCode] = useState(() => (params.code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LENGTH));
   const [nameMissing, setNameMissing] = useState(false);
 
   useEffect(() => clearError(), [clearError]);

@@ -9,6 +9,7 @@ import { TopBar } from '../components/Chrome';
 import { SeatMark } from '../components/SeatMark';
 import { Segmented } from '../components/Segmented';
 import { useStrings, type Strings } from '../i18n';
+import { inviteLink } from '../online/config';
 import { useOnlineStore } from '../online/store';
 import { colors, radius, space } from '../theme';
 
@@ -115,7 +116,7 @@ export default function LobbyScreen() {
           </Text>
           <Pressable
             style={({ pressed }) => [styles.shareButton, pressed && styles.pressed]}
-            onPress={() => Share.share({ message: t.shareMessage(room.code) }).catch(() => {})}
+            onPress={() => Share.share({ message: t.shareMessage(room.code, inviteLink(room.code)) }).catch(() => {})}
             accessibilityRole="button"
           >
             <Text style={styles.primaryText}>{t.shareCode}</Text>

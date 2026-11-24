@@ -263,3 +263,70 @@ describe('persistence', () => {
     expect(room.isExpired()).toBe(true);
   });
 });
+
+/** A two-player room whose game has just ended (Asha won). */
+function finishedRoom() {
+  const s = setup(2);
+  const a = s.join('Asha');
+  const b = s.join('Ravi');
+  s.room.start(a.id);
+  const d = s.room.data;
+  d.game = { ...d.game!, phase: 'finished', winners: [0] };
+  d.status = 'finished';
+  d.recorded = true;
+  return { ...s, a, b };
+}
+
+describe('after a game', () => {
+  it('starts a new game once everyone still here wants to play again', () => {
+    const { room, a, b, last } = finishedRoom();
+    const firstStart = room.data.startedAt;
+    room.rematch(a.id);
+    expect(room.data.status).toBe('finished'); // still waiting for Ravi
+    expect(last(b.id).room.rematch).toEqual([0]);
+    room.rematch(b.id);
+    expect(room.data.status).toBe('playing');
+    expect(room.data.game!.phase).toBe('awaitingThrow');
+    expect(room.data.recorded).toBe(false);
+    expect(room.data.startedAt).toBeGreaterThanOrEqual(firstStart!);
+    expect(room.view().rematch).toBeUndefined();
+    expect(room.view().seats.map((s) => [s.kind, s.name])).toEqual([
+      ['human', 'Asha'],
+      ['human', 'Ravi'],
+    ]);
+  });
+
+  it('plays on against the computer if the other player leaves instead', () => {
+    const { room, a, b } = finishedRoom();
+    room.rematch(a.id);
+    room.leave(b.id);
+    expect(room.data.status).toBe('playing');
+    expect(room.view().seats[1]).toMatchObject({ kind: 'bot', name: 'Ravi' });
+    expect(room.data.game!.players.find((p) => p.seat === 2)?.bot).toBeTruthy();
+  });
+
+  it('only allows playing again once the game is over', () => {
+    const { join, room } = setup(2);
+    const a = join('Asha');
+    join('Ravi');
+    room.start(a.id);
+    expect(() => room.rematch(a.id)).toThrowError(expect.objectContaining({ code: 'illegal' }));
+  });
+});
+
+describe('reactions', () => {
+  it('passes a reaction on to everyone, but not too often', () => {
+    const { join, room, inbox, advance } = setup(2);
+    const a = join('Asha');
+    const b = join('Ravi');
+    const reactions = (id: string) => (inbox.get(id) ?? []).filter((m) => m.t === 'reaction');
+    room.react(a.id, 'thumbs');
+    expect(reactions(b.id)).toEqual([{ t: 'reaction', seat: 0, id: 'thumbs' }]);
+    expect(reactions(a.id)).toHaveLength(1); // the sender sees it too
+    room.react(a.id, 'laugh'); // too soon: ignored
+    expect(reactions(b.id)).toHaveLength(1);
+    advance(2000);
+    room.react(a.id, 'laugh');
+    expect(reactions(b.id)).toHaveLength(2);
+  });
+});
