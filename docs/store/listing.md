@@ -39,7 +39,7 @@ ribbon on the name). The name under the icon on the phone stays "Asta Chemma" (`
 ## Full description – English (max 4000)
 
 ```
-Asta Chemma Traditional (అష్ట చెమ్మ) is the traditional board game played in Telugu homes with cowrie shells and a chalk-drawn 5×5 board – now made for your phone, with the true house rules.
+Asta Chemma Traditional (అష్ట చెమ్మ) is the traditional board game played in Telugu homes with cowrie shells and a chalk-drawn board – now made for your phone, with the true house rules. Play on the classic 5×5 board or the big 7×7 one.
 
 HOW IT PLAYS
 • Throw five cowrie shells and count how many land open: 1, 2, 3, 4 or 8.
@@ -50,9 +50,10 @@ HOW IT PLAYS
 
 PLAY YOUR WAY
 • Against the computer – easy, medium or hard.
-• Pass & Play – family and friends on one phone, 2 to 4 players or 2 v 2 teams.
+• Pass & Play – family and friends on one phone, 2 to 4 players or 2 v 2 teams. Sitting face to face? Each side gets its own throwing mat.
 • Online with friends – create a room, share the 4-letter code and play together on your own phones. Everyone sees their own side at the bottom. Lost your connection? Rejoin and carry on – the computer keeps your seat warm.
 • Quick match – no code needed: tap "Find a player" and play someone online right away.
+• Two boards – the classic 5×5 or the big 7×7, for any game, online too.
 
 LEARN AS YOU PLAY
 New to Asta Chemma? A short guided game teaches every rule as you play, and How to play explains it all with pictures.
