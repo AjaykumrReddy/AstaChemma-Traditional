@@ -331,15 +331,16 @@ export default function GameScreen() {
     return () => clearTimeout(timer);
   }, [game, busy, current, autoMove, throwShells, move, timings, settingsOpen, tutorial, online, humanTurn]);
 
-  // First tap selects a piece and shows where it can go; a second tap moves it
-  // when it has a single option, otherwise the player taps the square.
+  // One tap moves a piece that can go to only one square. A piece with a choice
+  // of squares is selected instead (its squares light up) and the player taps one.
   const onPiecePress = useCallback(
     (pieceId: string) => {
-      if (selected !== pieceId) return select(pieceId);
+      if (!game) return;
       const options = movable.filter((m) => m.pieceId === pieceId);
-      if (options.length === 1) move(options[0]!.id);
+      if (options.length > 0 && distinctMoves(game, options).length === 1) return move(options[0]!.id);
+      if (selected !== pieceId) return select(pieceId);
     },
-    [selected, movable, move, select],
+    [game, selected, movable, move, select],
   );
 
   const onCellPress = useCallback(

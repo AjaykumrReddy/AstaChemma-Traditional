@@ -4,10 +4,10 @@ import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-n
 import type { BoardEffect } from '../feedback/effects';
 import { useStrings } from '../i18n';
 import { useGameStore } from '../store/game';
-import { seatShapes } from '../theme';
+import { seatColors, seatShapes } from '../theme';
 import { BoardDrawing } from './BoardDrawing';
 import { BoardEffects } from './Effects';
-import { ORIGIN, VIEW_PAD, geometryFor, viewSeat, type Geometry, type Point } from './boardGeometry';
+import { ORIGIN, VIEW_PAD, YARD_RADIUS, geometryFor, viewSeat, type Geometry, type Point } from './boardGeometry';
 import { PieceView } from './PieceView';
 
 /**
@@ -81,6 +81,57 @@ function placePieces(state: GameState, view: Seat, geo: Geometry): PlacedPiece[]
     });
   }
   return placed;
+}
+
+/**
+ * Whose turn it is: a soft glow in the player's colour pulsing around their
+ * starting area, behind the board (so it shows as a halo round the half-circle).
+ */
+function TurnGlow({ seat, view, geo, unit, px }: { seat: Seat; view: Seat; geo: Geometry; unit: number; px: (v: number) => number }) {
+  const [pulse] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    pulse.setValue(0);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 850, easing: Easing.inOut(Easing.sin), useNativeDriver }),
+        Animated.timing(pulse, { toValue: 0, duration: 850, easing: Easing.inOut(Easing.sin), useNativeDriver }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse, seat]);
+  const c = geo.rotateToSeat({ x: geo.mid, y: geo.gridEnd }, viewSeat(seat, view));
+  const fill = seatColors[seat].fill;
+  // Three soft rings, strongest nearest the yard.
+  const rings = [
+    { r: YARD_RADIUS + 0.2, opacity: [0.6, 0.95] },
+    { r: YARD_RADIUS + 0.5, opacity: [0.3, 0.6] },
+    { r: YARD_RADIUS + 0.85, opacity: [0.12, 0.3] },
+  ];
+  return (
+    <>
+      {rings.map(({ r, opacity }) => {
+        const radius = r * unit;
+        return (
+          <Animated.View
+            key={r}
+            style={{
+              position: 'absolute',
+              pointerEvents: 'none',
+              left: px(c.x) - radius,
+              top: px(c.y) - radius,
+              width: radius * 2,
+              height: radius * 2,
+              borderRadius: radius,
+              backgroundColor: fill,
+              opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: opacity }),
+              transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1.06] }) }],
+            }}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 export interface BoardProps {
@@ -170,15 +221,20 @@ function BoardView({
 
   return (
     <Animated.View style={{ width: size, height: size, transform: [{ translateX: shakeX }] }}>
-      <BoardDrawing
-        players={state.players}
-        currentSeat={currentSeat}
-        destinations={destinations}
-        strong={selected !== null}
-        size={size}
-        view={view}
-        board={board}
-      />
+      {/* Behind the drawing: the glow around the starting area of whoever's turn it is. */}
+      {currentSeat !== null && <TurnGlow seat={currentSeat} view={view} geo={geo} unit={unit} px={px} />}
+      {/* Its own layer, so the glow stays behind it on every platform. */}
+      <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+        <BoardDrawing
+          players={state.players}
+          currentSeat={currentSeat}
+          destinations={destinations}
+          strong={selected !== null}
+          size={size}
+          view={view}
+          board={board}
+        />
+      </View>
       <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none' }]}>
         {ordered.map(({ piece, seat, at, r }) => (
           <PieceView
