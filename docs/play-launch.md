@@ -72,8 +72,15 @@ From [`store/listing.md`](store/listing.md):
 Apps installed from Play are signed with **Google's** key, not the one our test APKs use, so
 Google sign-in needs that key's fingerprint too, or it fails with "Couldn't sign in".
 
-- [ ] Console → Test and release → Setup → **App signing** → copy the **App signing key
-  certificate SHA-1**.
+- [ ] Console → **Protected with Play → Play Store protection → Play app signing** (Google
+  keeps moving it; it was once under Setup → App signing) → copy the **App signing key
+  certificate SHA-1** – not the "Upload key" one shown on the same page. For this app it is
+  `2D:6D:4C:8D:AF:1D:A1:87:5B:2F:AA:94:61:F0:C4:4F:1E:DA:6A:4A`.
+  - Not sure? Check the app Play actually ships: Latest releases and bundles → a bundle →
+    **Downloads → Signed, universal APK**, then
+    `apksigner verify --print-certs <file>.apk` (Android SDK build-tools; needs Java) and use
+    its "Signer #1 certificate SHA-1". Sign-in error **10 (DEVELOPER_ERROR)** in Sentry means
+    this fingerprint is missing or wrong.
 - [ ] Google Cloud Console → APIs & Services → Credentials → **Create OAuth client ID** →
   Android, package `com.astachemma.app`, that SHA-1. (Keep the existing Android client for
   the test APKs, and the Web client whose id is in `wrangler.jsonc`.)
