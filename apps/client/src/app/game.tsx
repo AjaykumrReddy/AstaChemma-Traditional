@@ -15,9 +15,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Backdrop } from '../components/Backdrop';
 import { Board } from '../components/Board';
-import { CoinIcon } from '../components/CoinIcon';
 import { IconButton, Popup, TopBar } from '../components/Chrome';
 import { Confetti } from '../components/Effects';
+import { CoinCountUp, Fireworks } from '../components/Celebration';
 import { CoachCard } from '../components/CoachCard';
 import { SeatMark } from '../components/SeatMark';
 import { SettingsPanel } from '../components/SettingsPanel';
@@ -120,7 +120,14 @@ function PlayerChip({
         isCurrent && { borderColor: seat.fill, backgroundColor: `${seat.dark}CC`, shadowColor: seat.fill, shadowOpacity: 0.7, shadowRadius: 10, shadowOffset: { width: 0, height: 0 } },
       ]}
     >
-      {!compact && <SeatMark seat={player.seat} size={16} />}
+      {/* A round badge in the player's colour with their initial (and shape, for colour-blind players). */}
+      <View style={[styles.badgeDisc, compact && styles.badgeDiscCompact, { backgroundColor: seat.fill, borderColor: isCurrent ? '#FFFFFF' : seat.dark }]}>
+        {compact ? (
+          <Text style={[styles.badgeInitial, { color: player.seat === 0 ? '#2A2208' : '#FFFFFF' }]}>{[...player.name][0]?.toUpperCase() ?? ''}</Text>
+        ) : (
+          <SeatMark seat={player.seat} size={14} />
+        )}
+      </View>
       <View style={{ flexShrink: 1, minWidth: 0 }}>
         <Text style={[styles.chipName, compact && styles.chipNameCompact]} numberOfLines={1}>
           {isWinner ? '🏆 ' : ''}
@@ -360,14 +367,14 @@ export default function GameScreen() {
   if (!hydrated)
     return (
       <View style={styles.screen}>
-        <Backdrop />
+        <Backdrop variant="table" />
       </View>
     );
   // Online, the first update from the server may still be on its way.
   if (online && (!game || !current)) {
     return (
       <View style={[styles.screen, styles.centered]}>
-        <Backdrop />
+        <Backdrop variant="table" />
         <ActivityIndicator color={colors.chalk} />
         <Text style={styles.message}>{onlineStatus === 'reconnecting' ? t.reconnecting : t.connecting}</Text>
       </View>
@@ -426,6 +433,8 @@ export default function GameScreen() {
 
   const shown = displayState(game, animation);
   const winners = game.winners.map((i) => named.players[i]!.name);
+  /** The (first) winner's colour, for the win screen. */
+  const winnerColour = seatColors[game.players[game.winners[0] ?? 0]?.seat ?? 0].fill;
   // Undo: not mid-roll or mid-move, not in the guided game, and not once the game is won.
   // Never online: the dice are the server's.
   const canUndo = !online && undoCount > 0 && !busy && !tutorial && game.phase !== 'finished';
@@ -525,7 +534,7 @@ export default function GameScreen() {
   if (twoSided) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.sm }]}>
-        <Backdrop />
+        <Backdrop variant="table" />
         <View style={styles.twoSided}>
           {/* The top player's mat, turned to face them. */}
           <View style={[styles.panelWrap, styles.facingTop]}>{renderMat(2, topActive)}</View>
@@ -557,9 +566,10 @@ export default function GameScreen() {
         {game.phase === 'finished' && !animation && (
           <View style={styles.overlay}>
             <Confetti width={width} height={height} seed={game.turn} />
-            <View style={styles.dialog}>
+            <Fireworks width={width} height={height} colour={winnerColour} />
+            <View style={[styles.dialog, { borderColor: winnerColour }]}>
               <BouncingTrophy />
-              <Text style={styles.dialogTitle}>{t.won(winners.join(' & '))}</Text>
+              <Text style={[styles.dialogTitle, { color: winnerColour }]}>{t.won(winners.join(' & '))}</Text>
               <Text style={styles.dialogText}>{game.config.mode === 'team' ? t.winTeam : t.winSolo}</Text>
               <Pressable style={({ pressed }) => [styles.bigButton, styles.goldButton, pressed && styles.pressed]} onPress={restart}>
                 <Text style={styles.bigButtonText}>{t.playAgain}</Text>
@@ -576,7 +586,7 @@ export default function GameScreen() {
 
   return (
     <View style={styles.screen}>
-      <Backdrop />
+      <Backdrop variant="table" />
       <View style={{ paddingTop: insets.top }}>
         <TopBar
           // Online, the room code stays in view so it can be told to a friend who dropped out.
@@ -670,16 +680,12 @@ export default function GameScreen() {
       {game.phase === 'finished' && !animation && (
         <View style={styles.overlay}>
           <Confetti width={width} height={height} seed={game.turn} />
-          <View style={styles.dialog}>
+          <Fireworks width={width} height={height} colour={winnerColour} />
+          <View style={[styles.dialog, { borderColor: winnerColour }]}>
             <BouncingTrophy />
-            <Text style={styles.dialogTitle}>{t.won(winners.join(' & '))}</Text>
+            <Text style={[styles.dialogTitle, { color: winnerColour }]}>{t.won(winners.join(' & '))}</Text>
             <Text style={styles.dialogText}>{game.config.mode === 'team' ? t.winTeam : t.winSolo}</Text>
-            {online && reward && (
-              <View style={styles.rewardRow} accessibilityLabel={t.rewardEarned(reward.coins)}>
-                <CoinIcon size={30} />
-                <Text style={styles.rewardText}>{t.rewardEarned(reward.coins)}</Text>
-              </View>
-            )}
+            {online && reward && <CoinCountUp coins={reward.coins} label={t.rewardEarned} />}
             {online ? (
               <>
                 {iWantRematch ? (
@@ -743,8 +749,23 @@ const styles = StyleSheet.create({
   players: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, width: '100%', maxWidth: 620, justifyContent: 'center' },
   playersWide: { maxWidth: undefined },
   playersRow: { flexWrap: 'nowrap' },
-  chipCompact: { minWidth: 0, flexBasis: 0, flexGrow: 1, paddingHorizontal: space.sm, paddingVertical: 6 },
-  chipNameCompact: { fontSize: 13 },
+  chipCompact: { minWidth: 0, flexBasis: 0, flexGrow: 1, paddingHorizontal: space.sm, paddingVertical: 7, gap: 7 },
+  chipNameCompact: { fontSize: 15 },
+  badgeDisc: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  badgeDiscCompact: { width: 28, height: 28, borderRadius: 14 },
+  badgeInitial: { fontSize: 15, fontWeight: '900' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -759,7 +780,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: 150,
   },
-  chipName: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  chipName: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   chipMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   homeMother: { width: 11, height: 11, borderRadius: 6, borderWidth: 2 },
   homeChild: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5 },

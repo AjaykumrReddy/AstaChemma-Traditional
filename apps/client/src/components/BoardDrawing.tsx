@@ -130,6 +130,11 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
           <Stop offset="0" stopColor={b.petalLight} />
           <Stop offset="1" stopColor={b.petalDark} />
         </LinearGradient>
+        <LinearGradient id={`brass${u}`} x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor={b.goldLight} />
+          <Stop offset="0.45" stopColor={b.gold} />
+          <Stop offset="1" stopColor={b.goldDeep} />
+        </LinearGradient>
         <RadialGradient id={`goldDisc${u}`} cx="35%" cy="35%" r="70%">
           <Stop offset="0" stopColor={b.goldLight} />
           <Stop offset="1" stopColor={b.goldDeep} />
@@ -171,6 +176,25 @@ function BoardDrawingImpl({ players, currentSeat, destinations, strong, size, vi
       <Rect x={frameX + 0.05} y={frameX + 0.08} width={frameSize} height={frameSize} rx={0.16} fill={b.shadow} fillOpacity={0.4} />
       <Rect x={frameX} y={frameX} width={frameSize} height={frameSize} rx={0.16} fill={`url(#frame${u})`} stroke={b.frameEdge} strokeWidth={0.03} />
       <Rect x={frameX} y={frameX} width={frameSize} height={frameSize} rx={0.16} fill={`url(#frameSheen${u})`} />
+      {/* Brass corner plates with rivets, like an old carrom board. */}
+      {[0, 90, 180, 270].map((turn) => {
+        const mid = frameX + frameSize / 2;
+        return (
+          <G key={`brass${turn}`} transform={`rotate(${turn} ${mid} ${mid}) translate(${frameX} ${frameX})`}>
+            <Path
+              d="M 0 0.16 Q 0 0 0.16 0 L 0.56 0 L 0.46 0.2 L 0.2 0.2 L 0.2 0.46 L 0 0.56 Z"
+              fill={`url(#brass${u})`}
+              stroke={b.goldDeep}
+              strokeWidth={0.018}
+            />
+            <Path d="M 0.07 0.28 Q 0.07 0.07 0.28 0.07" fill="none" stroke={b.goldDeep} strokeOpacity={0.55} strokeWidth={0.014} />
+            <Circle cx={0.1} cy={0.1} r={0.048} fill={b.goldLight} stroke={b.goldDeep} strokeWidth={0.014} />
+            <Circle cx={0.088} cy={0.088} r={0.016} fill="#FFFFFF" fillOpacity={0.75} />
+            <Circle cx={0.38} cy={0.1} r={0.03} fill={b.goldLight} stroke={b.goldDeep} strokeWidth={0.01} />
+            <Circle cx={0.1} cy={0.38} r={0.03} fill={b.goldLight} stroke={b.goldDeep} strokeWidth={0.01} />
+          </G>
+        );
+      })}
       <Rect x={ORIGIN - 0.035} y={ORIGIN - 0.035} width={n + 0.07} height={n + 0.07} rx={0.05} fill={b.grout} stroke={b.gold} strokeWidth={0.025} strokeOpacity={0.8} />
 
       {/* Inlaid tiles: rings alternate light and dark from the outside in; the centre is home */}

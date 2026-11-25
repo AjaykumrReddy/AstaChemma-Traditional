@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 const useNativeDriver = Platform.OS !== 'web';
@@ -38,6 +38,23 @@ export function ModeTile({
   const [scale] = useState(() => new Animated.Value(1));
   const press = (to: number) => Animated.spring(scale, { toValue: to, useNativeDriver, speed: 40, bounciness: 8 }).start();
   const compact = height < 128;
+  const [faceWidth, setFaceWidth] = useState(0);
+  const [shine] = useState(() => new Animated.Value(0));
+
+  // Every few seconds a band of light sweeps across the tile (each tile at its own moment).
+  useEffect(() => {
+    const offset = [...id].reduce((n, ch) => n + ch.charCodeAt(0), 0) % 4;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(900 + offset * 1100),
+        Animated.timing(shine, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.quad), useNativeDriver }),
+        Animated.delay(4400 - offset * 1100),
+        Animated.timing(shine, { toValue: 0, duration: 0, useNativeDriver }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [id, shine]);
 
   return (
     <Animated.View style={[styles.wrap, { height, transform: [{ scale }] }]}>
@@ -51,7 +68,7 @@ export function ModeTile({
       >
         {/* Raised base, then the face on top of it */}
         <View style={[styles.base, { backgroundColor: colours.base }]} />
-        <View style={styles.face}>
+        <View style={styles.face} onLayout={(e) => setFaceWidth(e.nativeEvent.layout.width)}>
           <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none" viewBox="0 0 100 100">
             <Defs>
               <LinearGradient id={`tile-${id}`} x1="0" y1="0" x2="0" y2="1">
@@ -66,6 +83,14 @@ export function ModeTile({
             <Rect x="0" y="0" width="100" height="100" fill={`url(#tile-${id})`} />
             <Rect x="4" y="3" width="92" height="40" rx="8" fill={`url(#gloss-${id})`} />
           </Svg>
+          {faceWidth > 0 && (
+            <Animated.View
+              style={[
+                styles.shine,
+                { transform: [{ translateX: shine.interpolate({ inputRange: [0, 1], outputRange: [-80, faceWidth + 40] }) }, { rotate: '18deg' }] },
+              ]}
+            />
+          )}
           <View style={[styles.icon, compact && styles.iconCompact]}>{icon}</View>
           <Text style={[styles.title, compact && styles.titleCompact]} numberOfLines={1} adjustsFontSizeToFit>
             {title}
@@ -86,7 +111,26 @@ export function ModeTile({
 
 const RIM = '#F6D77B';
 const styles = StyleSheet.create({
-  wrap: { flex: 1 },
+  wrap: {
+    flex: 1,
+    // Lifted off the background.
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    borderRadius: 20,
+  },
+  shine: {
+    position: 'absolute',
+    pointerEvents: 'none',
+    top: '-30%',
+    bottom: '-30%',
+    left: 0,
+    width: 34,
+    backgroundColor: '#FFFFFF',
+    opacity: 0.22,
+  },
   press: { flex: 1 },
   base: { position: 'absolute', left: 0, right: 0, top: 8, bottom: 0, borderRadius: 20, borderWidth: 2.5, borderColor: '#B8913A' },
   face: {

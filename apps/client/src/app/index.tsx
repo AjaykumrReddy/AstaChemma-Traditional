@@ -90,9 +90,21 @@ function HeroMarbles({ size }: { size: number }) {
   );
 }
 
-/** Five cowries that bob gently, in front of the board. */
+/** Five cowries that bob gently in front of the board, and every few seconds hop and spin as if tossed. */
 function FloatingShells({ size }: { size: number }) {
   const [bob] = useState(() => new Animated.Value(0));
+  const [toss] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(3600),
+        Animated.timing(toss, { toValue: 1, duration: 750, easing: Easing.out(Easing.quad), useNativeDriver }),
+        Animated.timing(toss, { toValue: 0, duration: 0, useNativeDriver }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [toss]);
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
@@ -104,11 +116,11 @@ function FloatingShells({ size }: { size: number }) {
     return () => loop.stop();
   }, [bob]);
   const shells = [
-    { open: true, rotate: '-18deg', lift: 1 },
-    { open: false, rotate: '10deg', lift: -1 },
-    { open: true, rotate: '-4deg', lift: 1.4 },
-    { open: false, rotate: '16deg', lift: -1.2 },
-    { open: true, rotate: '-10deg', lift: 0.8 },
+    { open: true, rotate: '-18deg', lift: 1, hop: 1.0, spin: 1 },
+    { open: false, rotate: '10deg', lift: -1, hop: 1.3, spin: -1 },
+    { open: true, rotate: '-4deg', lift: 1.4, hop: 1.6, spin: 1 },
+    { open: false, rotate: '16deg', lift: -1.2, hop: 1.2, spin: -1 },
+    { open: true, rotate: '-10deg', lift: 0.8, hop: 0.9, spin: 1 },
   ];
   return (
     <View style={styles.shells}>
@@ -118,6 +130,9 @@ function FloatingShells({ size }: { size: number }) {
           style={{
             transform: [
               { translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -5 * s.lift] }) },
+              // The toss: up and back down, a full turn on the way.
+              { translateY: toss.interpolate({ inputRange: [0, 0.45, 0.8, 1], outputRange: [0, -size * 0.9 * s.hop, -size * 0.1, 0] }) },
+              { rotate: toss.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${360 * s.spin}deg`] }) },
               { rotate: s.rotate },
             ],
           }}
